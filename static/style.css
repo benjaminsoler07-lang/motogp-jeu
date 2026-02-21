@@ -1,4 +1,6 @@
-/* Fond général */
+/* ----------------------------
+   GLOBAL
+---------------------------- */
 body {
     background-color: #0d3b66;   /* Bleu profond */
     color: white;
@@ -13,7 +15,96 @@ body {
     margin-top: 50px;
 }
 
-/* Liste UL propre (sans puces) */
+/* ----------------------------
+   HEADER (TOPBAR) - COMPACT + DAMIER
+---------------------------- */
+.topbar {
+    position: relative;
+    overflow: hidden;
+    background-color: #0d3b66;
+    padding: 10px 16px;          /* beaucoup plus petit */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* Effet damier discret en arrière-plan */
+.topbar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.09;               /* subtil */
+    background-image:
+        linear-gradient(45deg, #ffffff 25%, transparent 25%),
+        linear-gradient(-45deg, #ffffff 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ffffff 75%),
+        linear-gradient(-45deg, transparent 75%, #ffffff 75%);
+    background-size: 34px 34px;
+    background-position: 0 0, 0 17px, 17px -17px, -17px 0px;
+    pointer-events: none;
+}
+
+/* Tout le contenu du header au-dessus du damier */
+.topbar > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* Bloc logo + titre */
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* SVG MotoGP réduit */
+.motogp-icon {
+    width: 120px;    /* réduit */
+    height: auto;
+    display: block;
+}
+
+/* Titre du site */
+.title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+/* Menu */
+.menu {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.menu a {
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+    opacity: 0.95;
+}
+
+.menu a:hover {
+    text-decoration: underline;
+    opacity: 1;
+}
+
+/* Flash messages */
+.flash {
+    margin: 12px auto 0;
+    max-width: 700px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+}
+
+/* ----------------------------
+   LISTE GP
+---------------------------- */
 .gp-list {
     list-style: none;
     padding: 0;
@@ -56,4 +147,35 @@ body {
 
 .gp-open a:hover {
     text-decoration: underline;
+}
+
+/* ----------------------------
+   RESPONSIVE (mobile)
+---------------------------- */
+@media (max-width: 700px) {
+    .topbar {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 12px;
+        gap: 8px;
+    }
+
+    .motogp-icon {
+        width: 110px;
+    }
+
+    .title {
+        font-size: 16px;
+    }
+
+    .menu {
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .gp-item {
+        font-size: 18px;
+    }
 }
