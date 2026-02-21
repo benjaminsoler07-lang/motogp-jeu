@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Accueil - Pronos MotoGP{% endblock %}
+
+{% block content %}
+  <h1>Bienvenue sur Pronos MotoGP 🏁</h1>
+  <p>Choisis un Grand Prix pour faire ton pronostic :</p>
+
+  <ul>
+    {% for w in weekends %}
+      <li>
+        <a href="{{ url_for('pronos', weekend_id=w.id) }}">{{ w.label }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}

@@ -1,0 +1,28 @@
+{
+  "season_year": 2026,
+  "timezone": "Europe/Paris",
+  "weekends": [
+    { "id": "thailande", "label": "GP de Thaïlande", "date": "03-01", "time": "08:00", "bonus_questions": [] },
+    { "id": "bresil", "label": "GP du Brésil", "date": "03-22", "time": null, "bonus_questions": [] },
+    { "id": "ameriques", "label": "GP des Amériques", "date": "03-29", "time": null, "bonus_questions": [] },
+    { "id": "qatar", "label": "GP du Qatar", "date": "04-12", "time": null, "bonus_questions": [] },
+    { "id": "espagne", "label": "GP d'Espagne", "date": "04-26", "time": null, "bonus_questions": [] },
+    { "id": "france", "label": "GP de France", "date": "05-10", "time": null, "bonus_questions": [] },
+    { "id": "catalogne", "label": "GP de Catalogne", "date": "05-17", "time": null, "bonus_questions": [] },
+    { "id": "italie", "label": "GP d'Italie", "date": "05-31", "time": null, "bonus_questions": [] },
+    { "id": "hongrie", "label": "GP de Hongrie", "date": "06-07", "time": null, "bonus_questions": [] },
+    { "id": "republique-tcheque", "label": "GP de République Tchèque", "date": "06-21", "time": null, "bonus_questions": [] },
+    { "id": "pays-bas", "label": "GP des Pays-Bas", "date": "06-28", "time": null, "bonus_questions": [] },
+    { "id": "allemagne", "label": "GP d'Allemagne", "date": "07-12", "time": null, "bonus_questions": [] },
+    { "id": "grande-bretagne", "label": "GP de Grande-Bretagne", "date": "08-09", "time": null, "bonus_questions": [] },
+    { "id": "aragon", "label": "GP d'Aragon", "date": "08-30", "time": null, "bonus_questions": [] },
+    { "id": "saint-marin", "label": "GP de Saint-Marin", "date": "09-13", "time": null, "bonus_questions": [] },
+    { "id": "autriche", "label": "GP d'Autriche", "date": "09-20", "time": null, "bonus_questions": [] },
+    { "id": "japon", "label": "GP du Japon", "date": "10-04", "time": null, "bonus_questions": [] },
+    { "id": "indonesie", "label": "GP d'Indonésie", "date": "10-11", "time": null, "bonus_questions": [] },
+    { "id": "australie", "label": "GP d'Australie", "date": "10-25", "time": null, "bonus_questions": [] },
+    { "id": "malaisie", "label": "GP de Malaisie", "date": "11-01", "time": null, "bonus_questions": [] },
+    { "id": "portugal", "label": "GP du Portugal", "date": "11-15", "time": null, "bonus_questions": [] },
+    { "id": "valence", "label": "GP de Valence", "date": "11-22", "time": null, "bonus_questions": [] }
+  ]
+}

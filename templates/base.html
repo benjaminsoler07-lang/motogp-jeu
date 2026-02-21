@@ -1,0 +1,40 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Pronos - MotoGP{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="logo racing">
+        <svg class="motogp-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
+          <polygon fill="#e10600" points="0,60 25,10 45,10 20,60" />
+          <polygon fill="#fff" points="50,60 75,10 95,10 70,60" />
+          <polygon fill="#e10600" points="100,60 125,10 145,10 120,60" />
+          <polygon fill="#fff" points="150,60 175,10 195,10 170,60" />
+        </svg>
+        <span class="title">Pronos - MotoGP</span>
+      </div>
+      <nav class="menu">
+        <a href="{{ url_for('home') }}">Accueil</a>
+        {% if name %}
+          <a href="{{ url_for('logout') }}">Déconnexion</a>
+        {% else %}
+          <a href="{{ url_for('login') }}">Connexion</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    <main>
+      {% with msgs = get_flashed_messages() %}
+        {% if msgs %}
+          <div class="flash">{{ msgs[-1] }}</div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

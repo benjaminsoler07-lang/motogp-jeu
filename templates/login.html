@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Connexion — MotoGP Jeu{% endblock %}
+{% block content %}
+  <h2>Choisis ton pseudo</h2>
+  <form method="post" class="card">
+    <label>Pseudo</label>
+    <input type="text" name="name" required />
+    <button class="btn">Continuer</button>
+  </form>
+{% endblock %}

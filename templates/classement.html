@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Classement — {{ w.label }}{% endblock %}
+{% block content %}
+  <h2>{{ w.label }} — Classement</h2>
+
+  {% if notice %}
+    <p class="notice">{{ notice }}</p>
+  {% else %}
+    <table class="classement">
+      <thead>
+        <tr>
+          <th>Joueur</th>
+          <th>Qualifications</th>
+          <th>Sprint</th>
+          <th>Grand Prix</th>
+          <th>Bonus</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.player }}</td>
+            <td>{{ r.q }}</td>
+            <td>{{ r.s }}</td>
+            <td>{{ r.gp }}</td>
+            <td>{{ r.bonus }}</td>
+            <td><strong>{{ r.total }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <p><a href="{{ url_for('pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos</a></p>
+{% endblock %}
