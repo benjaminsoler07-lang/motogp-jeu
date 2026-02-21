@@ -2,14 +2,24 @@
 {% block title %}Accueil - Pronos MotoGP{% endblock %}
 
 {% block content %}
-  <h1>Bienvenue sur Pronos MotoGP 🏁</h1>
-  <p>Choisis un Grand Prix pour faire ton pronostic :</p>
+  <div class="container">
+    <h1>Bienvenue sur Pronos MotoGP 🏁</h1>
+    <p>Choisis un Grand Prix pour faire ton pronostic :</p>
 
-  <ul>
-    {% for w in weekends %}
-      <li>
-        <a href="{{ url_for('pronos', weekend_id=w.id) }}">{{ w.label }}</a>
-      </li>
-    {% endfor %}
-  </ul>
+    <ul class="gp-list">
+      {% for w in weekends %}
+        <li class="gp-item
+            {% if w.status == 'past' %}gp-past{% endif %}
+            {% if w.status == 'closed' %}gp-closed{% endif %}
+            {% if w.status == 'open' %}gp-open{% endif %}
+        ">
+          {% if w.status == 'open' %}
+            <a href="{{ url_for('pronos', weekend_id=w.id) }}">{{ w.label }}</a>
+          {% else %}
+            {{ w.label }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
 {% endblock %}

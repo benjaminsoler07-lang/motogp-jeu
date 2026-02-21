@@ -1,12 +1,14 @@
-<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <!doctype html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Pronos - MotoGP{% endblock %}</title>
+
+    <!-- LIGNE CSS (on la garde ici) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
+
   <body>
     <header class="topbar">
       <div class="logo racing">
@@ -18,6 +20,7 @@
         </svg>
         <span class="title">Pronos - MotoGP</span>
       </div>
+
       <nav class="menu">
         <a href="{{ url_for('home') }}">Accueil</a>
         {% if name %}

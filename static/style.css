@@ -1,66 +1,59 @@
-/* --- Style global --- */
+/* Fond général */
 body {
-  margin: 0;
-  background-color: #f5f5f5;
-  font-family: 'Poppins', sans-serif;
-  color: #222;
+    background-color: #0d3b66;   /* Bleu profond */
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 0;
 }
 
-/* --- Bandeau supérieur --- */
-.topbar {
-  background-color: #000;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.8rem 1.8rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+/* Conteneur principal centré */
+.container {
+    margin-top: 50px;
 }
 
-/* --- Logo SVG MotoGP --- */
-.motogp-icon {
-  width: 90px;
-  height: auto;
-  margin-right: 10px;
-  transform: skewX(-10deg);
+/* Liste UL propre (sans puces) */
+.gp-list {
+    list-style: none;
+    padding: 0;
+    margin: 20px auto 0;
+    max-width: 600px;
 }
 
-/* --- Conteneur titre + logo --- */
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Ligne GP */
+.gp-item {
+    margin: 10px 0;
+    font-size: 20px;
 }
 
-/* --- Titre racing avec effet dynamique --- */
-.logo .title {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-style: italic;
-  font-weight: 900;
-  font-size: 1.8rem;
-  background: linear-gradient(90deg, #e10600, #ff5555, #ffffff, #e10600);
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: 1px;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-  animation: speed 4s linear infinite;
+/* GP passés */
+.gp-past {
+    text-decoration: line-through;
+    opacity: 0.6;
 }
 
-@keyframes speed {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 100% 50%;
-  }
+/* GP à venir non ouverts */
+.gp-closed {
+    color: grey;
+    opacity: 0.7;
 }
 
-/* --- Menu à droite --- */
-.menu a {
-  color: white;
-  margin-left: 1rem;
-  text-decoration: none;
-  font-weight
+/* Sécurité : si jamais il y a un <a> dans un gp-closed, on le désactive */
+.gp-closed a {
+    color: grey;
+    pointer-events: none;
+    cursor: default;
+    text-decoration: none;
+}
+
+/* GP ouverts */
+.gp-open a {
+    color: #ffd60a;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.gp-open a:hover {
+    text-decoration: underline;
+}

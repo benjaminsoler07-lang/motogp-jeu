@@ -1,5 +1,5 @@
 import os, json, uuid
-from datetime import timedelta
+from datetime import datetime, date, timedelta
 from flask import Flask, render_template, request, redirect, url_for, make_response, flash
 
 app = Flask(__name__)
@@ -88,7 +88,7 @@ def bootstrap_weekends():
             {
                 "id": "qatar",
                 "label": "GP du Qatar",
-                "date": "04-12",
+                "date": "04-12",   # format MM-DD
                 "time": None,
                 "bonus_questions": [
                     {"id": "b1", "label": "Un pilote Ducati sur le podium du GP ?", "type": "bool"},
@@ -109,6 +109,57 @@ def get_weekend(weekend_id):
             w.setdefault("bonus_questions", [])
             return w
     return None
+
+# ------------------ Statuts GP (past/closed/open) ------------------
+def get_season_year():
+    data = load_weekends_data()
+    y = data.get("season_year")
+    if isinstance(y, int):
+        return y
+    return date.today().year
+
+def parse_weekend_date(raw_date: str, season_year: int):
+    """
+    Supporte :
+    - "MM-DD" (ex: "04-12") -> date(season_year, 4, 12)
+    - "YYYY-MM-DD" (ex: "2026-04-12")
+    Retourne None si format invalide.
+    """
+    raw_date = (raw_date or "").strip()
+    if not raw_date:
+        return None
+
+    # cas "YYYY-MM-DD"
+    try:
+        return datetime.strptime(raw_date, "%Y-%m-%d").date()
+    except Exception:
+        pass
+
+    # cas "MM-DD"
+    try:
+        mm, dd = raw_date.split("-")
+        return date(season_year, int(mm), int(dd))
+    except Exception:
+        return None
+
+def weekend_status(weekend_date: date, open_days_before: int = 10):
+    """
+    past : week-end passé
+    open : ouverture dans une fenêtre (par défaut 10 jours avant la date)
+    closed : futur mais pas encore ouvert
+    """
+    if not weekend_date:
+        return "closed"  # par défaut, on considère non ouvert si date inconnue
+
+    today = date.today()
+    if weekend_date < today:
+        return "past"
+
+    open_from = weekend_date - timedelta(days=open_days_before)
+    if today >= open_from:
+        return "open"
+
+    return "closed"
 
 # ------------------ Identification simple (cookies) ------------------
 def current_player(req):
@@ -190,7 +241,20 @@ def results_path(weekend_id):
 @app.route("/")
 def home():
     name, _ = current_player(request)
-    weekends = load_weekends_list()
+
+    season_year = get_season_year()
+    weekends_raw = load_weekends_list()
+
+    weekends = []
+    for w in weekends_raw:
+        w2 = dict(w)  # copie pour ne pas modifier l'original
+        w_date = parse_weekend_date(w.get("date", ""), season_year)
+        w2["date_obj"] = w_date
+        w2["status"] = weekend_status(w_date, open_days_before=10)
+        weekends.append(w2)
+
+    weekends.sort(key=lambda x: x["date_obj"] or date.max)
+
     return render_template("index.html", name=name, weekends=weekends)
 
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
@@ -208,6 +272,7 @@ def pronos(weekend_id):
 
     if request.method == "POST":
         form = request.form
+
         # --- Anti-doublons (sécurité serveur) ---
         def has_duplicates(values):
             v = [x for x in values if x]
@@ -316,4 +381,3 @@ def classement_weekend(weekend_id):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
