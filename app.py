@@ -3,7 +3,7 @@ from datetime import timedelta
 from flask import Flask, render_template, request, redirect, url_for, make_response, flash
 
 app = Flask(__name__)
-app.secret_key = "dev-secret"  # à changer plus tard
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 app.permanent_session_lifetime = timedelta(days=365)
 
 DATA_DIR = "data"
