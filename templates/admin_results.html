@@ -1,3 +1,6 @@
+provided = request.args.get("key", "")
+if ADMIN_KEY and provided != ADMIN_KEY:
+    return "Accès admin refusé", 403
 {% extends 'base.html' %}
 {% block title %}Résultats officiels — {{ w.label }}{% endblock %}
 {% block content %}
