@@ -6,6 +6,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 app.permanent_session_lifetime = timedelta(days=365)
 
+# 🔐 Clé admin
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+
 DATA_DIR = "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
