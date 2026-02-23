@@ -309,6 +309,10 @@ def pronos(weekend_id):
 
 @app.route("/w/<weekend_id>/admin/results", methods=["GET", "POST"])
 def admin_results(weekend_id):
+        # 🔐 Protection admin
+    provided = request.args.get("key", "")
+    if ADMIN_KEY and provided != ADMIN_KEY:
+        return "Accès admin refusé", 403
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
