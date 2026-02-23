@@ -4,6 +4,15 @@
 {% block content %}
   <div class="container">
     <h1>Bienvenue sur Pronos MotoGP 🏁</h1>
+
+    <!-- ✅ Bouton Admin -->
+    <div style="margin: 12px 0;">
+      <a href="{{ url_for('admin_login') }}"
+         style="display:inline-block; padding:10px 14px; border-radius:10px; background:#ffffff22; color:white; text-decoration:none;">
+        🔐 Admin
+      </a>
+    </div>
+
     <p>Choisis un Grand Prix pour faire ton pronostic :</p>
 
     <ul class="gp-list">
