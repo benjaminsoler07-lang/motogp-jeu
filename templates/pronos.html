@@ -62,8 +62,9 @@
       </select>
     {% endfor %}
 
-    <button class="btn">💾 Enregistrer mes pronos</button>
-  </form>
+   <div class="sticky-save">
+  <button class="btn" type="submit">💾 Enregistrer mes pronos</button>
+</div>
 
   <p><a href="{{ url_for('classement_weekend', weekend_id=w.id) }}">Voir le classement</a></p>
 
