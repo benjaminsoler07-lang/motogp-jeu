@@ -260,3 +260,57 @@ main{
     font-size: 18px;
   }
 }
+/* ===== Forms / cards mobile friendly ===== */
+.card{
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.card h3{
+  margin-top: 18px;
+  margin-bottom: 10px;
+}
+
+/* Chaque label + select en bloc */
+.card label{
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+.card select, .card input{
+  width: 100%;
+}
+
+/* Bouton */
+.btn{
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  min-height: 48px;
+}
+
+/* Sticky save (mobile) */
+.sticky-save{
+  position: sticky;
+  bottom: 10px;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: 16px;
+  backdrop-filter: blur(6px);
+}
+
+/* Mobile refinements */
+@media (max-width: 600px){
+  .card{
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .card h3{
+    margin-top: 16px;
+  }
+}
