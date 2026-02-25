@@ -331,6 +331,45 @@ def admin_results(weekend_id):
 
     return render_template("admin_results.html", w=w, riders=RIDERS, results=results)
 
+@app.route("/w/<weekend_id>/admin/questions", methods=["GET", "POST"])
+def admin_questions(weekend_id):
+    provided = request.args.get("key", "")
+    if ADMIN_KEY and provided != ADMIN_KEY:
+        return "Accès admin refusé", 403
+
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    w = None
+    for ww in weekends:
+        if ww.get("id") == weekend_id:
+            w = ww
+            break
+    if not w:
+        return "Week-end inconnu", 404
+
+    # Garantir 2 questions avec IDs stables
+    w.setdefault("bonus_questions", [])
+    by_id = {q.get("id"): q for q in w["bonus_questions"] if isinstance(q, dict)}
+    q1 = by_id.get("b1", {"id": "b1", "label": "", "type": "bool"})
+    q2 = by_id.get("b2", {"id": "b2", "label": "", "type": "bool"})
+
+    if request.method == "POST":
+        q1["label"] = (request.form.get("b1_label") or "").strip()
+        q2["label"] = (request.form.get("b2_label") or "").strip()
+        # (optionnel) type si tu veux plus tard, pour l'instant bool
+        q1["type"] = "bool"
+        q2["type"] = "bool"
+
+        # Sauvegarde exactement 2 questions
+        w["bonus_questions"] = [q1, q2]
+        save_json(WEEKENDS_FILE, data)
+        flash("Questions bonus enregistrées ✅")
+        return redirect(url_for("admin_questions", weekend_id=weekend_id, key=provided))
+
+    # Affichage
+    return render_template("admin_questions.html", w=w, q1=q1, q2=q2, key=provided)
+
+
 # ------------------ Classement GP (détaillé) ------------------
 @app.route("/w/<weekend_id>/classement")
 def classement_weekend(weekend_id):
