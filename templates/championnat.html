@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Pronostic Championnat — MotoGP{% endblock %}
+{% block content %}
+
+<h2>Pronostic Championnat du Monde</h2>
+<p>Choisis le podium final (1er / 2e / 3e). Modifiable à volonté.</p>
+
+<form method="post" class="card">
+
+  <h3>Podium final</h3>
+
+  <label>🥇 Champion du monde</label>
+  <select name="wc_p1">
+    <option value="">--</option>
+    {% for r in riders %}
+      <option value="{{ r }}" {% if my.wc_p1==r %}selected{% endif %}>{{ r }}</option>
+    {% endfor %}
+  </select>
+
+  <label>🥈 Vice-champion</label>
+  <select name="wc_p2">
+    <option value="">--</option>
+    {% for r in riders %}
+      <option value="{{ r }}" {% if my.wc_p2==r %}selected{% endif %}>{{ r }}</option>
+    {% endfor %}
+  </select>
+
+  <label>🥉 3e du championnat</label>
+  <select name="wc_p3">
+    <option value="">--</option>
+    {% for r in riders %}
+      <option value="{{ r }}" {% if my.wc_p3==r %}selected{% endif %}>{{ r }}</option>
+    {% endfor %}
+  </select>
+
+  <div class="sticky-save">
+    <button class="btn" type="submit">
+      💾 Enregistrer mon pronostic championnat
+    </button>
+  </div>
+
+</form>
+
+{% endblock %}
