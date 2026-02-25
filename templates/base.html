@@ -23,6 +23,7 @@
 
       <nav class="menu">
         <a href="{{ url_for('home') }}">Accueil</a>
+        <a href="{{ url_for('championnat') }}">Championnat</a>
         {% if name %}
           <a href="{{ url_for('logout') }}">Déconnexion</a>
         {% else %}
