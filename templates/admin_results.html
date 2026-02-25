@@ -1,72 +1,24 @@
-provided = request.args.get("key", "")
-if ADMIN_KEY and provided != ADMIN_KEY:
-    return "Accès admin refusé", 403
-{% extends 'base.html' %}
-{% block title %}Résultats officiels — {{ w.label }}{% endblock %}
+{% extends "base.html" %}
+{% block title %}Admin — Questions bonus{% endblock %}
 {% block content %}
-  <h2>{{ w.label }}</h2>
-  <p>Entre ici les résultats officiels du week-end (toi seul y as accès).</p>
 
-  <form method="post" class="card">
-    <h3>Qualifications</h3>
-    <label>Pôle position :</label>
-    <select name="pole">
-      <option value="">--</option>
-      {% for r in riders %}
-        <option value="{{ r }}" {% if results.pole==r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
+<h2>Admin — Questions bonus</h2>
+<p><strong>{{ w.label }}</strong></p>
 
-    <label>Sortie Q1 - Pilote 1 :</label>
-    <select name="q1_1">
-      <option value="">--</option>
-      {% for r in riders %}
-        <option value="{{ r }}" {% if results.q1 and results.q1[0]==r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
+<form method="post" class="card">
+  <h3>Question bonus 1</h3>
+  <label>Texte :</label>
+  <input type="text" name="b1_label" value="{{ q1.label }}" placeholder="Ex: Un pilote Ducati sur le podium du GP ?">
 
-    <label>Sortie Q1 - Pilote 2 :</label>
-    <select name="q1_2">
-      <option value="">--</option>
-      {% for r in riders %}
-        <option value="{{ r }}" {% if results.q1 and results.q1[1]==r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
+  <h3>Question bonus 2</h3>
+  <label>Texte :</label>
+  <input type="text" name="b2_label" value="{{ q2.label }}" placeholder="Ex: Chute lors du sprint ?">
 
-    <h3>Sprint</h3>
-    {% for i in range(1,4) %}
-      <label>Position {{ i }} :</label>
-      <select name="sprint_p{{ i }}">
-        <option value="">--</option>
-        {% for r in riders %}
-          <option value="{{ r }}" {% if results.sprint and results.sprint[i-1]==r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    {% endfor %}
+  <button class="btn" type="submit">💾 Enregistrer</button>
+</form>
 
-    <h3>Grand Prix</h3>
-    {% for i in range(1,4) %}
-      <label>Position {{ i }} :</label>
-      <select name="gp_p{{ i }}">
-        <option value="">--</option>
-        {% for r in riders %}
-          <option value="{{ r }}" {% if results.gp and results.gp[i-1]==r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    {% endfor %}
+<p>
+  <a href="{{ url_for('admin_results', weekend_id=w.id, key=key) }}">→ Admin résultats</a>
+</p>
 
-    <h3>Questions bonus</h3>
-    {% for b in w.bonus_questions %}
-      <label>{{ b.label }}</label>
-      <select name="bonus_{{ b.id }}">
-        <option value="">--</option>
-        <option value="oui" {% if results.bonus[b.id]=='oui' %}selected{% endif %}>Oui</option>
-        <option value="non" {% if results.bonus[b.id]=='non' %}selected{% endif %}>Non</option>
-      </select>
-    {% endfor %}
-
-    <button class="btn">💾 Enregistrer les résultats officiels</button>
-  </form>
-
-  <p><a href="{{ url_for('classement_weekend', weekend_id=w.id) }}">➡️ Voir le classement</a></p>
 {% endblock %}
