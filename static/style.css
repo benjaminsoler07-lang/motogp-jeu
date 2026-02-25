@@ -179,3 +179,84 @@ body {
         font-size: 18px;
     }
 }
+
+/* ===== Mobile pack (global) ===== */
+* { box-sizing: border-box; }
+
+main{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Header plus souple */
+.topbar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.logo{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.title{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu{
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Tap targets */
+.menu a, button, .btn, input, select{
+  font-size: 16px;          /* évite zoom auto iOS */
+}
+
+.menu a{
+  padding: 10px 12px;
+  border-radius: 12px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Flash lisible */
+.flash{
+  margin: 12px auto;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+/* ===== Mobile layout ===== */
+@media (max-width: 600px){
+  main{ padding: 12px; }
+
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .menu{
+    justify-content: space-between;
+  }
+
+  .motogp-icon{
+    width: 88px;  /* si ton svg est trop grand */
+    height: auto;
+  }
+
+  .title{
+    font-size: 18px;
+  }
+}
