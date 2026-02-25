@@ -13,7 +13,7 @@
   <select name="wc_p1">
     <option value="">--</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if my.wc_p1==r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if my.get('wc_p1') == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -21,7 +21,7 @@
   <select name="wc_p2">
     <option value="">--</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if my.wc_p2==r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if my.get('wc_p2') == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -29,14 +29,12 @@
   <select name="wc_p3">
     <option value="">--</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if my.wc_p3==r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if my.get('wc_p3') == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
   <div class="sticky-save">
-    <button class="btn" type="submit">
-      💾 Enregistrer mon pronostic championnat
-    </button>
+    <button class="btn" type="submit">💾 Enregistrer mon pronostic championnat</button>
   </div>
 
 </form>
