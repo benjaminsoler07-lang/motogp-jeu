@@ -1,6 +1,4 @@
-
 #deploy fix 
-
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
@@ -214,6 +212,10 @@ def pronos_path(weekend_id):
 def results_path(weekend_id):
     return os.path.join(RESULTS_DIR, f"{weekend_id}.json")
 
+# ✅ ÉTAPE 1 (AJOUT) — Fichier pronos championnat
+def championnat_path():
+    return os.path.join(PRONOS_DIR, "championnat.json")
+
 # ------------------ Routes ------------------
 @app.route("/")
 def home():
@@ -255,6 +257,40 @@ def logout():
     resp.delete_cookie("player_name")
     resp.delete_cookie("player_id")
     return resp
+
+# ✅ ÉTAPE 1 (AJOUT) — Page pronostic championnat
+@app.route("/championnat", methods=["GET", "POST"])
+def championnat():
+    name, pid = current_player(request)
+    if not name:
+        return redirect(url_for("login"))
+
+    all_preds = load_json(championnat_path(), {})
+    my = all_preds.get(pid, {})
+
+    if request.method == "POST":
+        form = request.form
+        picks = [form.get("wc_p1"), form.get("wc_p2"), form.get("wc_p3")]
+
+        # anti doublons
+        v = [x for x in picks if x]
+        if len(set(v)) != len(v):
+            flash("Doublon détecté : tu ne peux pas mettre le même pilote 2 fois.")
+            return redirect(url_for("championnat"))
+
+        my = {
+            "player_name": name,
+            "wc_p1": form.get("wc_p1"),
+            "wc_p2": form.get("wc_p2"),
+            "wc_p3": form.get("wc_p3"),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        all_preds[pid] = my
+        save_json(championnat_path(), all_preds)
+        flash("Pronostic championnat enregistré ✅ (modifiable)")
+        return redirect(url_for("championnat"))
+
+    return render_template("championnat.html", riders=RIDERS, my=my, name=name)
 
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
 def pronos(weekend_id):
