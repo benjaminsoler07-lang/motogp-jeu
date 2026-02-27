@@ -1,4 +1,6 @@
-# app.py  — version corrigée + persistante PostgreSQL (pronos horodatés + écrasement + clôture)
+# app.py  — version corrigée + persistante PostgreSQL
+# + ADMIN intégré + "Clôturer & Publier les pronos" + page publique HTML
+
 import os, json, uuid
 from datetime import datetime, date, timedelta
 
@@ -64,6 +66,10 @@ def db_init():
             closed_at TIMESTAMPTZ NULL
         );
         """))
+        # ✅ Ajout colonnes (idempotent)
+        conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS pronos_public_at TIMESTAMPTZ NULL;"))
+        conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS results_published_at TIMESTAMPTZ NULL;"))
+
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS pronos (
             id SERIAL PRIMARY KEY,
@@ -101,6 +107,16 @@ def is_weekend_closed(weekend_id: str) -> bool:
         ).fetchone()
     return bool(row and row[0])
 
+def is_pronos_public(weekend_id: str) -> bool:
+    if not engine:
+        return False
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT pronos_public_at FROM weekends WHERE weekend_id=:w"),
+            {"w": weekend_id}
+        ).fetchone()
+    return bool(row and row[0])
+
 def close_weekend(weekend_id: str):
     if not engine:
         return
@@ -109,6 +125,20 @@ def close_weekend(weekend_id: str):
             INSERT INTO weekends (weekend_id, closed_at)
             VALUES (:w, NOW())
             ON CONFLICT (weekend_id) DO UPDATE SET closed_at = NOW()
+        """), {"w": weekend_id})
+
+def close_and_publish_pronos(weekend_id: str):
+    """Ta règle : dès la clôture, les pronos deviennent publics."""
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
+            VALUES (:w, NOW(), NOW())
+            ON CONFLICT (weekend_id)
+            DO UPDATE SET
+              closed_at = NOW(),
+              pronos_public_at = NOW()
         """), {"w": weekend_id})
 
 # ------------------ JSON helpers (fallback / historique) ------------------
@@ -188,12 +218,6 @@ def get_season_year():
     return date.today().year
 
 def parse_weekend_date(raw_date: str, season_year: int):
-    """
-    Supporte :
-    - "MM-DD" (ex: "04-12") -> date(season_year, 4, 12)
-    - "YYYY-MM-DD" (ex: "2026-04-12")
-    Retourne None si format invalide.
-    """
     raw_date = (raw_date or "").strip()
     if not raw_date:
         return None
@@ -240,18 +264,13 @@ def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
     a = [normalize(x) for x in (actual or [])]
 
     score = 0.0
-
-    # bien placés
     for i in range(3):
         if i < len(a) and p[i] and p[i] == a[i]:
             score += well_placed
-
-    # mal placés
     for i in range(3):
         if p[i] and p[i] in a and (i >= len(a) or p[i] != a[i]):
             score += mis_placed
 
-    # bonus
     if len(a) >= 3 and all(p[i] == a[i] for i in range(3)):
         score += bonus_exact
     elif len(a) >= 3 and set(p) == set(a):
@@ -269,7 +288,7 @@ def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
         if normalize(p) in real_set:
             score += 0.5
 
-    return score  # max 3
+    return score
 
 # ------------------ Fichiers pronos & résultats (fallback) ------------------
 def pronos_path(weekend_id):
@@ -295,7 +314,6 @@ def home():
         w_date = parse_weekend_date(w.get("date", ""), season_year)
         w2["date_obj"] = w_date
         w2["status"] = weekend_status(w_date, open_days_before=10)
-        # Si DB dispo : on marque "closed_db" si clos (utile plus tard dans template)
         w2["closed_db"] = is_weekend_closed(w.get("id", "")) if engine else False
         weekends.append(w2)
 
@@ -332,7 +350,6 @@ def championnat():
     if not name:
         return redirect(url_for("login"))
 
-    # lecture
     my = {}
     if engine:
         with engine.begin() as conn:
@@ -404,7 +421,6 @@ def pronos(weekend_id):
 
     closed = is_weekend_closed(weekend_id) if engine else False
 
-    # lecture "mon prono"
     my = {}
     if engine:
         with engine.begin() as conn:
@@ -423,7 +439,7 @@ def pronos(weekend_id):
 
     if request.method == "POST":
         if closed:
-            flash("Pronos clos : modification impossible.", "error")
+            flash("Pronos clos : modification impossible.")
             return redirect(url_for("pronos", weekend_id=weekend_id))
 
         form = request.form
@@ -452,7 +468,6 @@ def pronos(weekend_id):
             "bonus": {b["id"]: form.get(f"bonus_{b['id']}") for b in w.get("bonus_questions", [])}
         }
 
-        # DB (solide) : UPSERT = écrase l'ancien (dernier prono fait foi)
         if engine:
             with engine.begin() as conn:
                 conn.execute(text("""
@@ -479,6 +494,85 @@ def pronos(weekend_id):
 
     return render_template("pronos.html", w=w, riders=RIDERS, my=my, name=name, closed=closed)
 
+# ------------------ ADMIN : Dashboard ------------------
+@app.route("/admin")
+def admin_home():
+    provided = request.args.get("key", "")
+    if ADMIN_KEY and provided != ADMIN_KEY:
+        return "Accès admin refusé", 403
+
+    weekends = load_weekends_list()
+    enriched = []
+
+    for w in weekends:
+        wid = w.get("id")
+        if not wid:
+            continue
+
+        count = 0
+        if engine:
+            with engine.begin() as conn:
+                row = conn.execute(text("SELECT COUNT(*) FROM pronos WHERE weekend_id=:w"), {"w": wid}).fetchone()
+            count = int(row[0]) if row else 0
+        else:
+            all_pronos = load_json(pronos_path(wid), {})
+            count = len(all_pronos) if isinstance(all_pronos, dict) else 0
+
+        enriched.append({
+            "id": wid,
+            "label": w.get("label", wid),
+            "date": w.get("date"),
+            "count": count,
+            "closed": is_weekend_closed(wid) if engine else False,
+            "public": is_pronos_public(wid) if engine else False,
+        })
+
+    name, _ = current_player(request)
+    return render_template("admin_home.html", name=name, key=provided, weekends=enriched)
+
+# ------------------ ADMIN : Page GP ------------------
+@app.route("/admin/w/<weekend_id>")
+def admin_weekend(weekend_id):
+    provided = request.args.get("key", "")
+    if ADMIN_KEY and provided != ADMIN_KEY:
+        return "Accès admin refusé", 403
+
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    count = 0
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("SELECT COUNT(*) FROM pronos WHERE weekend_id=:w"), {"w": weekend_id}).fetchone()
+        count = int(row[0]) if row else 0
+    else:
+        all_pronos = load_json(pronos_path(weekend_id), {})
+        count = len(all_pronos) if isinstance(all_pronos, dict) else 0
+
+    closed = is_weekend_closed(weekend_id) if engine else False
+    public = is_pronos_public(weekend_id) if engine else False
+
+    name, _ = current_player(request)
+    return render_template("admin_weekend.html", name=name, key=provided, w=w, count=count, closed=closed, public=public)
+
+# ------------------ ADMIN : Clôturer & Publier ------------------
+@app.route("/admin/w/<weekend_id>/close_publish", methods=["POST"])
+def admin_close_publish(weekend_id):
+    provided = request.args.get("key", "")
+    if ADMIN_KEY and provided != ADMIN_KEY:
+        return "Accès admin refusé", 403
+
+    if not get_weekend(weekend_id):
+        return "Week-end inconnu", 404
+
+    if not engine:
+        return "DB non configurée (DATABASE_URL manquant).", 500
+
+    close_and_publish_pronos(weekend_id)
+    flash("✅ Pronos clôturés ET publiés ! (plus de modifications possible)")
+    return redirect(url_for("admin_weekend", weekend_id=weekend_id, key=provided))
+
 # ------------------ ADMIN results (protégé par ?key=) ------------------
 @app.route("/w/<weekend_id>/admin/results", methods=["GET", "POST"])
 def admin_results(weekend_id):
@@ -504,7 +598,8 @@ def admin_results(weekend_id):
         flash("Résultats officiels enregistrés ✅")
         return redirect(url_for("admin_results", weekend_id=weekend_id, key=provided))
 
-    return render_template("admin_results.html", w=w, riders=RIDERS, results=results)
+    name, _ = current_player(request)
+    return render_template("admin_results.html", name=name, w=w, riders=RIDERS, results=results)
 
 @app.route("/w/<weekend_id>/admin/questions", methods=["GET", "POST"])
 def admin_questions(weekend_id):
@@ -538,54 +633,39 @@ def admin_questions(weekend_id):
         flash("Questions bonus enregistrées ✅")
         return redirect(url_for("admin_questions", weekend_id=weekend_id, key=provided))
 
-    return render_template("admin_questions.html", w=w, q1=q1, q2=q2, key=provided)
+    name, _ = current_player(request)
+    return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2, key=provided)
 
-# ------------------ ADMIN close weekend (protégé par ?key=) ------------------
-@app.route("/w/<weekend_id>/admin/close")
-def admin_close(weekend_id):
-    provided = request.args.get("key", "")
-    if ADMIN_KEY and provided != ADMIN_KEY:
-        return "Accès admin refusé", 403
-
-    if not get_weekend(weekend_id):
-        return "Week-end inconnu", 404
-
-    if not engine:
-        return "DB non configurée (DATABASE_URL manquant).", 500
-
-    close_weekend(weekend_id)
-    return f"OK - weekend {weekend_id} clos."
-
-# ------------------ Public : voir tous les pronos après clôture ------------------
+# ------------------ Public : page HTML pronos (dès clôture/publish) ------------------
 @app.route("/w/<weekend_id>/public/pronos")
 def public_pronos(weekend_id):
-    if not get_weekend(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
         return "Week-end inconnu", 404
 
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
-    if not is_weekend_closed(weekend_id):
+    # ✅ publics uniquement si "close & publish" a été fait
+    if not is_pronos_public(weekend_id):
         return "Pronos pas encore publics (weekend non clos).", 403
 
     with engine.begin() as conn:
         rows = conn.execute(text("""
-            SELECT player_name, payload_json, created_at, updated_at
+            SELECT player_name, payload_json, updated_at
             FROM pronos
             WHERE weekend_id=:w
             ORDER BY updated_at DESC
         """), {"w": weekend_id}).fetchall()
 
-    # JSON simple (rapide pour ce week-end). Plus tard : une belle page HTML.
-    return [
-        {
-            "player": r[0],
-            "created_at": str(r[2]),
-            "updated_at": str(r[3]),
-            "prono": r[1],
-        }
-        for r in rows
-    ]
+    pronos_list = [{
+        "player": r[0],
+        "updated_at": str(r[2]),
+        "p": dict(r[1] or {}),
+    } for r in rows]
+
+    name, _ = current_player(request)
+    return render_template("public_pronos.html", name=name, w=w, pronos=pronos_list)
 
 # ------------------ Classement GP (détaillé) ------------------
 @app.route("/w/<weekend_id>/classement")
@@ -594,7 +674,6 @@ def classement_weekend(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
-    # source pronos : DB si dispo sinon JSON
     all_pronos = {}
     if engine:
         with engine.begin() as conn:
@@ -610,7 +689,8 @@ def classement_weekend(weekend_id):
 
     results = load_json(results_path(weekend_id), None)
     if not results:
-        return render_template("classement.html", w=w, rows=[], notice="Entre d’abord les résultats officiels (Admin).")
+        name, _ = current_player(request)
+        return render_template("classement.html", name=name, w=w, rows=[], notice="Entre d’abord les résultats officiels (Admin).")
 
     rows = []
     for pid, p in all_pronos.items():
@@ -651,7 +731,8 @@ def classement_weekend(weekend_id):
         })
 
     rows.sort(key=lambda r: r["total"], reverse=True)
-    return render_template("classement.html", w=w, rows=rows, notice=None)
+    name, _ = current_player(request)
+    return render_template("classement.html", name=name, w=w, rows=rows, notice=None)
 
 # ------------------ Health checks ------------------
 @app.route("/healthz")
