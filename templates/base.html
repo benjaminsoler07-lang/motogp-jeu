@@ -33,6 +33,13 @@
       <nav class="menu">
         <a href="{{ url_for('home') }}">Accueil</a>
         <a href="{{ url_for('championnat') }}">Championnat</a>
+
+        <!-- ✅ Lien Admin visible uniquement si ?key= est présent -->
+        {% set admin_key = request.args.get('key') %}
+        {% if admin_key %}
+          <a href="{{ url_for('admin_home', key=admin_key) }}">Admin</a>
+        {% endif %}
+
         {% if name %}
           <a href="{{ url_for('logout') }}">Déconnexion</a>
         {% else %}
