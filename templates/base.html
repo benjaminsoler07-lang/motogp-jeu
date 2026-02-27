@@ -20,10 +20,15 @@
         <span class="title">Pronos - MotoGP</span>
       </div>
 
-      <!-- ✅ Bandeau bonjour (seulement si connecté) -->
-      {% if name %}
-        <div class="hello">Bonjour <strong>{{ name }}</strong> 👋</div>
-      {% endif %}
+      <!-- ✅ Bloc utilisateur -->
+      <div class="userbar">
+        {% if name %}
+          <span class="badge badge-ok">✅ Connecté</span>
+          <span class="hello">Bonjour <strong>{{ name }}</strong> 👋</span>
+        {% else %}
+          <span class="badge badge-no">❌ Non connecté</span>
+        {% endif %}
+      </div>
 
       <nav class="menu">
         <a href="{{ url_for('home') }}">Accueil</a>
@@ -41,6 +46,7 @@
         {% if msgs %}
           <div class="flash">{{ msgs[-1] }}</div>
 
+          <!-- ✅ Popup confirmation -->
           <script>
             (function () {
               const msg = {{ msgs[-1]|tojson }};
