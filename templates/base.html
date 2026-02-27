@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Pronos - MotoGP{% endblock %}</title>
 
-    <!-- LIGNE CSS (on la garde ici) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
 
@@ -20,6 +19,11 @@
         </svg>
         <span class="title">Pronos - MotoGP</span>
       </div>
+
+      <!-- ✅ Bandeau bonjour (seulement si connecté) -->
+      {% if name %}
+        <div class="hello">Bonjour <strong>{{ name }}</strong> 👋</div>
+      {% endif %}
 
       <nav class="menu">
         <a href="{{ url_for('home') }}">Accueil</a>
@@ -37,7 +41,6 @@
         {% if msgs %}
           <div class="flash">{{ msgs[-1] }}</div>
 
-          <!-- ✅ POPUP confirmation -->
           <script>
             (function () {
               const msg = {{ msgs[-1]|tojson }};
