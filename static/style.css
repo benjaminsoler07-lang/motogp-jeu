@@ -2,7 +2,7 @@
    GLOBAL
 ---------------------------- */
 body {
-    background-color: #0d3b66;   /* Bleu profond */
+    background-color: #0d3b66;
     color: white;
     font-family: Arial, sans-serif;
     text-align: center;
@@ -10,9 +10,17 @@ body {
     padding: 0;
 }
 
+* { box-sizing: border-box; }
+
 /* Conteneur principal centré */
 .container {
     margin-top: 50px;
+}
+
+main{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px;
 }
 
 /* ----------------------------
@@ -22,19 +30,19 @@ body {
     position: relative;
     overflow: hidden;
     background-color: #0d3b66;
-    padding: 10px 16px;          /* beaucoup plus petit */
+    padding: 10px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
 }
 
-/* Effet damier discret en arrière-plan */
+/* Effet damier discret */
 .topbar::before {
     content: "";
     position: absolute;
     inset: 0;
-    opacity: 0.09;               /* subtil */
+    opacity: 0.09;
     background-image:
         linear-gradient(45deg, #ffffff 25%, transparent 25%),
         linear-gradient(-45deg, #ffffff 25%, transparent 25%),
@@ -45,27 +53,24 @@ body {
     pointer-events: none;
 }
 
-/* Tout le contenu du header au-dessus du damier */
 .topbar > * {
     position: relative;
     z-index: 1;
 }
 
-/* Bloc logo + titre */
+/* Logo */
 .logo {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
 }
 
-/* SVG MotoGP réduit */
 .motogp-icon {
-    width: 120px;    /* réduit */
+    width: 110px;
     height: auto;
-    display: block;
 }
 
-/* Titre du site */
 .title {
     font-size: 18px;
     font-weight: 700;
@@ -73,11 +78,49 @@ body {
     white-space: nowrap;
 }
 
-/* Menu */
+/* ----------------------------
+   USER BAR (Connexion)
+---------------------------- */
+.userbar{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 10px;
+  white-space: nowrap;
+}
+
+.badge{
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge-ok{
+  background: rgba(0, 255, 0, 0.15);
+  border: 1px solid rgba(0, 255, 0, 0.4);
+}
+
+.badge-no{
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.hello {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  opacity: 0.95;
+}
+
+/* ----------------------------
+   MENU
+---------------------------- */
 .menu {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
 }
 
 .menu a {
@@ -85,6 +128,11 @@ body {
     text-decoration: none;
     font-weight: 600;
     opacity: 0.95;
+    padding: 10px 12px;
+    border-radius: 12px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .menu a:hover {
@@ -92,14 +140,16 @@ body {
     opacity: 1;
 }
 
-/* Flash messages */
+/* ----------------------------
+   FLASH
+---------------------------- */
 .flash {
-    margin: 12px auto 0;
+    margin: 12px auto;
     max-width: 700px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 10px;
+    border-radius: 12px;
 }
 
 /* ----------------------------
@@ -112,25 +162,21 @@ body {
     max-width: 600px;
 }
 
-/* Ligne GP */
 .gp-item {
     margin: 10px 0;
     font-size: 20px;
 }
 
-/* GP passés */
 .gp-past {
     text-decoration: line-through;
     opacity: 0.6;
 }
 
-/* GP à venir non ouverts */
 .gp-closed {
     color: grey;
     opacity: 0.7;
 }
 
-/* Sécurité : si jamais il y a un <a> dans un gp-closed, on le désactive */
 .gp-closed a {
     color: grey;
     pointer-events: none;
@@ -138,7 +184,6 @@ body {
     text-decoration: none;
 }
 
-/* GP ouverts */
 .gp-open a {
     color: #ffd60a;
     text-decoration: none;
@@ -150,117 +195,8 @@ body {
 }
 
 /* ----------------------------
-   RESPONSIVE (mobile)
+   FORM / CARD
 ---------------------------- */
-@media (max-width: 700px) {
-    .topbar {
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 10px 12px;
-        gap: 8px;
-    }
-
-    .motogp-icon {
-        width: 110px;
-    }
-
-    .title {
-        font-size: 16px;
-    }
-
-    .menu {
-        gap: 10px;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-
-    .gp-item {
-        font-size: 18px;
-    }
-}
-
-/* ===== Mobile pack (global) ===== */
-* { box-sizing: border-box; }
-
-main{
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 16px;
-}
-
-/* Header plus souple */
-.topbar{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-}
-
-.logo{
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.title{
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu{
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-/* Tap targets */
-.menu a, button, .btn, input, select{
-  font-size: 16px;          /* évite zoom auto iOS */
-}
-
-.menu a{
-  padding: 10px 12px;
-  border-radius: 12px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-}
-
-/* Flash lisible */
-.flash{
-  margin: 12px auto;
-  padding: 12px 14px;
-  border-radius: 12px;
-}
-
-/* ===== Mobile layout ===== */
-@media (max-width: 600px){
-  main{ padding: 12px; }
-
-  .topbar{
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .menu{
-    justify-content: space-between;
-  }
-
-  .motogp-icon{
-    width: 88px;  /* si ton svg est trop grand */
-    height: auto;
-  }
-
-  .title{
-    font-size: 18px;
-  }
-}
-/* ===== Forms / cards mobile friendly ===== */
 .card{
   max-width: 720px;
   margin: 0 auto;
@@ -273,18 +209,18 @@ main{
   margin-bottom: 10px;
 }
 
-/* Chaque label + select en bloc */
 .card label{
   display: block;
   margin-top: 12px;
   margin-bottom: 6px;
 }
 
-.card select, .card input{
+.card select,
+.card input{
   width: 100%;
+  font-size: 16px;
 }
 
-/* Bouton */
 .btn{
   width: 100%;
   margin-top: 16px;
@@ -293,7 +229,7 @@ main{
   min-height: 48px;
 }
 
-/* Sticky save (mobile) */
+/* Sticky save mobile */
 .sticky-save{
   position: sticky;
   bottom: 10px;
@@ -303,22 +239,48 @@ main{
   backdrop-filter: blur(6px);
 }
 
-/* Mobile refinements */
-@media (max-width: 600px){
+/* ----------------------------
+   RESPONSIVE
+---------------------------- */
+@media (max-width: 700px) {
+
+  .topbar {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo{
+    justify-content: center;
+  }
+
+  .userbar{
+    justify-content: center;
+  }
+
+  .menu{
+    justify-content: center;
+    width: 100%;
+  }
+
+  .motogp-icon {
+    width: 90px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .gp-item {
+    font-size: 18px;
+  }
+
+  main{
+    padding: 12px;
+  }
+
   .card{
     padding: 12px;
     border-radius: 14px;
   }
-
-  .card h3{
-    margin-top: 16px;
-  }
-}
-.hello {
-  margin: 0 12px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  font-size: 14px;
-  opacity: 0.95;
-  white-space: nowrap;
 }
