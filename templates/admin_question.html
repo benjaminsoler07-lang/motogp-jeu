@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Admin — Questions bonus{% endblock %}
+{% block content %}
+
+<h2>Admin — Questions bonus</h2>
+<p><strong>{{ w.get('label', 'GP') }}</strong></p>
+
+<form method="post" class="card">
+  <h3>Question bonus 1</h3>
+  <label>Texte :</label>
+  <input type="text" name="b1_label" value="{{ q1.get('label','') }}" placeholder="Ex: Un pilote Ducati sur le podium du GP ?">
+
+  <h3>Question bonus 2</h3>
+  <label>Texte :</label>
+  <input type="text" name="b2_label" value="{{ q2.get('label','') }}" placeholder="Ex: Chute lors du sprint ?">
+
+  <button class="btn" type="submit">💾 Enregistrer</button>
+</form>
+
+<p>
+  <a href="{{ url_for('admin_results', weekend_id=w.get('id'), key=key) }}">→ Admin résultats</a>
+</p>
+
+{% endblock %}
