@@ -1,18 +1,40 @@
-# app.py  — version corrigée + persistante PostgreSQL
-# + ADMIN intégré + "Clôturer & Publier les pronos" + page publique HTML
+# app.py — PostgreSQL persistant
+# + ADMIN login (nom + mdp) + "Clôturer & Publier les pronos" + page publique HTML
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
+from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, make_response, flash
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    make_response, flash, session
+)
 from sqlalchemy import create_engine, text
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 app.permanent_session_lifetime = timedelta(days=365)
 
-# 🔐 Clé admin (Render > Environment > ADMIN_KEY)
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+# ✅ Admin login / password (Render > Environment)
+ADMIN_USER = os.environ.get("ADMIN_USER", "")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
+
+def admin_enabled():
+    return bool(ADMIN_USER and ADMIN_PASS)
+
+def is_admin():
+    return session.get("is_admin") is True
+
+def require_admin(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not admin_enabled():
+            return "Admin non configuré (ADMIN_USER/ADMIN_PASS manquants).", 500
+        if not is_admin():
+            return redirect(url_for("admin_login"))
+        return fn(*args, **kwargs)
+    return wrapper
+
 
 DATA_DIR = "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
@@ -51,7 +73,6 @@ RIDERS = [
 DATABASE_URL = os.environ.get("DATABASE_URL")
 engine = None
 if DATABASE_URL:
-    # Render peut fournir postgres:// ; SQLAlchemy préfère postgresql://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
@@ -117,18 +138,8 @@ def is_pronos_public(weekend_id: str) -> bool:
         ).fetchone()
     return bool(row and row[0])
 
-def close_weekend(weekend_id: str):
-    if not engine:
-        return
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO weekends (weekend_id, closed_at)
-            VALUES (:w, NOW())
-            ON CONFLICT (weekend_id) DO UPDATE SET closed_at = NOW()
-        """), {"w": weekend_id})
-
 def close_and_publish_pronos(weekend_id: str):
-    """Ta règle : dès la clôture, les pronos deviennent publics."""
+    """Règle : dès la clôture, les pronos deviennent publics."""
     if not engine:
         return
     with engine.begin() as conn:
@@ -141,7 +152,7 @@ def close_and_publish_pronos(weekend_id: str):
               pronos_public_at = NOW()
         """), {"w": weekend_id})
 
-# ------------------ JSON helpers (fallback / historique) ------------------
+# ------------------ JSON helpers (fallback) ------------------
 def load_json(path, default):
     if not os.path.exists(path):
         return default
@@ -158,20 +169,11 @@ def save_json(path, data):
 
 # ------------------ Weekends helpers ------------------
 def load_weekends_data():
-    """
-    Accepte 2 formats :
-    - ancien : [ {id, label, ...}, ... ]
-    - nouveau : { season_year, timezone, weekends: [ ... ] }
-    Retourne TOUJOURS : { "weekends": [...] }
-    """
     data = load_json(WEEKENDS_FILE, {"weekends": []})
-
     if isinstance(data, list):
         return {"weekends": data}
-
     if isinstance(data, dict) and "weekends" in data:
         return data
-
     return {"weekends": []}
 
 def load_weekends_list():
@@ -180,7 +182,6 @@ def load_weekends_list():
 def bootstrap_weekends():
     if os.path.exists(WEEKENDS_FILE):
         return
-
     demo = {
         "season_year": date.today().year,
         "timezone": "Europe/Paris",
@@ -221,12 +222,10 @@ def parse_weekend_date(raw_date: str, season_year: int):
     raw_date = (raw_date or "").strip()
     if not raw_date:
         return None
-
     try:
         return datetime.strptime(raw_date, "%Y-%m-%d").date()
     except Exception:
         pass
-
     try:
         mm, dd = raw_date.split("-")
         return date(season_year, int(mm), int(dd))
@@ -236,18 +235,15 @@ def parse_weekend_date(raw_date: str, season_year: int):
 def weekend_status(weekend_date: date, open_days_before: int = 10):
     if not weekend_date:
         return "closed"
-
     today = date.today()
     if weekend_date < today:
         return "past"
-
     open_from = weekend_date - timedelta(days=open_days_before)
     if today >= open_from:
         return "open"
-
     return "closed"
 
-# ------------------ Identification simple (cookies) ------------------
+# ------------------ Identification joueurs (cookies) ------------------
 def current_player(req):
     name = req.cookies.get("player_name")
     pid = req.cookies.get("player_id")
@@ -262,7 +258,6 @@ def normalize(x):
 def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
     p = [normalize(x) for x in pred]
     a = [normalize(x) for x in (actual or [])]
-
     score = 0.0
     for i in range(3):
         if i < len(a) and p[i] and p[i] == a[i]:
@@ -270,27 +265,23 @@ def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
     for i in range(3):
         if p[i] and p[i] in a and (i >= len(a) or p[i] != a[i]):
             score += mis_placed
-
     if len(a) >= 3 and all(p[i] == a[i] for i in range(3)):
         score += bonus_exact
     elif len(a) >= 3 and set(p) == set(a):
         score += bonus_all
-
     return score
 
 def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
     score = 0.0
     if normalize(pole_pred) == normalize(pole_real):
         score += 2.0
-
     real_set = {normalize(x) for x in (q1_actual or [])}
     for p in (q1_preds or []):
         if normalize(p) in real_set:
             score += 0.5
-
     return score
 
-# ------------------ Fichiers pronos & résultats (fallback) ------------------
+# ------------------ Fichiers (fallback) ------------------
 def pronos_path(weekend_id):
     return os.path.join(PRONOS_DIR, f"{weekend_id}.json")
 
@@ -300,7 +291,7 @@ def results_path(weekend_id):
 def championnat_path():
     return os.path.join(PRONOS_DIR, "championnat.json")
 
-# ------------------ Routes ------------------
+# ------------------ Public routes ------------------
 @app.route("/")
 def home():
     name, _ = current_player(request)
@@ -343,7 +334,7 @@ def logout():
     resp.delete_cookie("player_id")
     return resp
 
-# ------------------ Championnat (persistant DB + fallback JSON) ------------------
+# ------------------ Championnat ------------------
 @app.route("/championnat", methods=["GET", "POST"])
 def championnat():
     name, pid = current_player(request)
@@ -369,7 +360,6 @@ def championnat():
     if request.method == "POST":
         form = request.form
         picks = [form.get("wc_p1"), form.get("wc_p2"), form.get("wc_p3")]
-
         v = [x for x in picks if x]
         if len(set(v)) != len(v):
             flash("Doublon détecté : tu ne peux pas mettre le même pilote 2 fois.")
@@ -408,7 +398,7 @@ def championnat():
 
     return render_template("championnat.html", riders=RIDERS, my=my, name=name)
 
-# ------------------ Week-end pronos (persistant DB + fallback JSON) ------------------
+# ------------------ Week-end pronos ------------------
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
 def pronos(weekend_id):
     name, pid = current_player(request)
@@ -494,13 +484,38 @@ def pronos(weekend_id):
 
     return render_template("pronos.html", w=w, riders=RIDERS, my=my, name=name, closed=closed)
 
-# ------------------ ADMIN : Dashboard ------------------
-@app.route("/admin")
-def admin_home():
-    provided = request.args.get("key", "")
-    if ADMIN_KEY and provided != ADMIN_KEY:
-        return "Accès admin refusé", 403
+# ================== ADMIN AUTH ==================
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if not admin_enabled():
+        return "Admin non configuré (ADMIN_USER/ADMIN_PASS manquants).", 500
 
+    if request.method == "POST":
+        u = (request.form.get("username") or "").strip()
+        p = (request.form.get("password") or "").strip()
+
+        if u == ADMIN_USER and p == ADMIN_PASS:
+            session["is_admin"] = True
+            session.permanent = True
+            flash("✅ Connecté en admin")
+            return redirect(url_for("admin_home"))
+
+        flash("❌ Identifiants incorrects")
+        return redirect(url_for("admin_login"))
+
+    name, _ = current_player(request)
+    return render_template("admin_login.html", name=name)
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("is_admin", None)
+    flash("Déconnecté de l'admin ✅")
+    return redirect(url_for("home"))
+
+# ================== ADMIN PAGES ==================
+@app.route("/admin")
+@require_admin
+def admin_home():
     weekends = load_weekends_list()
     enriched = []
 
@@ -528,15 +543,11 @@ def admin_home():
         })
 
     name, _ = current_player(request)
-    return render_template("admin_home.html", name=name, key=provided, weekends=enriched)
+    return render_template("admin_home.html", name=name, weekends=enriched)
 
-# ------------------ ADMIN : Page GP ------------------
 @app.route("/admin/w/<weekend_id>")
+@require_admin
 def admin_weekend(weekend_id):
-    provided = request.args.get("key", "")
-    if ADMIN_KEY and provided != ADMIN_KEY:
-        return "Accès admin refusé", 403
-
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
@@ -554,15 +565,11 @@ def admin_weekend(weekend_id):
     public = is_pronos_public(weekend_id) if engine else False
 
     name, _ = current_player(request)
-    return render_template("admin_weekend.html", name=name, key=provided, w=w, count=count, closed=closed, public=public)
+    return render_template("admin_weekend.html", name=name, w=w, count=count, closed=closed, public=public)
 
-# ------------------ ADMIN : Clôturer & Publier ------------------
 @app.route("/admin/w/<weekend_id>/close_publish", methods=["POST"])
+@require_admin
 def admin_close_publish(weekend_id):
-    provided = request.args.get("key", "")
-    if ADMIN_KEY and provided != ADMIN_KEY:
-        return "Accès admin refusé", 403
-
     if not get_weekend(weekend_id):
         return "Week-end inconnu", 404
 
@@ -571,15 +578,12 @@ def admin_close_publish(weekend_id):
 
     close_and_publish_pronos(weekend_id)
     flash("✅ Pronos clôturés ET publiés ! (plus de modifications possible)")
-    return redirect(url_for("admin_weekend", weekend_id=weekend_id, key=provided))
+    return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
-# ------------------ ADMIN results (protégé par ?key=) ------------------
+# ------------------ ADMIN results ------------------
 @app.route("/w/<weekend_id>/admin/results", methods=["GET", "POST"])
+@require_admin
 def admin_results(weekend_id):
-    provided = request.args.get("key", "")
-    if ADMIN_KEY and provided != ADMIN_KEY:
-        return "Accès admin refusé", 403
-
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
@@ -596,17 +600,14 @@ def admin_results(weekend_id):
         }
         save_json(results_path(weekend_id), results)
         flash("Résultats officiels enregistrés ✅")
-        return redirect(url_for("admin_results", weekend_id=weekend_id, key=provided))
+        return redirect(url_for("admin_results", weekend_id=weekend_id))
 
     name, _ = current_player(request)
     return render_template("admin_results.html", name=name, w=w, riders=RIDERS, results=results)
 
 @app.route("/w/<weekend_id>/admin/questions", methods=["GET", "POST"])
+@require_admin
 def admin_questions(weekend_id):
-    provided = request.args.get("key", "")
-    if ADMIN_KEY and provided != ADMIN_KEY:
-        return "Accès admin refusé", 403
-
     data = load_weekends_data()
     weekends = data.get("weekends", [])
     w = None
@@ -631,10 +632,10 @@ def admin_questions(weekend_id):
         w["bonus_questions"] = [q1, q2]
         save_json(WEEKENDS_FILE, data)
         flash("Questions bonus enregistrées ✅")
-        return redirect(url_for("admin_questions", weekend_id=weekend_id, key=provided))
+        return redirect(url_for("admin_questions", weekend_id=weekend_id))
 
     name, _ = current_player(request)
-    return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2, key=provided)
+    return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
 
 # ------------------ Public : page HTML pronos (dès clôture/publish) ------------------
 @app.route("/w/<weekend_id>/public/pronos")
@@ -646,7 +647,6 @@ def public_pronos(weekend_id):
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
-    # ✅ publics uniquement si "close & publish" a été fait
     if not is_pronos_public(weekend_id):
         return "Pronos pas encore publics (weekend non clos).", 403
 
@@ -667,7 +667,7 @@ def public_pronos(weekend_id):
     name, _ = current_player(request)
     return render_template("public_pronos.html", name=name, w=w, pronos=pronos_list)
 
-# ------------------ Classement GP (détaillé) ------------------
+# ------------------ Classement ------------------
 @app.route("/w/<weekend_id>/classement")
 def classement_weekend(weekend_id):
     w = get_weekend(weekend_id)
