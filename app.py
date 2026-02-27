@@ -152,6 +152,7 @@ def close_and_publish_pronos(weekend_id: str):
               pronos_public_at = NOW()
         """), {"w": weekend_id})
 
+
 # ------------------ JSON helpers (fallback) ------------------
 def load_json(path, default):
     if not os.path.exists(path):
@@ -210,7 +211,7 @@ def get_weekend(weekend_id):
             return w
     return None
 
-# ------------------ Statuts GP (past/closed/open) ------------------
+# ------------------ Statuts GP ------------------
 def get_season_year():
     data = load_weekends_data()
     y = data.get("season_year")
@@ -251,7 +252,7 @@ def current_player(req):
         pid = str(uuid.uuid4())
     return name, pid
 
-# ------------------ Règles de points ------------------
+# ------------------ Points ------------------
 def normalize(x):
     return (x or "").strip().lower()
 
@@ -291,7 +292,7 @@ def results_path(weekend_id):
 def championnat_path():
     return os.path.join(PRONOS_DIR, "championnat.json")
 
-# ------------------ Public routes ------------------
+# ================== PUBLIC ROUTES ==================
 @app.route("/")
 def home():
     name, _ = current_player(request)
@@ -309,7 +310,7 @@ def home():
         weekends.append(w2)
 
     weekends.sort(key=lambda x: x["date_obj"] or date.max)
-    return render_template("index.html", name=name, weekends=weekends)
+    return render_template("index.html", name=name, weekends=weekends, admin_enabled=admin_enabled(), is_admin=is_admin())
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -325,7 +326,7 @@ def login():
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
 
-    return render_template("login.html")
+    return render_template("login.html", admin_enabled=admin_enabled(), is_admin=is_admin())
 
 @app.route("/logout")
 def logout():
@@ -396,7 +397,7 @@ def championnat():
         flash("Pronostic championnat enregistré ✅ (modifiable)")
         return redirect(url_for("championnat"))
 
-    return render_template("championnat.html", riders=RIDERS, my=my, name=name)
+    return render_template("championnat.html", riders=RIDERS, my=my, name=name, admin_enabled=admin_enabled(), is_admin=is_admin())
 
 # ------------------ Week-end pronos ------------------
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
@@ -482,7 +483,7 @@ def pronos(weekend_id):
         flash("Pronostic enregistré ✅ (modifiable à volonté)")
         return redirect(url_for("pronos", weekend_id=weekend_id))
 
-    return render_template("pronos.html", w=w, riders=RIDERS, my=my, name=name, closed=closed)
+    return render_template("pronos.html", w=w, riders=RIDERS, my=my, name=name, closed=closed, admin_enabled=admin_enabled(), is_admin=is_admin())
 
 # ================== ADMIN AUTH ==================
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -580,8 +581,8 @@ def admin_close_publish(weekend_id):
     flash("✅ Pronos clôturés ET publiés ! (plus de modifications possible)")
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
-# ------------------ ADMIN results ------------------
-@app.route("/w/<weekend_id>/admin/results", methods=["GET", "POST"])
+# ------------------ ADMIN : results (✅ ROUTE CORRIGÉE) ------------------
+@app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
 @require_admin
 def admin_results(weekend_id):
     w = get_weekend(weekend_id)
@@ -605,7 +606,7 @@ def admin_results(weekend_id):
     name, _ = current_player(request)
     return render_template("admin_results.html", name=name, w=w, riders=RIDERS, results=results)
 
-@app.route("/w/<weekend_id>/admin/questions", methods=["GET", "POST"])
+@app.route("/admin/w/<weekend_id>/questions", methods=["GET", "POST"])
 @require_admin
 def admin_questions(weekend_id):
     data = load_weekends_data()
@@ -637,7 +638,7 @@ def admin_questions(weekend_id):
     name, _ = current_player(request)
     return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
 
-# ------------------ Public : page HTML pronos (dès clôture/publish) ------------------
+# ------------------ Public : page HTML pronos ------------------
 @app.route("/w/<weekend_id>/public/pronos")
 def public_pronos(weekend_id):
     w = get_weekend(weekend_id)
@@ -665,7 +666,7 @@ def public_pronos(weekend_id):
     } for r in rows]
 
     name, _ = current_player(request)
-    return render_template("public_pronos.html", name=name, w=w, pronos=pronos_list)
+    return render_template("public_pronos.html", name=name, w=w, pronos=pronos_list, admin_enabled=admin_enabled(), is_admin=is_admin())
 
 # ------------------ Classement ------------------
 @app.route("/w/<weekend_id>/classement")
@@ -690,7 +691,7 @@ def classement_weekend(weekend_id):
     results = load_json(results_path(weekend_id), None)
     if not results:
         name, _ = current_player(request)
-        return render_template("classement.html", name=name, w=w, rows=[], notice="Entre d’abord les résultats officiels (Admin).")
+        return render_template("classement.html", name=name, w=w, rows=[], notice="Entre d’abord les résultats officiels (Admin).", admin_enabled=admin_enabled(), is_admin=is_admin())
 
     rows = []
     for pid, p in all_pronos.items():
@@ -732,7 +733,7 @@ def classement_weekend(weekend_id):
 
     rows.sort(key=lambda r: r["total"], reverse=True)
     name, _ = current_player(request)
-    return render_template("classement.html", name=name, w=w, rows=rows, notice=None)
+    return render_template("classement.html", name=name, w=w, rows=rows, notice=None, admin_enabled=admin_enabled(), is_admin=is_admin())
 
 # ------------------ Health checks ------------------
 @app.route("/healthz")
