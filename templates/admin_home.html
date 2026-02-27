@@ -10,6 +10,10 @@
     💡 Conseil : clique sur <strong>Clôturer & Publier</strong> au lancement de la Q1
     pour rendre les pronos visibles immédiatement.
   </p>
+
+  <div style="margin-top:10px;">
+    <a class="btn btn-small" href="{{ url_for('admin_logout') }}">🚪 Déconnexion admin</a>
+  </div>
 </div>
 
 <h3>Gestion des Week-ends</h3>
@@ -49,14 +53,15 @@
 
         <!-- Gérer -->
         <a class="btn btn-small"
-           href="{{ url_for('admin_weekend', weekend_id=w.id, key=key) }}">
+           href="{{ url_for('admin_weekend', weekend_id=w.id) }}">
           ⚙️ Gérer
         </a>
 
         <!-- Clôturer -->
         {% if not w.closed %}
         <form method="post"
-              action="{{ url_for('admin_close_publish', weekend_id=w.id, key=key) }}">
+              action="{{ url_for('admin_close_publish', weekend_id=w.id) }}"
+              style="margin:0;">
           <button class="btn btn-small btn-warning" type="submit">
             🔒 Clôturer & Publier
           </button>
