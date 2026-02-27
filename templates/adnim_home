@@ -4,9 +4,14 @@
 {% block content %}
   <h2>Admin — Dashboard</h2>
 
-  <div class="card">
-    <p><strong>Accès admin OK</strong></p>
-    <p style="opacity:.9">Garde ton lien admin avec <code>?key=...</code> dans tes favoris.</p>
+  <div class="card" style="text-align:left;">
+    <p style="margin:0;">
+      <strong>🛠️ Mode Admin actif</strong>
+      <span style="opacity:.9;">— tu peux gérer la saison et publier les pronos.</span>
+    </p>
+    <p style="margin:10px 0 0; opacity:.85; font-size:14px;">
+      Astuce : pour “faire monter la pression”, utilise <strong>Clôturer & Publier</strong> dès le début de la Q1.
+    </p>
   </div>
 
   <h3>Week-ends</h3>
@@ -15,24 +20,51 @@
     <ul class="gp-list">
       {% for w in weekends %}
         <li class="gp-item">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <div style="text-align:left;">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+
+            <div style="text-align:left; min-width:260px;">
               <strong>{{ w.label }}</strong>
-              <div style="opacity:.85; font-size:14px;">
-                id: {{ w.id }} — date: {{ w.date }} — pronos: {{ w.count }}
+              <div style="opacity:.85; font-size:14px; margin-top:4px;">
+                id: <code>{{ w.id }}</code> — date: {{ w.date or "?" }} — pronos: <strong>{{ w.count }}</strong>
               </div>
-              <div style="opacity:.9; font-size:14px;">
-                {% if w.closed %}🔒 <strong>Clos</strong>{% else %}🟢 <strong>Ouvert</strong>{% endif %}
+
+              <div style="opacity:.95; font-size:14px; margin-top:6px;">
+                {% if w.closed %}
+                  🔒 <strong>Clos</strong>
+                {% else %}
+                  🟢 <strong>Ouvert</strong>
+                {% endif %}
                 —
-                {% if w.public %}👀 <strong>Public</strong>{% else %}🙈 <strong>Non public</strong>{% endif %}
+                {% if w.public %}
+                  👀 <strong>Public</strong>
+                {% else %}
+                  🙈 <strong>Non public</strong>
+                {% endif %}
               </div>
             </div>
 
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <a class="btn" href="{{ url_for('admin_weekend', weekend_id=w.id, key=key) }}">Gérer</a>
-              <a class="btn" href="{{ url_for('pronos', weekend_id=w.id) }}">Page joueurs</a>
-              <a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">Pronos publics</a>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+              <a class="btn" style="width:auto; padding:12px 16px;" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">Gérer</a>
+
+              {% if not w.closed %}
+                <form method="post" action="{{ url_for('admin_close_publish', weekend_id=w.id) }}" style="margin:0;">
+                  <button class="btn" style="width:auto; padding:12px 16px;" type="submit">
+                    🔒 Clôturer & Publier
+                  </button>
+                </form>
+              {% endif %}
+
+              <a class="btn" style="width:auto; padding:12px 16px;" href="{{ url_for('pronos', weekend_id=w.id) }}">👥 Page joueurs</a>
+
+              {% if w.public %}
+                <a class="btn" style="width:auto; padding:12px 16px;" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Voir public</a>
+              {% else %}
+                <a class="btn" style="width:auto; padding:12px 16px; opacity:.55; pointer-events:none;" href="#">
+                  👀 Voir public
+                </a>
+              {% endif %}
             </div>
+
           </div>
         </li>
       {% endfor %}
