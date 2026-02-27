@@ -324,3 +324,98 @@ main {
     padding: 14px;
   }
 }
+/* ============================
+   ADMIN DASHBOARD
+============================ */
+
+.admin-intro {
+  text-align: left;
+}
+
+.admin-tip {
+  opacity: 0.85;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.admin-list {
+  list-style: none;
+  padding: 0;
+}
+
+.admin-item {
+  margin: 18px 0;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.admin-left {
+  text-align: left;
+  min-width: 260px;
+}
+
+.admin-meta {
+  font-size: 14px;
+  opacity: 0.85;
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-status {
+  margin-top: 8px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.status-open {
+  color: #00ff88;
+}
+
+.status-closed {
+  color: #ff4d4d;
+}
+
+.status-public {
+  color: #ffd60a;
+}
+
+.status-private {
+  opacity: 0.7;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Boutons admin plus compacts */
+.btn-small {
+  width: auto;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.btn-warning {
+  background: #ff4d4d;
+  color: white;
+}
+
+.btn-warning:hover {
+  opacity: 0.9;
+}
+
+.btn-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
