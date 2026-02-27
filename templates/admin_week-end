@@ -1,41 +1,78 @@
 {% extends "base.html" %}
-{% block title %}Admin — {{ w.label }}{% endblock %}
+{% block title %}Admin — PronoGP{% endblock %}
 
 {% block content %}
-  <h2>Admin — {{ w.label }}</h2>
+<h2>🛠️ Admin — Dashboard</h2>
 
-  <div class="card">
-    <p><strong>Statut</strong></p>
-    <p>
-      {% if closed %}🔒 <strong>Clos</strong>{% else %}🟢 <strong>Ouvert</strong>{% endif %}
-      —
-      {% if public %}👀 <strong>Pronos publics</strong>{% else %}🙈 <strong>Pronos non publics</strong>{% endif %}
-    </p>
-    <p><strong>Pronos reçus :</strong> {{ count }}</p>
-  </div>
+<div class="card admin-intro">
+  <p><strong>Mode Admin actif</strong></p>
+  <p class="admin-tip">
+    💡 Conseil : clique sur <strong>Clôturer & Publier</strong> au lancement de la Q1 pour rendre les pronos visibles immédiatement.
+  </p>
+</div>
 
-  <div class="card">
-    <h3>Actions (workflow)</h3>
+<h3>Gestion des Week-ends</h3>
 
-    {% if not closed %}
-      <form method="post"
-            action="{{ url_for('admin_close_publish', weekend_id=w.id, key=key) }}"
-            onsubmit="return confirm('Clôturer ET publier les pronos maintenant ?\\n\\nAprès ça : plus personne ne peut modifier.');">
-        <button class="btn" type="submit">🔒 Clôturer & Publier les pronos</button>
-      </form>
+<div class="card">
+  <ul class="gp-list admin-list">
+    {% for w in weekends %}
+    <li class="gp-item admin-item">
 
-      <p style="opacity:.9; font-size:14px; margin-top:10px;">
-        À faire au début de la Q1 pour rendre les pronos visibles entre Q1 et la course.
-      </p>
-    {% else %}
-      <p>✅ Déjà clos.</p>
-    {% endif %}
+      <div class="admin-left">
+        <div class="admin-title">
+          <strong>{{ w.label }}</strong>
+        </div>
 
-    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
-      <a class="btn" href="{{ url_for('admin_results', weekend_id=w.id, key=key) }}">🧾 Saisir résultats</a>
-      <a class="btn" href="{{ url_for('admin_questions', weekend_id=w.id, key=key) }}">❓ Questions bonus</a>
-      <a class="btn" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">🏆 Classement</a>
-      <a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Pronos publics</a>
-    </div>
-  </div>
+        <div class="admin-meta">
+          <span>ID : <code>{{ w.id }}</code></span>
+          <span>Date : {{ w.date or "?" }}</span>
+          <span>Pronos : <strong>{{ w.count }}</strong></span>
+        </div>
+
+        <div class="admin-status">
+          {% if w.closed %}
+            <span class="status-closed">🔒 Clos</span>
+          {% else %}
+            <span class="status-open">🟢 Ouvert</span>
+          {% endif %}
+
+          {% if w.public %}
+            <span class="status-public">👀 Public</span>
+          {% else %}
+            <span class="status-private">🙈 Non public</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="admin-actions">
+        <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">
+          ⚙️ Gérer
+        </a>
+
+        {% if not w.closed %}
+        <form method="post" action="{{ url_for('admin_close_publish', weekend_id=w.id) }}">
+          <button class="btn btn-small btn-warning" type="submit">
+            🔒 Clôturer & Publier
+          </button>
+        </form>
+        {% endif %}
+
+        <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
+          👥 Page joueurs
+        </a>
+
+        {% if w.public %}
+        <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">
+          👀 Voir public
+        </a>
+        {% else %}
+        <span class="btn btn-small btn-disabled">👀 Voir public</span>
+        {% endif %}
+      </div>
+
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
 {% endblock %}
