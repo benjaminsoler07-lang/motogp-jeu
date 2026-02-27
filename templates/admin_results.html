@@ -2,23 +2,36 @@
 {% block title %}Admin — Questions bonus{% endblock %}
 {% block content %}
 
-<h2>Admin — Questions bonus</h2>
-<p><strong>{{ w.label }}</strong></p>
+<h2>❓ Admin — Questions bonus</h2>
 
-<form method="post" class="card">
+<div class="card" style="text-align:left;">
+  <p style="margin:0;"><strong>{{ w.label }}</strong></p>
+  <p style="margin:6px 0 0; opacity:.85; font-size:14px;">
+    ID : <code>{{ w.id }}</code>
+  </p>
+</div>
+
+<form method="post" class="card" style="text-align:left;">
   <h3>Question bonus 1</h3>
   <label>Texte :</label>
   <input type="text" name="b1_label" value="{{ q1.label }}" placeholder="Ex: Un pilote Ducati sur le podium du GP ?">
 
   <h3>Question bonus 2</h3>
-  <label>Texte :</label>
+  <label>Texe :</label>
   <input type="text" name="b2_label" value="{{ q2.label }}" placeholder="Ex: Chute lors du sprint ?">
 
   <button class="btn" type="submit">💾 Enregistrer</button>
 </form>
 
-<p>
-  <a href="{{ url_for('admin_results', weekend_id=w.id, key=key) }}">→ Admin résultats</a>
-</p>
+<div class="card" style="text-align:left;">
+  <p style="margin:0 0 8px;"><strong>Navigation</strong></p>
+  <p style="margin:0;">
+    <a href="{{ url_for('admin_weekend', weekend_id=w.id) }}">⬅ Retour week-end</a>
+    <span style="opacity:.5;"> | </span>
+    <a href="{{ url_for('admin_home') }}">🏠 Dashboard</a>
+    <span style="opacity:.5;"> | </span>
+    <a href="{{ url_for('admin_results', weekend_id=w.id) }}">🏁 Entrer résultats</a>
+  </p>
+</div>
 
 {% endblock %}
