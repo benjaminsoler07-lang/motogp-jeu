@@ -7,7 +7,8 @@
 <div class="card admin-intro">
   <p><strong>Mode Admin actif</strong></p>
   <p class="admin-tip">
-    💡 Conseil : clique sur <strong>Clôturer & Publier</strong> au lancement de la Q1 pour rendre les pronos visibles immédiatement.
+    💡 Conseil : clique sur <strong>Clôturer & Publier</strong> au lancement de la Q1
+    pour rendre les pronos visibles immédiatement.
   </p>
 </div>
 
@@ -45,29 +46,41 @@
       </div>
 
       <div class="admin-actions">
-        <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">
+
+        <!-- Gérer -->
+        <a class="btn btn-small"
+           href="{{ url_for('admin_weekend', weekend_id=w.id, key=key) }}">
           ⚙️ Gérer
         </a>
 
+        <!-- Clôturer -->
         {% if not w.closed %}
-        <form method="post" action="{{ url_for('admin_close_publish', weekend_id=w.id) }}">
+        <form method="post"
+              action="{{ url_for('admin_close_publish', weekend_id=w.id, key=key) }}">
           <button class="btn btn-small btn-warning" type="submit">
             🔒 Clôturer & Publier
           </button>
         </form>
         {% endif %}
 
-        <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
+        <!-- Page joueurs -->
+        <a class="btn btn-small"
+           href="{{ url_for('pronos', weekend_id=w.id) }}">
           👥 Page joueurs
         </a>
 
+        <!-- Pronos publics -->
         {% if w.public %}
-        <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">
+        <a class="btn btn-small"
+           href="{{ url_for('public_pronos', weekend_id=w.id) }}">
           👀 Voir public
         </a>
         {% else %}
-        <span class="btn btn-small btn-disabled">👀 Voir public</span>
+        <span class="btn btn-small btn-disabled">
+          👀 Voir public
+        </span>
         {% endif %}
+
       </div>
 
     </li>
