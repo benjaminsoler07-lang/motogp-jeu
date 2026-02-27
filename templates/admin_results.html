@@ -5,6 +5,12 @@
 
 <h2>🏁 Admin — Entrer les résultats</h2>
 
+{# Sécurisation des structures (évite pages blanches) #}
+{% set q1 = results.get('q1', []) if results else [] %}
+{% set sprint = results.get('sprint', []) if results else [] %}
+{% set gp = results.get('gp', []) if results else [] %}
+{% set bonus = results.get('bonus', {}) if results else {} %}
+
 <div class="card" style="text-align:left;">
   <p style="margin:0;"><strong>{{ w.label }}</strong></p>
   <p style="margin:6px 0 0; opacity:.85; font-size:14px;">
@@ -19,7 +25,7 @@
   <select name="pole">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.pole == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if results and results.get('pole') == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -27,7 +33,7 @@
   <select name="q1_1">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.q1 and results.q1[0] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if q1|length > 0 and q1[0] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -35,7 +41,7 @@
   <select name="q1_2">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.q1 and results.q1[1] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if q1|length > 1 and q1[1] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -45,7 +51,7 @@
   <select name="sprint_p1">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.sprint and results.sprint[0] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if sprint|length > 0 and sprint[0] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -53,7 +59,7 @@
   <select name="sprint_p2">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.sprint and results.sprint[1] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if sprint|length > 1 and sprint[1] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -61,7 +67,7 @@
   <select name="sprint_p3">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.sprint and results.sprint[2] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if sprint|length > 2 and sprint[2] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -71,7 +77,7 @@
   <select name="gp_p1">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.gp and results.gp[0] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if gp|length > 0 and gp[0] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -79,7 +85,7 @@
   <select name="gp_p2">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.gp and results.gp[1] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if gp|length > 1 and gp[1] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -87,7 +93,7 @@
   <select name="gp_p3">
     <option value="">—</option>
     {% for r in riders %}
-      <option value="{{ r }}" {% if results.gp and results.gp[2] == r %}selected{% endif %}>{{ r }}</option>
+      <option value="{{ r }}" {% if gp|length > 2 and gp[2] == r %}selected{% endif %}>{{ r }}</option>
     {% endfor %}
   </select>
 
@@ -97,14 +103,8 @@
       <label>{{ b.label }}</label>
       <select name="bonus_{{ b.id }}">
         <option value="">—</option>
-        <option value="oui"
-          {% if results.bonus and results.bonus[b.id] == "oui" %}selected{% endif %}>
-          Oui
-        </option>
-        <option value="non"
-          {% if results.bonus and results.bonus[b.id] == "non" %}selected{% endif %}>
-          Non
-        </option>
+        <option value="oui" {% if bonus.get(b.id) == "oui" %}selected{% endif %}>Oui</option>
+        <option value="non" {% if bonus.get(b.id) == "non" %}selected{% endif %}>Non</option>
       </select>
     {% endfor %}
   {% endif %}
