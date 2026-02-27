@@ -29,7 +29,6 @@
           <span class="badge badge-no">❌ Non connecté</span>
         {% endif %}
 
-        <!-- ✅ Statut admin (session) -->
         {% if session.get('is_admin') %}
           <span class="badge badge-admin">🛠️ Admin</span>
         {% endif %}
@@ -39,11 +38,11 @@
         <a href="{{ url_for('home') }}">Accueil</a>
         <a href="{{ url_for('championnat') }}">Championnat</a>
 
-        <!-- ✅ Admin : visible pour tous, mais protégé côté serveur -->
-        <a href="{{ url_for('admin_home') }}">Admin</a>
+        <!-- ✅ Admin : visible pour tous, protégé côté serveur -->
+        <a class="admin-link" href="{{ url_for('admin_home') }}">Admin</a>
 
         {% if session.get('is_admin') %}
-          <a href="{{ url_for('admin_logout') }}">Admin logout</a>
+          <a class="admin-logout" href="{{ url_for('admin_logout') }}">Admin logout</a>
         {% endif %}
 
         {% if name %}
