@@ -36,8 +36,17 @@
       {% with msgs = get_flashed_messages() %}
         {% if msgs %}
           <div class="flash">{{ msgs[-1] }}</div>
+
+          <!-- ✅ POPUP confirmation -->
+          <script>
+            (function () {
+              const msg = {{ msgs[-1]|tojson }};
+              alert(msg);
+            })();
+          </script>
         {% endif %}
       {% endwith %}
+
       {% block content %}{% endblock %}
     </main>
   </body>
