@@ -8,6 +8,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 app.permanent_session_lifetime = timedelta(days=365)
 
+import datetime
+from sqlalchemy import create_engine, text
+
 # 🔐 Clé admin (Render > Environment > ADMIN_KEY)
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
 
