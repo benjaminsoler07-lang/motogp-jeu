@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Pronos publics — {{ w.label }}{% endblock %}
+
+{% block content %}
+  <h2>Pronos publics — {{ w.label }}</h2>
+  <p style="opacity:.9">Les pronos deviennent visibles dès la clôture (début Q1).</p>
+
+  <div class="card">
+    {% if not pronos %}
+      <p>Aucun prono enregistré.</p>
+    {% else %}
+      <ul class="gp-list">
+        {% for row in pronos %}
+          <li class="gp-item" style="text-align:left;">
+            <strong>{{ row.player }}</strong>
+            <div style="opacity:.85; font-size:13px;">Dernière mise à jour : {{ row.updated_at }}</div>
+
+            <div style="margin-top:8px; font-size:14px; line-height:1.45;">
+              <div><strong>Pole :</strong> {{ row.p.pole }}</div>
+              <div><strong>Q1 :</strong> {{ row.p.q1_1 }} / {{ row.p.q1_2 }}</div>
+              <div><strong>Sprint :</strong> {{ row.p.sprint_p1 }} — {{ row.p.sprint_p2 }} — {{ row.p.sprint_p3 }}</div>
+              <div><strong>GP :</strong> {{ row.p.gp_p1 }} — {{ row.p.gp_p2 }} — {{ row.p.gp_p3 }}</div>
+
+              {% if row.p.bonus %}
+                <div style="margin-top:6px;">
+                  <strong>Bonus :</strong>
+                  <ul style="margin:6px 0 0 18px;">
+                    {% for b in w.bonus_questions %}
+                      <li>{{ b.label }} : <strong>{{ row.p.bonus[b.id] }}</strong></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endblock %}
