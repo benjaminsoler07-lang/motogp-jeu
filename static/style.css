@@ -314,3 +314,11 @@ main{
     margin-top: 16px;
   }
 }
+.hello {
+  margin: 0 12px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  opacity: 0.95;
+  white-space: nowrap;
+}
