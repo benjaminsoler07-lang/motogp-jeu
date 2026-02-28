@@ -33,27 +33,28 @@
 
   <!-- Questions bonus -->
   <a class="btn btn-small"
-     href="{{ url_for('admin_questions', weekend_id=w.id, key=key) }}">
+     href="{{ url_for('admin_questions', weekend_id=w.id) }}">
     ❓ Questions bonus
   </a>
 
   <!-- Résultats -->
   <a class="btn btn-small"
-     href="{{ url_for('admin_results', weekend_id=w.id, key=key) }}">
+     href="{{ url_for('admin_results', weekend_id=w.id) }}">
     🏁 Entrer résultats
   </a>
 
   <!-- Clôture -->
   {% if not closed %}
   <form method="post"
-        action="{{ url_for('admin_close_publish', weekend_id=w.id, key=key) }}">
+        action="{{ url_for('admin_close_publish', weekend_id=w.id) }}"
+        style="margin:0;">
     <button class="btn btn-small btn-warning" type="submit">
       🔒 Clôturer & Publier
     </button>
   </form>
   {% endif %}
 
-  <!-- Page joueurs (public, pas besoin de key) -->
+  <!-- Page joueurs -->
   <a class="btn btn-small"
      href="{{ url_for('pronos', weekend_id=w.id) }}">
     👥 Page joueurs
@@ -81,6 +82,9 @@
 
 <hr style="margin:40px 0; opacity:.3;">
 
-<a href="{{ url_for('admin_home', key=key) }}">⬅ Retour au dashboard</a>
+<div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+  <a class="btn btn-small" href="{{ url_for('admin_home') }}">⬅ Retour au dashboard</a>
+  <a class="btn btn-small" href="{{ url_for('admin_logout') }}">🚪 Logout admin</a>
+</div>
 
 {% endblock %}
