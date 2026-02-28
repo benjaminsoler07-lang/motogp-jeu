@@ -1,6 +1,7 @@
 # app.py — PostgreSQL persistant
 # + ADMIN login (nom + mdp) + "Clôturer & Publier les pronos" + page publique HTML
 # + Page "Résultats par course" (dropdown GP + détail points)
+# + Switch admin ON/OFF pour ouvrir/fermer les pronos (fermé = public)
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
@@ -140,7 +141,36 @@ def is_pronos_public(weekend_id: str) -> bool:
     return bool(row and row[0])
 
 def close_and_publish_pronos(weekend_id: str):
-    """Règle : dès la clôture, les pronos deviennent publics."""
+    """Compat: ancienne action. Règle : dès la clôture, les pronos deviennent publics."""
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
+            VALUES (:w, NOW(), NOW())
+            ON CONFLICT (weekend_id)
+            DO UPDATE SET
+              closed_at = NOW(),
+              pronos_public_at = NOW()
+        """), {"w": weekend_id})
+
+# ✅ NOUVEAU : SWITCH ON/OFF
+def set_weekend_open(weekend_id: str):
+    """ON = ouvert : on remet closed_at/pronos_public_at à NULL (donc privé)."""
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
+            VALUES (:w, NULL, NULL)
+            ON CONFLICT (weekend_id)
+            DO UPDATE SET
+              closed_at = NULL,
+              pronos_public_at = NULL
+        """), {"w": weekend_id})
+
+def set_weekend_closed_and_public(weekend_id: str):
+    """OFF = fermé : pronos fermés et rendus publics."""
     if not engine:
         return
     with engine.begin() as conn:
@@ -703,17 +733,25 @@ def admin_weekend(weekend_id):
     name, _ = current_player(request)
     return render_template("admin_weekend.html", name=name, w=w, count=count, closed=closed, public=public)
 
-@app.route("/admin/w/<weekend_id>/close_publish", methods=["POST"])
+# ✅ NOUVEAU : route switch ON/OFF
+@app.route("/admin/w/<weekend_id>/toggle_pronos", methods=["POST"])
 @require_admin
-def admin_close_publish(weekend_id):
+def admin_toggle_pronos(weekend_id):
     if not get_weekend(weekend_id):
         return "Week-end inconnu", 404
 
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
-    close_and_publish_pronos(weekend_id)
-    flash("✅ Pronos clôturés ET publiés ! (plus de modifications possible)")
+    state = (request.form.get("state") or "").strip().lower()
+    # state = "on" => ouvert ; sinon => fermé+public
+    if state == "on":
+        set_weekend_open(weekend_id)
+        flash("🟢 Pronos OUVERTS (et redevenus privés)")
+    else:
+        set_weekend_closed_and_public(weekend_id)
+        flash("🔴 Pronos FERMÉS (et rendus publics)")
+
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
 # ------------------ ADMIN : results (✅ ROUTE CORRIGÉE) ------------------
