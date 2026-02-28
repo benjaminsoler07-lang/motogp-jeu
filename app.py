@@ -738,12 +738,27 @@ def classement_weekend(weekend_id):
 # ------------------ Health checks ------------------
 @app.route("/healthz")
 def healthz():
-    return "OK", 200
+    """
+    Endpoint ULTRA léger : doit répondre vite et toujours en 200
+    -> utilisé par GitHub Actions / UptimeRobot / ping anti-sommeil Render
+    """
+    resp = make_response("OK", 200)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 @app.route("/health")
 def health():
-    return "OK", 200
+    """
+    Endpoint 'profond' : vérifie aussi la DB quand elle existe.
+    -> utile pour debug/monitoring
+    """
+    if engine:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception as e:
+            return f"DB ERROR: {e}", 500
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    resp = make_response("OK", 200)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
