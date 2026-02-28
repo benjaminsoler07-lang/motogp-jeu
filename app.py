@@ -1,5 +1,6 @@
 # app.py — PostgreSQL persistant
 # + ADMIN login (nom + mdp) + "Clôturer & Publier les pronos" + page publique HTML
+# + Page "Résultats par course" (dropdown GP + détail points)
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
@@ -281,6 +282,140 @@ def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
         if normalize(p) in real_set:
             score += 0.5
     return score
+
+# ---- Détail complet pour "Résultats par course" ----
+def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
+    """
+    Donne le détail par position + bonus, basé sur normalize().
+    pred: [p1,p2,p3] ; actual: [a1,a2,a3]
+    """
+    p = [normalize(x) for x in (pred or [])]
+    a = [normalize(x) for x in (actual or [])]
+
+    pos = [0.0, 0.0, 0.0]
+
+    # points bien placés
+    for i in range(3):
+        if i < len(a) and i < len(p) and p[i] and p[i] == a[i]:
+            pos[i] += float(well_placed)
+
+    # points mal placés (présent dans le podium mais pas à la bonne place)
+    for i in range(3):
+        if i < len(p) and p[i] and p[i] in a and (i >= len(a) or p[i] != a[i]):
+            pos[i] += float(mis_placed)
+
+    bonus = 0.0
+    bonus_label = None
+    if len(a) >= 3 and len(p) >= 3 and all(p[i] == a[i] for i in range(3)):
+        bonus = float(bonus_exact)
+        bonus_label = "exact"
+    elif len(a) >= 3 and len(p) >= 3 and set(p) == set(a):
+        bonus = float(bonus_all)
+        bonus_label = "all"
+
+    total = round(sum(pos) + bonus, 2)
+
+    return {
+        "p1": round(pos[0], 2),
+        "p2": round(pos[1], 2),
+        "p3": round(pos[2], 2),
+        "bonus": round(bonus, 2),
+        "bonus_label": bonus_label,
+        "total": total
+    }
+
+def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
+    pole_ok = normalize(pole_pred) == normalize(pole_real)
+    pole_pts = 2.0 if pole_ok else 0.0
+
+    real_set = {normalize(x) for x in (q1_actual or [])}
+    q1 = []
+    q1_pts = 0.0
+    for x in (q1_preds or []):
+        ok = normalize(x) in real_set if x else False
+        pts = 0.5 if ok else 0.0
+        q1.append({"pick": x, "ok": ok, "pts": pts})
+        q1_pts += pts
+
+    total = round(pole_pts + q1_pts, 2)
+    return {
+        "pole_ok": pole_ok,
+        "pole_pts": pole_pts,
+        "q1": q1,
+        "q1_pts": round(q1_pts, 2),
+        "total": total
+    }
+
+def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list):
+    """
+    Chez toi : +0.5 par question si réponse identique (comme dans /classement)
+    pred/real sont des strings ("oui"/"non") ou équivalents.
+    """
+    pred_bonus = pred_bonus or {}
+    real_bonus = real_bonus or {}
+    items = []
+    total = 0.0
+
+    for b in (weekend_bonus_questions or []):
+        bid = b.get("id")
+        if not bid:
+            continue
+        pred = (pred_bonus.get(bid) or "").strip().lower()
+        real = (real_bonus.get(bid) or "").strip().lower()
+        ok = bool(pred and real and pred == real)
+        pts = 0.5 if ok else 0.0
+        total += pts
+        items.append({
+            "id": bid,
+            "label": b.get("label", bid),
+            "pred": pred_bonus.get(bid),
+            "real": real_bonus.get(bid),
+            "ok": ok,
+            "pts": pts
+        })
+
+    return {"items": items, "total": round(total, 2)}
+
+def compute_points_breakdown(prono: dict, results: dict, w: dict):
+    """
+    Retourne le détail complet : qualifs + sprint + gp + bonus + total.
+    Aligne tes règles actuelles (identiques à /classement_weekend).
+    """
+    prono = prono or {}
+    results = results or {}
+    w = w or {}
+    bq = w.get("bonus_questions", []) or []
+
+    qual = qualif_detail(
+        prono.get("pole"),
+        results.get("pole"),
+        [prono.get("q1_1"), prono.get("q1_2")],
+        results.get("q1", [])
+    )
+
+    sprint = podium_detail(
+        [prono.get("sprint_p1"), prono.get("sprint_p2"), prono.get("sprint_p3")],
+        results.get("sprint", []),
+        well_placed=1.0, mis_placed=0.5, bonus_exact=3.0, bonus_all=1.5
+    )
+
+    gp = podium_detail(
+        [prono.get("gp_p1"), prono.get("gp_p2"), prono.get("gp_p3")],
+        results.get("gp", []),
+        well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
+    )
+
+    bonus = bonus_detail(prono.get("bonus", {}), results.get("bonus", {}), bq)
+
+    total = round(qual["total"] + sprint["total"] + gp["total"] + bonus["total"], 2)
+
+    return {
+        "qualif": qual,
+        "sprint": sprint,
+        "gp": gp,
+        "bonus": bonus,
+        "total": total
+    }
 
 # ------------------ Fichiers (fallback) ------------------
 def pronos_path(weekend_id):
@@ -668,6 +803,107 @@ def public_pronos(weekend_id):
     name, _ = current_player(request)
     return render_template("public_pronos.html", name=name, w=w, pronos=pronos_list, admin_enabled=admin_enabled(), is_admin=is_admin())
 
+# ------------------ Public : Résultats par course (NOUVEAU) ------------------
+@app.route("/results_by_race")
+def results_by_race():
+    """
+    Page publique :
+    - dropdown de tous les GP
+    - affiche les résultats officiels + détail complet des points par joueur
+    """
+    name, _ = current_player(request)
+
+    weekends = load_weekends_list()
+    gp_id = (request.args.get("gp") or "").strip()
+
+    selected = get_weekend(gp_id) if gp_id else None
+
+    # Si pas de GP sélectionné : juste afficher la page et le dropdown
+    if not selected:
+        return render_template(
+            "results_by_race.html",
+            name=name,
+            weekends=weekends,
+            selected=None,
+            results=None,
+            rows=[],
+            notice=None,
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
+        )
+
+    # Charger résultats officiels (fichier JSON)
+    results = load_json(results_path(gp_id), None)
+    if not results:
+        return render_template(
+            "results_by_race.html",
+            name=name,
+            weekends=weekends,
+            selected=selected,
+            results=None,
+            rows=[],
+            notice="Entre d’abord les résultats officiels (Admin).",
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
+        )
+
+    # Charger tous les pronos du GP (DB sinon JSON)
+    pronos_list = []
+    if engine:
+        with engine.begin() as conn:
+            db_rows = conn.execute(text("""
+                SELECT player_name, payload_json, created_at, updated_at
+                FROM pronos
+                WHERE weekend_id=:w
+                ORDER BY updated_at DESC
+            """), {"w": gp_id}).fetchall()
+
+        for r in db_rows:
+            pronos_list.append({
+                "player_name": r[0],
+                "payload": dict(r[1] or {}),
+                "created_at": str(r[2]),
+                "updated_at": str(r[3]),
+            })
+    else:
+        all_pronos = load_json(pronos_path(gp_id), {})
+        if isinstance(all_pronos, dict):
+            for _, p in all_pronos.items():
+                pronos_list.append({
+                    "player_name": p.get("player_name", "??"),
+                    "payload": dict(p or {}),
+                    "created_at": p.get("_created_at") or p.get("created_at"),
+                    "updated_at": p.get("_updated_at") or p.get("updated_at"),
+                })
+
+    # Construire rows + détails points
+    rows = []
+    for item in pronos_list:
+        p = item["payload"] or {}
+        breakdown = compute_points_breakdown(p, results, selected)
+
+        rows.append({
+            "player": item["player_name"],
+            "created_at": item.get("created_at"),
+            "updated_at": item.get("updated_at"),
+            "p": p,
+            "pts": breakdown
+        })
+
+    rows.sort(key=lambda x: x["pts"]["total"], reverse=True)
+
+    return render_template(
+        "results_by_race.html",
+        name=name,
+        weekends=weekends,
+        selected=selected,
+        results=results,
+        rows=rows,
+        notice=None,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
+    )
+
 # ------------------ Classement ------------------
 @app.route("/w/<weekend_id>/classement")
 def classement_weekend(weekend_id):
@@ -691,7 +927,12 @@ def classement_weekend(weekend_id):
     results = load_json(results_path(weekend_id), None)
     if not results:
         name, _ = current_player(request)
-        return render_template("classement.html", name=name, w=w, rows=[], notice="Entre d’abord les résultats officiels (Admin).", admin_enabled=admin_enabled(), is_admin=is_admin())
+        return render_template(
+            "classement.html",
+            name=name, w=w, rows=[],
+            notice="Entre d’abord les résultats officiels (Admin).",
+            admin_enabled=admin_enabled(), is_admin=is_admin()
+        )
 
     rows = []
     for pid, p in all_pronos.items():
@@ -733,7 +974,11 @@ def classement_weekend(weekend_id):
 
     rows.sort(key=lambda r: r["total"], reverse=True)
     name, _ = current_player(request)
-    return render_template("classement.html", name=name, w=w, rows=rows, notice=None, admin_enabled=admin_enabled(), is_admin=is_admin())
+    return render_template(
+        "classement.html",
+        name=name, w=w, rows=rows, notice=None,
+        admin_enabled=admin_enabled(), is_admin=is_admin()
+    )
 
 # ------------------ Health checks ------------------
 @app.route("/healthz")
