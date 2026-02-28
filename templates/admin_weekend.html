@@ -39,12 +39,21 @@
     🏁 Entrer résultats
   </a>
 
-  {% if not closed %}
-  <form method="post" action="{{ url_for('admin_close_publish', weekend_id=w.id) }}">
-    <button class="btn btn-small btn-warning" type="submit">
-      🔒 Clôturer & Publier
-    </button>
-  </form>
+  <!-- ✅ SWITCH ON/OFF -->
+  {% if closed %}
+    <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
+      <input type="hidden" name="state" value="on">
+      <button class="btn btn-small" type="submit">
+        🟢 Ouvrir les pronos
+      </button>
+    </form>
+  {% else %}
+    <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
+      <input type="hidden" name="state" value="off">
+      <button class="btn btn-small btn-warning" type="submit">
+        🔴 Fermer + rendre public
+      </button>
+    </form>
   {% endif %}
 
   <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
