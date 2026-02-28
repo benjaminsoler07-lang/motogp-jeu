@@ -1,12 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Admin — Connexion{% endblock %}
+
 {% block content %}
-  <h2>Connexion Admin</h2>
-  <form method="post" class="card" style="max-width:420px;">
+  <h2>🔐 Connexion Admin</h2>
+
+  <form method="post" class="card" style="max-width:420px; text-align:left;">
     <label>Nom</label>
-    <input type="text" name="username" required>
+    <input type="text" name="username" autocomplete="username" required>
+
     <label>Mot de passe</label>
-    <input type="password" name="password" required>
+    <input type="password" name="password" autocomplete="current-password" required>
+
     <button class="btn" type="submit">Se connecter</button>
   </form>
+
+  <p style="margin-top:18px;">
+    <a href="{{ url_for('home') }}">⬅ Retour à l’accueil</a>
+  </p>
 {% endblock %}
