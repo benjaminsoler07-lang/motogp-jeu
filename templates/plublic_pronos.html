@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Pronos publics — {{ w.label }}{% endblock %}
+
+{% block content %}
+  <h2>Pronos publics — {{ w.label }}</h2>
+  <p style="opacity:.9">Les pronos deviennent visibles dès la clôture (début Q1).</p>
+
+  <div class="card">
+    {% if not pronos %}
+      <p>Aucun prono enregistré.</p>
+    {% else %}
+      <ul class="gp-list">
+        {% for row in pronos %}
+          {% set p = row.p or {} %}
+          {% set bonus = p.get('bonus', {}) or {} %}
+
+          <li class="gp-item" style="text-align:left;">
+            <strong>{{ row.player }}</strong>
+            <div style="opacity:.85; font-size:13px;">Dernière mise à jour : {{ row.updated_at }}</div>
+
+            <div style="margin-top:8px; font-size:14px; line-height:1.45;">
+              <div><strong>Pole :</strong> {{ p.get('pole') or "—" }}</div>
+              <div><strong>Q1 :</strong> {{ p.get('q1_1') or "—" }} / {{ p.get('q1_2') or "—" }}</div>
+              <div><strong>Sprint :</strong> {{ p.get('sprint_p1') or "—" }} — {{ p.get('sprint_p2') or "—" }} — {{ p.get('sprint_p3') or "—" }}</div>
+              <div><strong>GP :</strong> {{ p.get('gp_p1') or "—" }} — {{ p.get('gp_p2') or "—" }} — {{ p.get('gp_p3') or "—" }}</div>
+
+              {% if w.bonus_questions and w.bonus_questions|length > 0 %}
+                <div style="margin-top:6px;">
+                  <strong>Bonus :</strong>
+                  <ul style="margin:6px 0 0 18px;">
+                    {% for b in w.bonus_questions %}
+                      <li>{{ b.label }} : <strong>{{ bonus.get(b.id) or "—" }}</strong></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endblock %}
