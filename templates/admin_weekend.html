@@ -31,60 +31,41 @@
 
 <div class="card admin-actions" style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center;">
 
-  <!-- Questions bonus -->
-  <a class="btn btn-small"
-     href="{{ url_for('admin_questions', weekend_id=w.id) }}">
+  <a class="btn btn-small" href="{{ url_for('admin_questions', weekend_id=w.id) }}">
     ❓ Questions bonus
   </a>
 
-  <!-- Résultats -->
-  <a class="btn btn-small"
-     href="{{ url_for('admin_results', weekend_id=w.id) }}">
+  <a class="btn btn-small" href="{{ url_for('admin_results', weekend_id=w.id) }}">
     🏁 Entrer résultats
   </a>
 
-  <!-- Clôture -->
   {% if not closed %}
-  <form method="post"
-        action="{{ url_for('admin_close_publish', weekend_id=w.id) }}"
-        style="margin:0;">
+  <form method="post" action="{{ url_for('admin_close_publish', weekend_id=w.id) }}">
     <button class="btn btn-small btn-warning" type="submit">
       🔒 Clôturer & Publier
     </button>
   </form>
   {% endif %}
 
-  <!-- Page joueurs -->
-  <a class="btn btn-small"
-     href="{{ url_for('pronos', weekend_id=w.id) }}">
+  <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
     👥 Page joueurs
   </a>
 
-  <!-- Pronos publics -->
   {% if public %}
-    <a class="btn btn-small"
-       href="{{ url_for('public_pronos', weekend_id=w.id) }}">
+    <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">
       👀 Voir pronos publics
     </a>
   {% else %}
-    <span class="btn btn-small btn-disabled">
-      👀 Voir pronos publics
-    </span>
+    <span class="btn btn-small btn-disabled">👀 Voir pronos publics</span>
   {% endif %}
 
-  <!-- Classement -->
-  <a class="btn btn-small"
-     href="{{ url_for('classement_weekend', weekend_id=w.id) }}">
+  <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">
     📊 Voir classement
   </a>
 
 </div>
 
 <hr style="margin:40px 0; opacity:.3;">
-
-<div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-  <a class="btn btn-small" href="{{ url_for('admin_home') }}">⬅ Retour au dashboard</a>
-  <a class="btn btn-small" href="{{ url_for('admin_logout') }}">🚪 Logout admin</a>
-</div>
+<a href="{{ url_for('admin_home') }}">⬅ Retour au dashboard</a>
 
 {% endblock %}
