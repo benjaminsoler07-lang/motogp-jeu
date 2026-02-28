@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Pronos - MotoGP{% endblock %}</title>
-
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
 
@@ -20,7 +19,7 @@
         <span class="title">Pronos - MotoGP</span>
       </div>
 
-      <!-- ✅ Bloc utilisateur -->
+      <!-- Bloc utilisateur -->
       <div class="userbar">
         {% if name %}
           <span class="badge badge-ok">✅ Connecté</span>
@@ -38,11 +37,11 @@
         <a href="{{ url_for('home') }}">Accueil</a>
         <a href="{{ url_for('championnat') }}">Championnat</a>
 
-        <!-- ✅ Admin : visible pour tous, protégé côté serveur -->
-        <a class="admin-link" href="{{ url_for('admin_home') }}">Admin</a>
-
         {% if session.get('is_admin') %}
-          <a class="admin-logout" href="{{ url_for('admin_logout') }}">Admin logout</a>
+          <a class="admin-link" href="{{ url_for('admin_home') }}">Dashboard admin</a>
+          <a class="admin-logout" href="{{ url_for('admin_logout') }}">Logout admin</a>
+        {% else %}
+          <a class="admin-link" href="{{ url_for('admin_login') }}">Admin</a>
         {% endif %}
 
         {% if name %}
@@ -57,14 +56,6 @@
       {% with msgs = get_flashed_messages() %}
         {% if msgs %}
           <div class="flash">{{ msgs[-1] }}</div>
-
-          <!-- ✅ Popup confirmation -->
-          <script>
-            (function () {
-              const msg = {{ msgs[-1]|tojson }};
-              alert(msg);
-            })();
-          </script>
         {% endif %}
       {% endwith %}
 
