@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Résultats par course{% endblock %}
+
+{% block content %}
+<h2>📊 Résultats par course</h2>
+
+<form method="get" class="card" style="max-width:820px;margin:0 auto;">
+  <label for="gp"><strong>Choisir un GP :</strong></label>
+  <select id="gp" name="gp" onchange="this.form.submit()" style="width:100%;padding:10px;margin-top:8px;">
+    <option value="">-- Sélectionner --</option>
+    {% for w in weekends %}
+      <option value="{{ w.id }}" {% if selected and w.id == selected.id %}selected{% endif %}>
+        {{ w.label if w.label else w.id }}
+      </option>
+    {% endfor %}
+  </select>
+  <noscript>
+    <button class="btn" type="submit" style="margin-top:10px;">Afficher</button>
+  </noscript>
+</form>
+
+{% if notice %}
+  <p class="card" style="max-width:820px;margin:12px auto;">⚠️ {{ notice }}</p>
+{% endif %}
+
+{% if selected and results %}
+  <div class="card" style="max-width:1100px;margin:12px auto;text-align:left;">
+    <h3 style="margin-top:0;">Résultats officiels — {{ selected.label if selected.label else selected.id }}</h3>
+    <ul style="margin:0;padding-left:18px;">
+      <li><strong>Pole :</strong> {{ results.pole }}</li>
+      <li><strong>Sortants Q1 :</strong> {{ (results.q1 or [])|join(", ") }}</li>
+      <li><strong>Podium Sprint :</strong> {{ (results.sprint or [])|join(" / ") }}</li>
+      <li><strong>Podium GP :</strong> {{ (results.gp or [])|join(" / ") }}</li>
+      {% if selected.bonus_questions and (selected.bonus_questions|length > 0) %}
+        <li><strong>Bonus :</strong>
+          {% for b in selected.bonus_questions %}
+            {{ b.label }} = <em>{{ (results.bonus or {}).get(b.id) }}</em>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </li>
+      {% endif %}
+    </ul>
+  </div>
+{% endif %}
+
+{% if selected and results %}
+  {% if rows|length == 0 %}
+    <p class="card" style="max-width:1100px;margin:12px auto;">Aucun prono trouvé pour ce GP.</p>
+  {% else %}
+    <div class="card" style="max-width:1100px;margin:12px auto;">
+      <h3 style="margin-top:0;">Classement détaillé</h3>
+
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Joueur</th>
+            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Qualifs</th>
+            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Sprint</th>
+            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">GP</th>
+            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Bonus</th>
+            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Total</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
+                <strong>{{ r.player }}</strong><br>
+                <small style="opacity:.75;">MAJ: {{ r.updated_at }}</small>
+              </td>
+
+              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
+                {{ r.pts.qualif.total }}
+              </td>
+
+              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
+                {{ r.pts.sprint.total }}
+              </td>
+
+              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
+                {{ r.pts.gp.total }}
+              </td>
+
+              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
+                {{ r.pts.bonus.total }}
+              </td>
+
+              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
+                <strong style="font-size:18px;">{{ r.pts.total }}</strong>
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="6" style="padding:10px;border-bottom:1px solid rgba(255,255,255,.12);text-align:left;">
+                <details>
+                  <summary style="cursor:pointer;">Voir le détail complet</summary>
+
+                  <div style="margin-top:10px;">
+                    <h4>Qualifs — {{ r.pts.qualif.total }} pts</h4>
+                    <ul style="margin-top:6px;padding-left:18px;">
+                      <li>Pole : <em>{{ r.p.pole }}</em>
+                        {% if r.pts.qualif.pole_ok %} ✅ +{{ r.pts.qualif.pole_pts }} {% else %} ❌ +0 {% endif %}
+                      </li>
+                      <li>Q1 sortants :
+                        <em>{{ r.p.q1_1 }}</em>, <em>{{ r.p.q1_2 }}</em>
+                        — +{{ r.pts.qualif.q1_pts }}
+                      </li>
+                    </ul>
+
+                    <h4>Sprint — {{ r.pts.sprint.total }} pts</h4>
+                    <ul style="margin-top:6px;padding-left:18px;">
+                      <li>Prono : {{ r.p.sprint_p1 }} / {{ r.p.sprint_p2 }} / {{ r.p.sprint_p3 }}</li>
+                      <li>Détail : P1={{ r.pts.sprint.p1 }}, P2={{ r.pts.sprint.p2 }}, P3={{ r.pts.sprint.p3 }}
+                        {% if r.pts.sprint.bonus and r.pts.sprint.bonus > 0 %} + Bonus={{ r.pts.sprint.bonus }} ({{ r.pts.sprint.bonus_label }}){% endif %}
+                      </li>
+                    </ul>
+
+                    <h4>GP — {{ r.pts.gp.total }} pts</h4>
+                    <ul style="margin-top:6px;padding-left:18px;">
+                      <li>Prono : {{ r.p.gp_p1 }} / {{ r.p.gp_p2 }} / {{ r.p.gp_p3 }}</li>
+                      <li>Détail : P1={{ r.pts.gp.p1 }}, P2={{ r.pts.gp.p2 }}, P3={{ r.pts.gp.p3 }}
+                        {% if r.pts.gp.bonus and r.pts.gp.bonus > 0 %} + Bonus={{ r.pts.gp.bonus }} ({{ r.pts.gp.bonus_label }}){% endif %}
+                      </li>
+                    </ul>
+
+                    <h4>Bonus — {{ r.pts.bonus.total }} pts</h4>
+                    {% if r.pts.bonus.items and (r.pts.bonus.items|length > 0) %}
+                      <ul style="margin-top:6px;padding-left:18px;">
+                        {% for b in r.pts.bonus.items %}
+                          <li>
+                            {{ b.label }} :
+                            <em>{{ b.pred }}</em> (officiel: <em>{{ b.real }}</em>)
+                            {% if b.ok %} ✅ +{{ b.pts }} {% else %} ❌ +0 {% endif %}
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    {% else %}
+                      <p style="opacity:.8;margin-top:6px;">Aucune question bonus sur ce GP.</p>
+                    {% endif %}
+                  </div>
+                </details>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% endblock %}
