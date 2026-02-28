@@ -1,36 +1,69 @@
+Ton CSS est déjà très propre 👍
+Je te le “solidifie” en version finale (entière), avec :
+✅ boutons <a class="btn"> et <button class="btn"> stylés pareil (important !)
+✅ focus clavier (accessibilité)
+✅ form { margin:0; } pour éviter les décalages dans l’admin
+✅ select/input avec un fond lisible + outline discret
+✅ .gp-item en “card” plus jolie (sans casser tes templates)
+✅ petites classes utilitaires (ex: .muted, .row, .pill)
+✅ responsive un peu mieux sur mobile
+Copie/colle tout dans static/style.css :
+CSS
+Copier le code
 /* ============================
    GLOBAL
 ============================ */
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+:root{
+  --bg: #0d3b66;
+  --text: #ffffff;
+  --muted: rgba(255,255,255,0.75);
+  --card: rgba(255,255,255,0.06);
+  --card2: rgba(255,255,255,0.05);
+  --border: rgba(255,255,255,0.18);
+  --border2: rgba(255,255,255,0.25);
+  --accent: #ffd60a;
+  --danger: #ff4d4d;
+  --ok: #00ff88;
 }
 
 body {
-  background-color: #0d3b66;
-  color: white;
+  background-color: var(--bg);
+  color: var(--text);
   font-family: Arial, sans-serif;
   text-align: center;
   margin: 0;
   padding: 0;
 }
 
-main {
+main{
   max-width: 1000px;
   margin: 0 auto;
   padding: 20px;
 }
 
-.container {
-  margin-top: 50px;
+.container{ margin-top: 50px; }
+
+a{ color: inherit; }
+
+code{
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 2px 6px;
+  border-radius: 8px;
 }
+
+/* ✅ Forms clean (sinon les <form> en admin créent des marges cheloues) */
+form{ margin: 0; }
 
 /* ============================
    HEADER (TOPBAR)
 ============================ */
-.topbar {
+.topbar{
   position: relative;
   overflow: hidden;
-  background-color: #0d3b66;
+  background-color: var(--bg);
   padding: 12px 20px;
   display: flex;
   align-items: center;
@@ -39,82 +72,76 @@ main {
 }
 
 /* Damier discret */
-.topbar::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.08;
+.topbar::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  opacity:0.08;
   background-image:
     linear-gradient(45deg, #ffffff 25%, transparent 25%),
     linear-gradient(-45deg, #ffffff 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #ffffff 75%),
     linear-gradient(-45deg, transparent 75%, #ffffff 75%);
-  background-size: 34px 34px;
-  background-position: 0 0, 0 17px, 17px -17px, -17px 0px;
-  pointer-events: none;
+  background-size:34px 34px;
+  background-position:0 0, 0 17px, 17px -17px, -17px 0px;
+  pointer-events:none;
 }
 
-.topbar > * {
-  position: relative;
-  z-index: 1;
-}
+.topbar > *{ position: relative; z-index: 1; }
 
 /* ============================
    LOGO
 ============================ */
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
+.logo{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
 }
 
-.motogp-icon {
-  width: 105px;
-  height: auto;
-}
+.motogp-icon{ width:105px; height:auto; }
 
-.title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
+.title{
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:0.4px;
+  white-space:nowrap;
 }
 
 /* ============================
    USER BAR
 ============================ */
-.userbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  white-space: nowrap;
+.userbar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  white-space:nowrap;
 }
 
-.badge {
+.badge{
   padding: 5px 12px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
 }
 
-.badge-ok {
-  background: rgba(0, 255, 0, 0.15);
-  border: 1px solid rgba(0, 255, 0, 0.4);
+.badge-ok{
+  background: rgba(0,255,0,0.15);
+  border: 1px solid rgba(0,255,0,0.40);
 }
 
-.badge-no {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+.badge-no{
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.25);
 }
 
-.badge-admin {
-  background: rgba(255, 214, 10, 0.18);
-  border: 1px solid rgba(255, 214, 10, 0.45);
-  color: #ffd60a;
+.badge-admin{
+  background: rgba(255,214,10,0.18);
+  border: 1px solid rgba(255,214,10,0.45);
+  color: var(--accent);
 }
 
-.hello {
+.hello{
   padding: 6px 10px;
   border-radius: 10px;
   font-size: 14px;
@@ -124,298 +151,303 @@ main {
 /* ============================
    MENU
 ============================ */
-.menu {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.menu{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
 }
 
-.menu a {
-  color: white;
-  text-decoration: none;
-  font-weight: 600;
-  padding: 10px 14px;
-  border-radius: 14px;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  transition: all 0.2s ease;
+.menu a{
+  color:white;
+  text-decoration:none;
+  font-weight:600;
+  padding:10px 14px;
+  border-radius:14px;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  transition: all 0.18s ease;
 }
 
-.menu a:hover {
+.menu a:hover{
   background: rgba(255,255,255,0.12);
   transform: translateY(-1px);
 }
 
 /* Lien Admin */
-.menu a.admin-link {
-  border: 1px solid rgba(255, 214, 10, 0.4);
-  background: rgba(255, 214, 10, 0.08);
-  color: #ffd60a;
+.menu a.admin-link{
+  border:1px solid rgba(255,214,10,0.40);
+  background: rgba(255,214,10,0.08);
+  color: var(--accent);
 }
 
-.menu a.admin-link:hover {
-  background: rgba(255, 214, 10, 0.18);
+.menu a.admin-link:hover{
+  background: rgba(255,214,10,0.18);
 }
 
 /* Admin logout */
-.menu a.admin-logout {
-  opacity: 0.85;
-}
-
-.menu a.admin-logout:hover {
-  opacity: 1;
-}
+.menu a.admin-logout{ opacity: 0.86; }
+.menu a.admin-logout:hover{ opacity: 1; }
 
 /* ============================
    FLASH MESSAGE
 ============================ */
-.flash {
+.flash{
   margin: 15px auto;
-  max-width: 700px;
-  padding: 14px;
+  max-width: 760px;
+  padding: 14px 16px;
   background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.20);
   border-radius: 14px;
+  text-align: left;
 }
 
 /* ============================
-   LISTE GP
+   CARD / FORMS
 ============================ */
-.gp-list {
-  list-style: none;
-  padding: 0;
-  margin: 20px auto;
-  max-width: 650px;
-}
-
-.gp-item {
-  margin: 12px 0;
-  font-size: 20px;
-}
-
-.gp-past {
-  text-decoration: line-through;
-  opacity: 0.6;
-}
-
-.gp-closed {
-  color: grey;
-  opacity: 0.7;
-}
-
-.gp-closed a {
-  pointer-events: none;
-  text-decoration: none;
-}
-
-.gp-open a {
-  color: #ffd60a;
-  font-weight: bold;
-}
-
-.gp-open a:hover {
-  text-decoration: underline;
-}
-
-/* ============================
-   FORM / CARD
-============================ */
-.card {
-  max-width: 750px;
+.card{
+  max-width: 760px;
   margin: 0 auto;
   padding: 20px;
   border-radius: 18px;
-  background: rgba(255,255,255,0.05);
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.10);
+  text-align: center;
 }
 
-.card h3 {
+.card h3{
   margin-top: 20px;
   margin-bottom: 10px;
 }
 
-.card label {
-  display: block;
+.card label{
+  display:block;
   margin-top: 14px;
   margin-bottom: 6px;
   font-weight: 600;
+  text-align: left;
 }
 
+/* ✅ inputs lisibles partout */
 .card select,
-.card input {
+.card input{
   width: 100%;
   font-size: 16px;
-  padding: 10px;
-  border-radius: 10px;
-  border: none;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.18);
+  color: white;
+  outline: none;
 }
 
-.btn {
+/* ✅ focus clavier */
+.card select:focus,
+.card input:focus{
+  border-color: rgba(255,214,10,0.65);
+  box-shadow: 0 0 0 3px rgba(255,214,10,0.18);
+}
+
+/* ============================
+   BUTTONS
+   (important: <a class="btn"> et <button class="btn">)
+============================ */
+.btn{
   width: 100%;
   margin-top: 18px;
-  padding: 14px;
+  padding: 14px 16px;
   border-radius: 14px;
   min-height: 48px;
-  font-weight: bold;
+  font-weight: 800;
+  letter-spacing: 0.2px;
   border: none;
   cursor: pointer;
-  background: #ffd60a;
-  color: #0d3b66;
-  transition: 0.2s;
+  background: var(--accent);
+  color: var(--bg);
+  transition: 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
-.btn:hover {
+.btn:hover{
   transform: translateY(-2px);
-  opacity: 0.9;
+  opacity: 0.92;
+}
+
+.btn:active{
+  transform: translateY(0px);
+  opacity: 0.95;
+}
+
+/* ✅ Focus clavier boutons */
+.btn:focus{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255,214,10,0.22);
+}
+
+/* Boutons compacts */
+.btn-small{
+  width: auto;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-top: 0; /* utile quand dans une row */
+}
+
+/* Bouton danger */
+.btn-warning{
+  background: var(--danger);
+  color: white;
+}
+
+.btn-warning:hover{ opacity: 0.92; }
+.btn-warning:focus{ box-shadow: 0 0 0 3px rgba(255,77,77,0.22); }
+
+.btn-disabled{
+  opacity: 0.55;
+  pointer-events: none;
+  cursor: not-allowed;
 }
 
 /* Sticky mobile save */
-.sticky-save {
+.sticky-save{
   position: sticky;
   bottom: 10px;
   margin-top: 15px;
   padding: 12px;
   border-radius: 16px;
   backdrop-filter: blur(6px);
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* ============================
+   LISTE GP (Home + Admin)
+============================ */
+.gp-list{
+  list-style:none;
+  padding:0;
+  margin: 20px auto;
+  max-width: 760px;
+}
+
+.gp-item{
+  margin: 12px 0;
+  font-size: 18px;
+}
+
+/* Style “card” pour les items (mieux visuellement) */
+.gp-item{
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--card2);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* États week-end */
+.gp-past{ text-decoration: line-through; opacity: 0.65; }
+.gp-closed{ color: rgba(255,255,255,0.60); }
+.gp-closed a{ pointer-events:none; text-decoration:none; opacity:0.7; }
+
+.gp-open a{
+  color: var(--accent);
+  font-weight: 900;
+  text-decoration: none;
+}
+.gp-open a:hover{ text-decoration: underline; }
+
+/* ============================
+   ADMIN DASHBOARD
+============================ */
+.admin-intro{ text-align:left; }
+
+.admin-tip{
+  opacity: 0.85;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.admin-list{ list-style:none; padding:0; }
+
+.admin-item{
+  display:flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-left{
+  text-align:left;
+  min-width: 260px;
+}
+
+.admin-meta{
+  font-size: 14px;
+  opacity: 0.85;
+  margin-top: 6px;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-status{
+  margin-top: 10px;
+  display:flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.status-open{ color: var(--ok); font-weight: 800; }
+.status-closed{ color: var(--danger); font-weight: 800; }
+.status-public{ color: var(--accent); font-weight: 800; }
+.status-private{ opacity: 0.75; font-weight: 700; }
+
+.admin-actions{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ============================
+   UTILITAIRES
+============================ */
+.muted{ opacity: 0.8; }
+.row{ display:flex; gap:12px; flex-wrap:wrap; }
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.12);
 }
 
 /* ============================
    RESPONSIVE
 ============================ */
-@media (max-width: 700px) {
-
-  .topbar {
+@media (max-width: 700px){
+  .topbar{
     flex-direction: column;
     align-items: center;
     gap: 12px;
   }
 
-  .logo {
-    justify-content: center;
-  }
+  .logo{ justify-content:center; }
+  .userbar{ justify-content:center; flex-wrap: wrap; }
+  .menu{ justify-content:center; width:100%; }
 
-  .userbar {
-    justify-content: center;
-  }
+  .motogp-icon{ width: 85px; }
+  .title{ font-size: 16px; }
 
-  .menu {
-    justify-content: center;
-    width: 100%;
-  }
+  main{ padding: 14px; }
+  .card{ padding: 14px; }
 
-  .motogp-icon {
-    width: 85px;
-  }
-
-  .title {
-    font-size: 16px;
-  }
-
-  .gp-item {
-    font-size: 18px;
-  }
-
-  main {
-    padding: 14px;
-  }
-
-  .card {
-    padding: 14px;
-  }
+  .admin-actions{ justify-content: center; }
 }
-/* ============================
-   ADMIN DASHBOARD
-============================ */
-
-.admin-intro {
-  text-align: left;
-}
-
-.admin-tip {
-  opacity: 0.85;
-  font-size: 14px;
-  margin-top: 6px;
-}
-
-.admin-list {
-  list-style: none;
-  padding: 0;
-}
-
-.admin-item {
-  margin: 18px 0;
-  padding: 18px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.05);
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.admin-left {
-  text-align: left;
-  min-width: 260px;
-}
-
-.admin-meta {
-  font-size: 14px;
-  opacity: 0.85;
-  margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.admin-status {
-  margin-top: 8px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 14px;
-}
-
-.status-open {
-  color: #00ff88;
-}
-
-.status-closed {
-  color: #ff4d4d;
-}
-
-.status-public {
-  color: #ffd60a;
-}
-
-.status-private {
-  opacity: 0.7;
-}
-
-.admin-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-/* Boutons admin plus compacts */
-.btn-small {
-  width: auto;
-  padding: 10px 14px;
-  font-size: 14px;
-}
-
-.btn-warning {
-  background: #ff4d4d;
-  color: white;
-}
-
-.btn-warning:hover {
-  opacity: 0.9;
-}
-
-.btn-disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
+Si tu veux, je te fais la petite liste “joueurs qui ont pronostiqué ✅” à droite en CSS (layout 2 colonnes) + le HTML à ajouter dans pronos.html.
