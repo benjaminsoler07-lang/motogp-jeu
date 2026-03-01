@@ -5,16 +5,15 @@
   <div class="container">
     <h1>Bienvenue sur Pronos MotoGP 🏁</h1>
 
-    <!-- 🏆 Prono Championnat du monde (à la place du bouton Admin) -->
-    <div style="margin: 12px 0;">
-      <a class="btn btn-small" href="{{ url_for('championnat') }}">
-        🏆 Prono championnat du monde
-      </a>
-    </div>
-
     <p>Choisis un Grand Prix pour faire ton pronostic :</p>
 
     <ul class="gp-list">
+
+      <!-- 🏆 Prono Championnat du monde : comme un GP classique -->
+      <li class="gp-item gp-open">
+        <a href="{{ url_for('championnat') }}">🏆 Prono championnat du monde</a>
+      </li>
+
       {% for w in weekends %}
         <li class="gp-item
             {% if w.status == 'past' %}gp-past{% endif %}
@@ -28,6 +27,7 @@
           {% endif %}
         </li>
       {% endfor %}
+
     </ul>
   </div>
 {% endblock %}
