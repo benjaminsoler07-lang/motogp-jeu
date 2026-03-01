@@ -6,31 +6,58 @@
   {% if notice %}
     <p class="notice">{{ notice }}</p>
   {% else %}
-    <table class="classement">
-      <thead>
-        <tr>
-          <th>Joueur</th>
-          <th>Qualifications</th>
-          <th>Sprint</th>
-          <th>Grand Prix</th>
-          <th>Bonus</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
+
+    <div class="card" style="text-align:left;">
+      <p style="margin:0;"><strong>📊 Classement du week-end</strong></p>
+      <p style="margin:6px 0 0; opacity:.85;">
+        Points = Qualifs + Sprint + GP + Bonus
+      </p>
+    </div>
+
+    <div class="card" style="overflow-x:auto;">
+      <table class="classement">
+        <thead>
           <tr>
-            <td>{{ r.player }}</td>
-            <td>{{ r.q }}</td>
-            <td>{{ r.s }}</td>
-            <td>{{ r.gp }}</td>
-            <td>{{ r.bonus }}</td>
-            <td><strong>{{ r.total }}</strong></td>
+            <th>#</th>
+            <th>Joueur</th>
+            <th>Qualifs</th>
+            <th>Sprint</th>
+            <th>GP</th>
+            <th>Bonus</th>
+            <th>Total</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td><strong>{{ loop.index }}</strong></td>
+              <td>{{ r.player }}</td>
+              <td>{{ r.q }}</td>
+              <td>{{ r.s }}</td>
+              <td>{{ r.gp }}</td>
+              <td>{{ r.bonus }}</td>
+              <td><strong>{{ r.total }}</strong></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
   {% endif %}
 
-  <p><a href="{{ url_for('pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos</a></p>
+  <div class="card" style="text-align:left; margin-top:14px;">
+    <p style="margin:0;"><strong>➡️ Détail des points par course</strong></p>
+    <p style="margin:6px 0 0; opacity:.85;">
+      Va sur “Résultats par course” et sélectionne le GP pour voir le détail complet.
+    </p>
+    <a class="btn btn-small" href="{{ url_for('results_by_race') }}">📌 Résultats par course</a>
+  </div>
+
+  <p style="margin-top:16px;">
+    {% if is_weekend_closed(w.id) if engine else false %}
+      <a href="{{ url_for('public_pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos publics</a>
+    {% else %}
+      <a href="{{ url_for('pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos</a>
+    {% endif %}
+  </p>
 {% endblock %}
