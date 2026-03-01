@@ -54,7 +54,7 @@
   </div>
 
   <p style="margin-top:16px;">
-    {% if is_weekend_closed(w.id) if engine else false %}
+    {% if closed %}
       <a href="{{ url_for('public_pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos publics</a>
     {% else %}
       <a href="{{ url_for('pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos</a>
