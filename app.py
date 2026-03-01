@@ -2,6 +2,7 @@
 # + ADMIN login (nom + mdp) + "Clôturer & Publier les pronos" + page publique HTML
 # + Page "Résultats par course" (dropdown GP + détail points)
 # + Switch admin ON/OFF pour ouvrir/fermer les pronos (fermé = public)
+# + Auto: si GP fermé => /w/<gp>/pronos affiche automatiquement les pronos publics
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
@@ -577,6 +578,14 @@ def pronos(weekend_id):
 
     closed = is_weekend_closed(weekend_id) if engine else False
 
+    # ✅ MAJ : si le GP est fermé, on affiche automatiquement les pronos publics
+    if closed:
+        if not engine:
+            return "Mode public indisponible sans DB (DATABASE_URL manquant).", 500
+        if is_pronos_public(weekend_id):
+            return redirect(url_for("public_pronos", weekend_id=weekend_id))
+        return "Pronos fermés mais pas encore publiés.", 403
+
     my = {}
     if engine:
         with engine.begin() as conn:
@@ -594,6 +603,7 @@ def pronos(weekend_id):
         my = all_pronos.get(pid, {})
 
     if request.method == "POST":
+        # (normalement jamais atteint si closed=True car on redirect avant)
         if closed:
             flash("Pronos clos : modification impossible.")
             return redirect(url_for("pronos", weekend_id=weekend_id))
@@ -754,7 +764,7 @@ def admin_toggle_pronos(weekend_id):
 
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
-# ------------------ ADMIN : results (✅ ROUTE CORRIGÉE) ------------------
+# ------------------ ADMIN : results ------------------
 @app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
 @require_admin
 def admin_results(weekend_id):
@@ -841,14 +851,9 @@ def public_pronos(weekend_id):
     name, _ = current_player(request)
     return render_template("public_pronos.html", name=name, w=w, pronos=pronos_list, admin_enabled=admin_enabled(), is_admin=is_admin())
 
-# ------------------ Public : Résultats par course (NOUVEAU) ------------------
+# ------------------ Public : Résultats par course ------------------
 @app.route("/results_by_race")
 def results_by_race():
-    """
-    Page publique :
-    - dropdown de tous les GP
-    - affiche les résultats officiels + détail complet des points par joueur
-    """
     name, _ = current_player(request)
 
     weekends = load_weekends_list()
@@ -856,7 +861,6 @@ def results_by_race():
 
     selected = get_weekend(gp_id) if gp_id else None
 
-    # Si pas de GP sélectionné : juste afficher la page et le dropdown
     if not selected:
         return render_template(
             "results_by_race.html",
@@ -870,7 +874,6 @@ def results_by_race():
             is_admin=is_admin()
         )
 
-    # Charger résultats officiels (fichier JSON)
     results = load_json(results_path(gp_id), None)
     if not results:
         return render_template(
@@ -885,7 +888,6 @@ def results_by_race():
             is_admin=is_admin()
         )
 
-    # Charger tous les pronos du GP (DB sinon JSON)
     pronos_list = []
     if engine:
         with engine.begin() as conn:
@@ -914,7 +916,6 @@ def results_by_race():
                     "updated_at": p.get("_updated_at") or p.get("updated_at"),
                 })
 
-    # Construire rows + détails points
     rows = []
     for item in pronos_list:
         p = item["payload"] or {}
@@ -1021,20 +1022,12 @@ def classement_weekend(weekend_id):
 # ------------------ Health checks ------------------
 @app.route("/healthz")
 def healthz():
-    """
-    Endpoint ULTRA léger : doit répondre vite et toujours en 200
-    -> utilisé par GitHub Actions / UptimeRobot / ping anti-sommeil Render
-    """
     resp = make_response("OK", 200)
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
 @app.route("/health")
 def health():
-    """
-    Endpoint 'profond' : vérifie aussi la DB quand elle existe.
-    -> utile pour debug/monitoring
-    """
     if engine:
         try:
             with engine.connect() as conn:
