@@ -36,15 +36,34 @@
 
       <div class="row" style="justify-content:flex-start; margin-top:10px;">
         <span class="pill">Pole : <strong>{{ results.pole or '—' }}</strong></span>
-        <span class="pill">Q1 : <strong>{{ results.q1[0] or '—' }}</strong> + <strong>{{ results.q1[1] or '—' }}</strong></span>
+        <span class="pill">
+          Q1 :
+          <strong>{{ (results.q1[0] if results.q1 and results.q1|length>0 else '—') }}</strong>
+          +
+          <strong>{{ (results.q1[1] if results.q1 and results.q1|length>1 else '—') }}</strong>
+        </span>
       </div>
 
       <div class="row" style="justify-content:flex-start; margin-top:10px;">
-        <span class="pill">Sprint : <strong>{{ results.sprint[0] or '—' }}</strong> / <strong>{{ results.sprint[1] or '—' }}</strong> / <strong>{{ results.sprint[2] or '—' }}</strong></span>
+        <span class="pill">
+          Sprint :
+          <strong>{{ (results.sprint[0] if results.sprint and results.sprint|length>0 else '—') }}</strong>
+          /
+          <strong>{{ (results.sprint[1] if results.sprint and results.sprint|length>1 else '—') }}</strong>
+          /
+          <strong>{{ (results.sprint[2] if results.sprint and results.sprint|length>2 else '—') }}</strong>
+        </span>
       </div>
 
       <div class="row" style="justify-content:flex-start; margin-top:10px;">
-        <span class="pill">GP : <strong>{{ results.gp[0] or '—' }}</strong> / <strong>{{ results.gp[1] or '—' }}</strong> / <strong>{{ results.gp[2] or '—' }}</strong></span>
+        <span class="pill">
+          GP :
+          <strong>{{ (results.gp[0] if results.gp and results.gp|length>0 else '—') }}</strong>
+          /
+          <strong>{{ (results.gp[1] if results.gp and results.gp|length>1 else '—') }}</strong>
+          /
+          <strong>{{ (results.gp[2] if results.gp and results.gp|length>2 else '—') }}</strong>
+        </span>
       </div>
 
       {% if selected.bonus_questions %}
@@ -165,10 +184,12 @@
 
               <!-- BONUS -->
               <h3 style="margin:16px 0 8px;">Questions bonus — {{ r.pts.bonus.total }} pts</h3>
-              {% if r.pts.bonus.items|length == 0 %}
+
+              {# ✅ FIX ICI : items est une clé, pas la méthode dict.items() #}
+              {% if r.pts.bonus["items"]|length == 0 %}
                 <p class="muted">Pas de questions bonus sur ce GP.</p>
               {% else %}
-                {% for b in r.pts.bonus.items %}
+                {% for b in r.pts.bonus["items"] %}
                   <div class="pill" style="width:100%; justify-content:space-between; margin-top:6px;">
                     <span>{{ b.label }}</span>
                     <span>
