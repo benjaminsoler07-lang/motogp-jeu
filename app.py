@@ -596,4 +596,574 @@ def championnat():
         picks = [form.get("wc_p1"), form.get("wc_p2"), form.get("wc_p3")]
         v = [x for x in picks if x]
         if len(set(v)) != len(v):
-            flash("Doublon détecté
+            flash("Doublon détecté : tu ne peux pas mettre le même pilote 2 fois.")
+            return redirect(url_for("championnat"))
+
+        payload = {
+            "player_name": name,
+            "wc_p1": form.get("wc_p1"),
+            "wc_p2": form.get("wc_p2"),
+            "wc_p3": form.get("wc_p3"),
+        }
+
+        if engine:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO championnat_pronos (user_key, player_name, payload_json, created_at, updated_at)
+                    VALUES (:u, :n, CAST(:p AS jsonb), NOW(), NOW())
+                    ON CONFLICT (user_key)
+                    DO UPDATE SET
+                        player_name = EXCLUDED.player_name,
+                        payload_json = EXCLUDED.payload_json,
+                        updated_at = NOW()
+                """), {
+                    "u": pid,
+                    "n": name,
+                    "p": json.dumps(payload, ensure_ascii=False)
+                })
+        else:
+            all_preds = load_json(championnat_path(), {})
+            payload["updated_at"] = datetime.utcnow().isoformat()
+            all_preds[pid] = payload
+            save_json(championnat_path(), all_preds)
+
+        flash("Pronostic championnat enregistré ✅ (modifiable)")
+        return redirect(url_for("championnat"))
+
+    return render_template("championnat.html", riders=RIDERS, my=my, name=name, admin_enabled=admin_enabled(), is_admin=is_admin())
+
+# ------------------ Week-end pronos ------------------
+@app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
+def pronos(weekend_id):
+    name, pid = current_player(request)
+    if not name:
+        return redirect(url_for("login"))
+
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    closed = is_weekend_closed(weekend_id) if engine else False
+
+    # ✅ si fermé -> redirige vers pronos publics
+    if closed:
+        if not engine:
+            return "Mode public indisponible sans DB (DATABASE_URL manquant).", 500
+        return redirect(url_for("public_pronos", weekend_id=weekend_id))
+
+    my = {}
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT payload_json, created_at, updated_at
+                FROM pronos
+                WHERE weekend_id=:w AND user_key=:u
+            """), {"w": weekend_id, "u": pid}).fetchone()
+        if row:
+            my = dict(row[0] or {})
+            my["_created_at"] = str(row[1])
+            my["_updated_at"] = str(row[2])
+    else:
+        all_pronos = load_json(pronos_path(weekend_id), {})
+        my = all_pronos.get(pid, {})
+
+    if request.method == "POST":
+        if closed:
+            flash("Pronos clos : modification impossible.")
+            return redirect(url_for("pronos", weekend_id=weekend_id))
+
+        form = request.form
+
+        def has_duplicates(values):
+            v = [x for x in values if x]
+            return len(set(v)) != len(v)
+
+        if has_duplicates([form.get("q1_1"), form.get("q1_2")]) \
+           or has_duplicates([form.get("sprint_p1"), form.get("sprint_p2"), form.get("sprint_p3")]) \
+           or has_duplicates([form.get("gp_p1"), form.get("gp_p2"), form.get("gp_p3")]):
+            flash("Doublon détecté : un pilote ne peut apparaître qu'une fois dans Q1 / Sprint / GP.")
+            return redirect(url_for("pronos", weekend_id=weekend_id))
+
+        payload = {
+            "player_name": name,
+            "pole": form.get("pole"),
+            "q1_1": form.get("q1_1"),
+            "q1_2": form.get("q1_2"),
+            "sprint_p1": form.get("sprint_p1"),
+            "sprint_p2": form.get("sprint_p2"),
+            "sprint_p3": form.get("sprint_p3"),
+            "gp_p1": form.get("gp_p1"),
+            "gp_p2": form.get("gp_p2"),
+            "gp_p3": form.get("gp_p3"),
+            "bonus": {b["id"]: form.get(f"bonus_{b['id']}") for b in w.get("bonus_questions", [])}
+        }
+
+        if engine:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO pronos (weekend_id, user_key, player_name, payload_json, created_at, updated_at)
+                    VALUES (:w, :u, :n, CAST(:p AS jsonb), NOW(), NOW())
+                    ON CONFLICT (weekend_id, user_key)
+                    DO UPDATE SET
+                        player_name = EXCLUDED.player_name,
+                        payload_json = EXCLUDED.payload_json,
+                        updated_at = NOW()
+                """), {
+                    "w": weekend_id,
+                    "u": pid,
+                    "n": name,
+                    "p": json.dumps(payload, ensure_ascii=False)
+                })
+        else:
+            all_pronos = load_json(pronos_path(weekend_id), {})
+            payload["updated_at"] = datetime.utcnow().isoformat()
+            all_pronos[pid] = payload
+            save_json(pronos_path(weekend_id), all_pronos)
+
+        flash("Pronostic enregistré ✅ (modifiable à volonté)")
+        return redirect(url_for("pronos", weekend_id=weekend_id))
+
+    return render_template("pronos.html", w=w, riders=RIDERS, my=my, name=name, closed=closed, admin_enabled=admin_enabled(), is_admin=is_admin())
+
+# ================== ADMIN AUTH ==================
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if not admin_enabled():
+        return "Admin non configuré (ADMIN_USER/ADMIN_PASS manquants).", 500
+
+    if request.method == "POST":
+        u = (request.form.get("username") or "").strip()
+        p = (request.form.get("password") or "").strip()
+
+        if u == ADMIN_USER and p == ADMIN_PASS:
+            session["is_admin"] = True
+            session.permanent = True
+            flash("✅ Connecté en admin")
+            return redirect(url_for("admin_home"))
+
+        flash("❌ Identifiants incorrects")
+        return redirect(url_for("admin_login"))
+
+    name, _ = current_player(request)
+    return render_template("admin_login.html", name=name)
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("is_admin", None)
+    flash("Déconnecté de l'admin ✅")
+    return redirect(url_for("home"))
+
+# ================== ADMIN PAGES ==================
+@app.route("/admin")
+@require_admin
+def admin_home():
+    weekends = load_weekends_list()
+    enriched = []
+
+    for w in weekends:
+        wid = w.get("id")
+        if not wid:
+            continue
+
+        count = 0
+        if engine:
+            with engine.begin() as conn:
+                # ✅ nombre de joueurs uniques
+                row = conn.execute(
+                    text("SELECT COUNT(DISTINCT player_name) FROM pronos WHERE weekend_id=:w"),
+                    {"w": wid}
+                ).fetchone()
+            count = int(row[0]) if row else 0
+        else:
+            all_pronos = load_json(pronos_path(wid), {})
+            if isinstance(all_pronos, dict):
+                tmp = []
+                for _, p in all_pronos.items():
+                    tmp.append({
+                        "player_name": (p.get("player_name") or "??"),
+                        "payload": dict(p or {}),
+                        "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at")
+                    })
+                count = len(dedupe_pronos_by_playername(tmp))
+            else:
+                count = 0
+
+        enriched.append({
+            "id": wid,
+            "label": w.get("label", wid),
+            "date": w.get("date"),
+            "count": count,
+            "closed": is_weekend_closed(wid) if engine else False,
+            "public": is_weekend_closed(wid) if engine else False,  # fermé = public
+        })
+
+    name, _ = current_player(request)
+    return render_template("admin_home.html", name=name, weekends=enriched)
+
+@app.route("/admin/w/<weekend_id>")
+@require_admin
+def admin_weekend(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    count = 0
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("SELECT COUNT(DISTINCT player_name) FROM pronos WHERE weekend_id=:w"),
+                {"w": weekend_id}
+            ).fetchone()
+        count = int(row[0]) if row else 0
+    else:
+        all_pronos = load_json(pronos_path(weekend_id), {})
+        if isinstance(all_pronos, dict):
+            tmp = []
+            for _, p in all_pronos.items():
+                tmp.append({
+                    "player_name": (p.get("player_name") or "??"),
+                    "payload": dict(p or {}),
+                    "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at")
+                })
+            count = len(dedupe_pronos_by_playername(tmp))
+        else:
+            count = 0
+
+    closed = is_weekend_closed(weekend_id) if engine else False
+    public = closed  # fermé = public
+
+    name, _ = current_player(request)
+    return render_template("admin_weekend.html", name=name, w=w, count=count, closed=closed, public=public)
+
+# ✅ route switch ON/OFF
+@app.route("/admin/w/<weekend_id>/toggle_pronos", methods=["POST"])
+@require_admin
+def admin_toggle_pronos(weekend_id):
+    if not get_weekend(weekend_id):
+        return "Week-end inconnu", 404
+
+    if not engine:
+        return "DB non configurée (DATABASE_URL manquant).", 500
+
+    state = (request.form.get("state") or "").strip().lower()
+    if state == "on":
+        set_weekend_open(weekend_id)
+        flash("🟢 Pronos OUVERTS (et redevenus privés)")
+    else:
+        set_weekend_closed_and_public(weekend_id)
+        flash("🔴 Pronos FERMÉS (et rendus publics)")
+
+    return redirect(url_for("admin_weekend", weekend_id=weekend_id))
+
+# ------------------ ADMIN : results ------------------
+@app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
+@require_admin
+def admin_results(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    # ✅ MAJ: DB d'abord
+    results = load_results(weekend_id) or {}
+
+    if request.method == "POST":
+        f = request.form
+        results = {
+            "pole": f.get("pole"),
+            "q1": [f.get("q1_1"), f.get("q1_2")],
+            "sprint": [f.get("sprint_p1"), f.get("sprint_p2"), f.get("sprint_p3")],
+            "gp": [f.get("gp_p1"), f.get("gp_p2"), f.get("gp_p3")],
+            "bonus": {b["id"]: f.get(f"bonus_{b['id']}") for b in w.get("bonus_questions", [])}
+        }
+        save_results(weekend_id, results)
+        flash("Résultats officiels enregistrés ✅")
+        return redirect(url_for("admin_results", weekend_id=weekend_id))
+
+    name, _ = current_player(request)
+    return render_template("admin_results.html", name=name, w=w, riders=RIDERS, results=results)
+
+@app.route("/admin/w/<weekend_id>/questions", methods=["GET", "POST"])
+@require_admin
+def admin_questions(weekend_id):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    w = None
+    for ww in weekends:
+        if ww.get("id") == weekend_id:
+            w = ww
+            break
+    if not w:
+        return "Week-end inconnu", 404
+
+    w.setdefault("bonus_questions", [])
+    by_id = {q.get("id"): q for q in w["bonus_questions"] if isinstance(q, dict)}
+    q1 = by_id.get("b1", {"id": "b1", "label": "", "type": "bool"})
+    q2 = by_id.get("b2", {"id": "b2", "label": "", "type": "bool"})
+
+    if request.method == "POST":
+        q1["label"] = (request.form.get("b1_label") or "").strip()
+        q2["label"] = (request.form.get("b2_label") or "").strip()
+        q1["type"] = "bool"
+        q2["type"] = "bool"
+
+        w["bonus_questions"] = [q1, q2]
+        save_json(WEEKENDS_FILE, data)
+        flash("Questions bonus enregistrées ✅")
+        return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+    name, _ = current_player(request)
+    # Safety: ton repo montre "admin_question.html" (sans s)
+    try:
+        return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
+    except Exception:
+        return render_template("admin_question.html", name=name, w=w, q1=q1, q2=q2)
+
+# ------------------ Public : page HTML pronos ------------------
+@app.route("/w/<weekend_id>/public/pronos")
+def public_pronos(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    if not engine:
+        return "DB non configurée (DATABASE_URL manquant).", 500
+
+    # ✅ fermé = public
+    if not is_weekend_closed(weekend_id):
+        return "Pronos pas encore visibles : le GP est encore ouvert.", 403
+
+    with engine.begin() as conn:
+        # ✅ anti-doublons : dernier prono par pseudo
+        rows = conn.execute(text("""
+            SELECT DISTINCT ON (player_name)
+                player_name, payload_json, updated_at
+            FROM pronos
+            WHERE weekend_id=:w
+            ORDER BY player_name, updated_at DESC
+        """), {"w": weekend_id}).fetchall()
+
+    pronos_list = [{
+        "player": r[0],
+        "updated_at": str(r[2]),
+        "p": dict(r[1] or {}),
+    } for r in rows]
+
+    # tri décroissant global par date
+    pronos_list.sort(key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min, reverse=True)
+
+    name, _ = current_player(request)
+    return render_template(
+        "public_pronos.html",
+        name=name, w=w, pronos=pronos_list,
+        admin_enabled=admin_enabled(), is_admin=is_admin()
+    )
+
+# ------------------ Public : Résultats par course ------------------
+@app.route("/results_by_race")
+def results_by_race():
+    name, _ = current_player(request)
+
+    weekends = load_weekends_list()
+    gp_id = (request.args.get("gp") or "").strip()
+
+    selected = get_weekend(gp_id) if gp_id else None
+
+    if not selected:
+        return render_template(
+            "results_by_race.html",
+            name=name,
+            weekends=weekends,
+            selected=None,
+            results=None,
+            rows=[],
+            notice=None,
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
+        )
+
+    # ✅ MAJ: DB d'abord
+    results = load_results(gp_id)
+    if not results:
+        return render_template(
+            "results_by_race.html",
+            name=name,
+            weekends=weekends,
+            selected=selected,
+            results=None,
+            rows=[],
+            notice="Entre d’abord les résultats officiels (Admin).",
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
+        )
+
+    pronos_list = []
+    if engine:
+        with engine.begin() as conn:
+            # ✅ anti-doublons : dernier prono par pseudo
+            db_rows = conn.execute(text("""
+                SELECT DISTINCT ON (player_name)
+                    player_name, payload_json, created_at, updated_at
+                FROM pronos
+                WHERE weekend_id=:w
+                ORDER BY player_name, updated_at DESC
+            """), {"w": gp_id}).fetchall()
+
+        for r in db_rows:
+            pronos_list.append({
+                "player_name": r[0],
+                "payload": dict(r[1] or {}),
+                "created_at": str(r[2]),
+                "updated_at": str(r[3]),
+            })
+    else:
+        all_pronos = load_json(pronos_path(gp_id), {})
+        if isinstance(all_pronos, dict):
+            tmp = []
+            for _, p in all_pronos.items():
+                tmp.append({
+                    "player_name": p.get("player_name", "??"),
+                    "payload": dict(p or {}),
+                    "created_at": p.get("_created_at") or p.get("created_at"),
+                    "updated_at": p.get("_updated_at") or p.get("updated_at"),
+                })
+            pronos_list = dedupe_pronos_by_playername(tmp)
+
+    rows = []
+    for item in pronos_list:
+        p = item["payload"] or {}
+        breakdown = compute_points_breakdown(p, results, selected)
+
+        rows.append({
+            "player": item["player_name"],
+            "created_at": item.get("created_at"),
+            "updated_at": item.get("updated_at"),
+            "p": p,
+            "pts": breakdown
+        })
+
+    rows.sort(key=lambda x: x["pts"]["total"], reverse=True)
+
+    return render_template(
+        "results_by_race.html",
+        name=name,
+        weekends=weekends,
+        selected=selected,
+        results=results,
+        rows=rows,
+        notice=None,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
+    )
+
+# ------------------ Classement ------------------
+@app.route("/w/<weekend_id>/classement")
+def classement_weekend(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    # ✅ anti-doublons : 1 ligne par pseudo (dernier prono)
+    pronos_by_player = {}
+
+    if engine:
+        with engine.begin() as conn:
+            db_rows = conn.execute(text("""
+                SELECT DISTINCT ON (player_name)
+                    player_name, payload_json, updated_at
+                FROM pronos
+                WHERE weekend_id=:w
+                ORDER BY player_name, updated_at DESC
+            """), {"w": weekend_id}).fetchall()
+
+        for r in db_rows:
+            pronos_by_player[r[0]] = dict(r[1] or {})
+    else:
+        all_pronos = load_json(pronos_path(weekend_id), {})
+        tmp = []
+        if isinstance(all_pronos, dict):
+            for _, p in all_pronos.items():
+                tmp.append({
+                    "player_name": p.get("player_name", "??"),
+                    "payload": dict(p or {}),
+                    "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at"),
+                })
+        tmp = dedupe_pronos_by_playername(tmp)
+        for it in tmp:
+            pronos_by_player[it["player_name"]] = it["payload"]
+
+    # ✅ MAJ: DB d'abord
+    results = load_results(weekend_id)
+    if not results:
+        name, _ = current_player(request)
+        return render_template(
+            "classement.html",
+            name=name, w=w, rows=[],
+            notice="Entre d’abord les résultats officiels (Admin).",
+            admin_enabled=admin_enabled(), is_admin=is_admin()
+        )
+
+    rows = []
+    for player_name, p in pronos_by_player.items():
+        q_score = qualif_points(
+            p.get("pole"),
+            results.get("pole"),
+            [p.get("q1_1"), p.get("q1_2")],
+            results.get("q1", []),
+        )
+
+        s_score = podium_points(
+            [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
+            results.get("sprint", []),
+            well_placed=1.0, mis_placed=0.5, bonus_exact=3.0, bonus_all=1.5
+        )
+
+        g_score = podium_points(
+            [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
+            results.get("gp", []),
+            well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
+        )
+
+        bonus_score = 0.0
+        for b in w.get("bonus_questions", []):
+            pred = (p.get("bonus", {}).get(b["id"]) or "").lower()
+            real = (results.get("bonus", {}).get(b["id"]) or "").lower()
+            if pred and real and pred == real:
+                bonus_score += 0.5
+
+        total = round(q_score + s_score + g_score + bonus_score, 2)
+        rows.append({
+            "player": player_name or p.get("player_name", "??"),
+            "q": q_score,
+            "s": s_score,
+            "gp": g_score,
+            "bonus": bonus_score,
+            "total": total
+        })
+
+    rows.sort(key=lambda r: r["total"], reverse=True)
+    name, _ = current_player(request)
+    return render_template(
+        "classement.html",
+        name=name, w=w, rows=rows, notice=None,
+        admin_enabled=admin_enabled(), is_admin=is_admin()
+    )
+
+# ------------------ Health checks ------------------
+@app.route("/healthz")
+def healthz():
+    resp = make_response("OK", 200)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+@app.route("/health")
+def health():
+    if engine:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception as e:
+            return f"DB ERROR: {e}", 500
+
+    resp = make_response("OK", 200)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
