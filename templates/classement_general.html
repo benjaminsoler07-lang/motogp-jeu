@@ -1,51 +1,104 @@
 {% extends 'base.html' %}
-{% block title %}Classement général — Saison{% endblock %}
+{% block title %}Classement général — MotoGP{% endblock %}
+
 {% block content %}
   <h2>🏆 Classement général — Saison</h2>
 
   {% if notice %}
     <p class="notice">{{ notice }}</p>
-  {% else %}
-    {% if gp_scored and gp_scored|length > 0 %}
-      <p style="opacity:.85; margin-top:-6px;">
-        GP comptabilisés :
-        {% for g in gp_scored %}
-          <span style="white-space:nowrap;">• {{ g.label }}</span>
-        {% endfor %}
-      </p>
-    {% endif %}
-
-    <table class="classement">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Joueur</th>
-          <th>GP scorés</th>
-          <th>Qualifications</th>
-          <th>Sprint</th>
-          <th>Grand Prix</th>
-          <th>Bonus</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-          <tr>
-            <td><strong>{{ loop.index }}</strong></td>
-            <td>{{ r.player }}</td>
-            <td>{{ r.gps }}</td>
-            <td>{{ r.q }}</td>
-            <td>{{ r.s }}</td>
-            <td>{{ r.gp }}</td>
-            <td>{{ r.bonus }}</td>
-            <td><strong>{{ r.total }}</strong></td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
   {% endif %}
 
-  <div style="margin-top:16px;">
-    <a class="btn" href="{{ url_for('results_by_race') }}">➡️ Voir les résultats par course</a>
-  </div>
+  {% if rows|length > 0 %}
+
+    {# ========== PODIUM ========== #}
+    {% set first = podium[0] if podium|length > 0 else None %}
+    {% set second = podium[1] if podium|length > 1 else None %}
+    {% set third = podium[2] if podium|length > 2 else None %}
+
+    <div class="row" style="justify-content:center; align-items:stretch; margin-top:14px;">
+      {% if second %}
+        <div class="card" style="max-width:280px; flex:1;">
+          <div style="font-size:28px;">🥈</div>
+          <div style="font-weight:900; font-size:20px;">{{ second.player }}</div>
+          <div class="muted" style="margin-top:6px; font-weight:800;">{{ second.total }} pts</div>
+          <div class="row" style="justify-content:center; margin-top:10px;">
+            <span class="pill">Q: {{ second.q }}</span>
+            <span class="pill">S: {{ second.s }}</span>
+            <span class="pill">GP: {{ second.gp }}</span>
+            <span class="pill">B: {{ second.bonus }}</span>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if first %}
+        <div class="card" style="max-width:320px; flex:1;">
+          <div style="font-size:32px;">🥇</div>
+          <div style="font-weight:900; font-size:22px;">{{ first.player }}</div>
+          <div class="muted" style="margin-top:6px; font-weight:900;">{{ first.total }} pts</div>
+          <div class="row" style="justify-content:center; margin-top:10px;">
+            <span class="pill">Q: {{ first.q }}</span>
+            <span class="pill">S: {{ first.s }}</span>
+            <span class="pill">GP: {{ first.gp }}</span>
+            <span class="pill">B: {{ first.bonus }}</span>
+          </div>
+          <div class="muted" style="margin-top:10px;">GP joués : <strong>{{ first.gps }}</strong></div>
+        </div>
+      {% endif %}
+
+      {% if third %}
+        <div class="card" style="max-width:280px; flex:1;">
+          <div style="font-size:28px;">🥉</div>
+          <div style="font-weight:900; font-size:20px;">{{ third.player }}</div>
+          <div class="muted" style="margin-top:6px; font-weight:800;">{{ third.total }} pts</div>
+          <div class="row" style="justify-content:center; margin-top:10px;">
+            <span class="pill">Q: {{ third.q }}</span>
+            <span class="pill">S: {{ third.s }}</span>
+            <span class="pill">GP: {{ third.gp }}</span>
+            <span class="pill">B: {{ third.bonus }}</span>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# ========== TABLEAU ========== #}
+    <div class="card" style="padding:0; overflow:auto; text-align:left; margin-top:14px;">
+      <table class="classement">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Joueur</th>
+            <th>Qualifications</th>
+            <th>Sprint</th>
+            <th>Grand Prix</th>
+            <th>Bonus</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr class="{% if loop.index==1 %}row-gold{% elif loop.index==2 %}row-silver{% elif loop.index==3 %}row-bronze{% endif %}">
+              <td><strong>{{ loop.index }}</strong></td>
+              <td style="text-align:left;"><strong>{{ r.player }}</strong></td>
+              <td>{{ r.q }}</td>
+              <td>{{ r.s }}</td>
+              <td>{{ r.gp }}</td>
+              <td>{{ r.bonus }}</td>
+              <td><strong>{{ r.total }}</strong></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ========== LIENS RESULTATS PAR COURSE ========== #}
+    <div style="margin-top:16px;">
+      <div class="muted" style="margin-bottom:10px;">Voir le détail par course :</div>
+      <div class="row" style="justify-content:center;">
+        {% for w in weekends %}
+          <a class="btn btn-small" href="{{ url_for('results_by_race', gp=w.id) }}">📊 {{ w.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+  {% endif %}
 {% endblock %}
