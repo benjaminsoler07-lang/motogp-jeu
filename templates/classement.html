@@ -1,35 +1,97 @@
 {% extends 'base.html' %}
 {% block title %}Classement — {{ w.label }}{% endblock %}
 {% block content %}
+
   <h2>{{ w.label }} — Classement</h2>
 
   {% if notice %}
     <p class="notice">{{ notice }}</p>
-  {% else %}
 
-    <div class="card" style="text-align:left;">
-      <p style="margin:0;"><strong>📊 Classement du week-end</strong></p>
-      <p style="margin:6px 0 0; opacity:.85;">
-        Points = Qualifs + Sprint + GP + Bonus
-      </p>
+    <div style="margin-top:16px;">
+      <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats par course</a>
+      {% if closed %}
+        <a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Pronos publics</a>
+      {% else %}
+        <a class="btn" href="{{ url_for('pronos', weekend_id=w.id) }}">✍️ Retour aux pronos</a>
+      {% endif %}
     </div>
 
-    <div class="card" style="overflow-x:auto;">
+  {% else %}
+
+    {# -------- PODIUM (Top 3) -------- #}
+    <div class="podium-wrap">
+      {% set top1 = rows[0] if rows|length > 0 else None %}
+      {% set top2 = rows[1] if rows|length > 1 else None %}
+      {% set top3 = rows[2] if rows|length > 2 else None %}
+
+      <div class="podium">
+        <div class="podium-card podium-2">
+          {% if top2 %}
+            <div class="podium-rank">🥈 2</div>
+            <div class="podium-name">{{ top2.player }}</div>
+            <div class="podium-points"><strong>{{ top2.total }}</strong> pts</div>
+            <div class="podium-breakdown">
+              <span>Q: {{ top2.q }}</span>
+              <span>S: {{ top2.s }}</span>
+              <span>GP: {{ top2.gp }}</span>
+              <span>B: {{ top2.bonus }}</span>
+            </div>
+          {% else %}
+            <div class="podium-empty">—</div>
+          {% endif %}
+        </div>
+
+        <div class="podium-card podium-1">
+          {% if top1 %}
+            <div class="podium-rank">🥇 1</div>
+            <div class="podium-name">{{ top1.player }}</div>
+            <div class="podium-points"><strong>{{ top1.total }}</strong> pts</div>
+            <div class="podium-breakdown">
+              <span>Q: {{ top1.q }}</span>
+              <span>S: {{ top1.s }}</span>
+              <span>GP: {{ top1.gp }}</span>
+              <span>B: {{ top1.bonus }}</span>
+            </div>
+          {% else %}
+            <div class="podium-empty">—</div>
+          {% endif %}
+        </div>
+
+        <div class="podium-card podium-3">
+          {% if top3 %}
+            <div class="podium-rank">🥉 3</div>
+            <div class="podium-name">{{ top3.player }}</div>
+            <div class="podium-points"><strong>{{ top3.total }}</strong> pts</div>
+            <div class="podium-breakdown">
+              <span>Q: {{ top3.q }}</span>
+              <span>S: {{ top3.s }}</span>
+              <span>GP: {{ top3.gp }}</span>
+              <span>B: {{ top3.bonus }}</span>
+            </div>
+          {% else %}
+            <div class="podium-empty">—</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# -------- TABLEAU COMPLET -------- #}
+    <div class="card" style="margin-top:16px; overflow:auto;">
       <table class="classement">
         <thead>
           <tr>
             <th>#</th>
             <th>Joueur</th>
-            <th>Qualifs</th>
+            <th>Qualifications</th>
             <th>Sprint</th>
-            <th>GP</th>
+            <th>Grand Prix</th>
             <th>Bonus</th>
             <th>Total</th>
           </tr>
         </thead>
         <tbody>
           {% for r in rows %}
-            <tr>
+            <tr class="{% if loop.index == 1 %}row-gold{% elif loop.index == 2 %}row-silver{% elif loop.index == 3 %}row-bronze{% endif %}">
               <td><strong>{{ loop.index }}</strong></td>
               <td>{{ r.player }}</td>
               <td>{{ r.q }}</td>
@@ -43,21 +105,17 @@
       </table>
     </div>
 
+    {# -------- LIENS BAS DE PAGE -------- #}
+    <div style="margin-top:18px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+      <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats par course</a>
+
+      {% if closed %}
+        <a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Pronos publics</a>
+      {% else %}
+        <a class="btn" href="{{ url_for('pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos</a>
+      {% endif %}
+    </div>
+
   {% endif %}
 
-  <div class="card" style="text-align:left; margin-top:14px;">
-    <p style="margin:0;"><strong>➡️ Détail des points par course</strong></p>
-    <p style="margin:6px 0 0; opacity:.85;">
-      Va sur “Résultats par course” et sélectionne le GP pour voir le détail complet.
-    </p>
-    <a class="btn btn-small" href="{{ url_for('results_by_race') }}">📌 Résultats par course</a>
-  </div>
-
-  <p style="margin-top:16px;">
-    {% if closed %}
-      <a href="{{ url_for('public_pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos publics</a>
-    {% else %}
-      <a href="{{ url_for('pronos', weekend_id=w.id) }}">⬅️ Retour aux pronos</a>
-    {% endif %}
-  </p>
 {% endblock %}
