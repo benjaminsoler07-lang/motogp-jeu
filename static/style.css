@@ -639,6 +639,59 @@ table.classement th{
   main{ padding: 14px; }
   .card{ padding: 14px; }
 
+
+/* ============================
+   ✅ Notice (messages informatifs)
+============================ */
+.notice{
+  max-width: 760px;
+  margin: 14px auto;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255,214,10,0.10);
+  border: 1px solid rgba(255,214,10,0.25);
+  text-align: left;
+}
+
+/* ============================
+   ✅ Details / Summary (résultats par course)
+============================ */
+details.card{
+  padding: 14px 16px;
+}
+
+details.card summary{
+  list-style: none;
+  outline: none;
+}
+
+details.card summary::-webkit-details-marker{
+  display: none;
+}
+
+details.card summary{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+details.card[open] summary{
+  margin-bottom: 10px;
+}
+
+details.card summary::after{
+  content: "▾";
+  opacity: 0.75;
+  font-weight: 900;
+}
+
+details.card[open] summary::after{
+  content: "▴";
+  opacity: 0.85;
+}
   .admin-actions{ justify-content: center; }
 
   /* Nouveau bandeau */
