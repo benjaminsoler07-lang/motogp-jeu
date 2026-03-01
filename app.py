@@ -568,7 +568,7 @@ def logout():
     resp.delete_cookie("player_id")
     return resp
 
-# ------------------ Championnat (✅ MAJ anti-perte cookies + 1 prono par pseudo) ------------------
+# ------------------ Championnat ------------------
 @app.route("/championnat", methods=["GET", "POST"])
 def championnat():
     name, pid = current_player(request)
@@ -576,8 +576,6 @@ def championnat():
         return redirect(url_for("login"))
 
     my = {}
-
-    # --- Lecture : d'abord user_key (cookie), sinon le plus récent par pseudo ---
     if engine:
         with engine.begin() as conn:
             row = conn.execute(text("""
@@ -585,24 +583,13 @@ def championnat():
                 FROM championnat_pronos
                 WHERE user_key=:u
             """), {"u": pid}).fetchone()
-
-            if not row:
-                row = conn.execute(text("""
-                    SELECT payload_json, created_at, updated_at
-                    FROM championnat_pronos
-                    WHERE player_name=:n
-                    ORDER BY updated_at DESC
-                    LIMIT 1
-                """), {"n": name}).fetchone()
-
         if row:
             my = dict(row[0] or {})
             my["_created_at"] = str(row[1])
             my["_updated_at"] = str(row[2])
-
     else:
         all_preds = load_json(championnat_path(), {})
-        my = all_preds.get(name, {}) or all_preds.get(pid, {})
+        my = all_preds.get(pid, {})
 
     if request.method == "POST":
         form = request.form
@@ -634,20 +621,10 @@ def championnat():
                     "n": name,
                     "p": json.dumps(payload, ensure_ascii=False)
                 })
-
-                # ✅ garder 1 seul prono par pseudo (supprime les anciens user_key du même pseudo)
-                conn.execute(text("""
-                    DELETE FROM championnat_pronos
-                    WHERE player_name = :n
-                      AND user_key <> :u
-                """), {"n": name, "u": pid})
-
         else:
             all_preds = load_json(championnat_path(), {})
             payload["updated_at"] = datetime.utcnow().isoformat()
-            all_preds[name] = payload
-            # compat si ancien format par pid
-            all_preds.pop(pid, None)
+            all_preds[pid] = payload
             save_json(championnat_path(), all_preds)
 
         flash("Pronostic championnat enregistré ✅ (modifiable)")
@@ -655,7 +632,7 @@ def championnat():
 
     return render_template("championnat.html", riders=RIDERS, my=my, name=name, admin_enabled=admin_enabled(), is_admin=is_admin())
 
-# ------------------ Week-end pronos (✅ MAJ anti-perte cookies + 1 prono par pseudo) ------------------
+# ------------------ Week-end pronos ------------------
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
 def pronos(weekend_id):
     name, pid = current_player(request)
@@ -675,8 +652,6 @@ def pronos(weekend_id):
         return redirect(url_for("public_pronos", weekend_id=weekend_id))
 
     my = {}
-
-    # --- Lecture : d'abord user_key (cookie), sinon le plus récent par pseudo ---
     if engine:
         with engine.begin() as conn:
             row = conn.execute(text("""
@@ -684,28 +659,13 @@ def pronos(weekend_id):
                 FROM pronos
                 WHERE weekend_id=:w AND user_key=:u
             """), {"w": weekend_id, "u": pid}).fetchone()
-
-            if not row:
-                row = conn.execute(text("""
-                    SELECT payload_json, created_at, updated_at
-                    FROM pronos
-                    WHERE weekend_id=:w AND player_name=:n
-                    ORDER BY updated_at DESC
-                    LIMIT 1
-                """), {"w": weekend_id, "n": name}).fetchone()
-
         if row:
             my = dict(row[0] or {})
             my["_created_at"] = str(row[1])
             my["_updated_at"] = str(row[2])
-
     else:
         all_pronos = load_json(pronos_path(weekend_id), {})
-        # compat : si ancien stockage par pid
         my = all_pronos.get(pid, {})
-        # fallback “par pseudo”
-        if not my:
-            my = all_pronos.get(name, {})
 
     if request.method == "POST":
         if closed:
@@ -754,21 +714,10 @@ def pronos(weekend_id):
                     "n": name,
                     "p": json.dumps(payload, ensure_ascii=False)
                 })
-
-                # ✅ garder 1 seul prono par pseudo (supprime les anciens user_key du même pseudo)
-                conn.execute(text("""
-                    DELETE FROM pronos
-                    WHERE weekend_id = :w
-                      AND player_name = :n
-                      AND user_key <> :u
-                """), {"w": weekend_id, "n": name, "u": pid})
-
         else:
             all_pronos = load_json(pronos_path(weekend_id), {})
             payload["updated_at"] = datetime.utcnow().isoformat()
-            # conserve compat pid + ajoute clé pseudo
             all_pronos[pid] = payload
-            all_pronos[name] = payload
             save_json(pronos_path(weekend_id), all_pronos)
 
         flash("Pronostic enregistré ✅ (modifiable à volonté)")
