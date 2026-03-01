@@ -1,151 +1,195 @@
-{% extends "base.html" %}
-{% block title %}Résultats par course{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Résultats par course — MotoGP{% endblock %}
 
 {% block content %}
-<h2>📊 Résultats par course</h2>
+  <h2>📊 Résultats par course</h2>
+  <p class="muted">Sélectionne un GP pour voir le détail des points de chaque joueur.</p>
 
-<form method="get" class="card" style="max-width:820px;margin:0 auto;">
-  <label for="gp"><strong>Choisir un GP :</strong></label>
-  <select id="gp" name="gp" onchange="this.form.submit()" style="width:100%;padding:10px;margin-top:8px;">
-    <option value="">-- Sélectionner --</option>
-    {% for w in weekends %}
-      <option value="{{ w.id }}" {% if selected and w.id == selected.id %}selected{% endif %}>
-        {{ w.label if w.label else w.id }}
-      </option>
-    {% endfor %}
-  </select>
-  <noscript>
-    <button class="btn" type="submit" style="margin-top:10px;">Afficher</button>
-  </noscript>
-</form>
+  <div class="card" style="margin-bottom:16px;">
+    <form method="get" action="{{ url_for('results_by_race') }}">
+      <label>Choisir un Grand Prix :</label>
+      <select name="gp" onchange="this.form.submit()">
+        <option value="">-- Sélectionner --</option>
+        {% for w in weekends %}
+          <option value="{{ w.id }}" {% if selected and selected.id == w.id %}selected{% endif %}>
+            {{ w.label }}
+          </option>
+        {% endfor %}
+      </select>
 
-{% if notice %}
-  <p class="card" style="max-width:820px;margin:12px auto;">⚠️ {{ notice }}</p>
-{% endif %}
-
-{% if selected and results %}
-  <div class="card" style="max-width:1100px;margin:12px auto;text-align:left;">
-    <h3 style="margin-top:0;">Résultats officiels — {{ selected.label if selected.label else selected.id }}</h3>
-    <ul style="margin:0;padding-left:18px;">
-      <li><strong>Pole :</strong> {{ results.pole }}</li>
-      <li><strong>Sortants Q1 :</strong> {{ (results.q1 or [])|join(", ") }}</li>
-      <li><strong>Podium Sprint :</strong> {{ (results.sprint or [])|join(" / ") }}</li>
-      <li><strong>Podium GP :</strong> {{ (results.gp or [])|join(" / ") }}</li>
-      {% if selected.bonus_questions and (selected.bonus_questions|length > 0) %}
-        <li><strong>Bonus :</strong>
-          {% for b in selected.bonus_questions %}
-            {{ b.label }} = <em>{{ (results.bonus or {}).get(b.id) }}</em>{% if not loop.last %}, {% endif %}
-          {% endfor %}
-        </li>
-      {% endif %}
-    </ul>
+      <div class="row" style="justify-content:center; margin-top:12px;">
+        <button class="btn btn-small" type="submit">Afficher</button>
+        {% if selected %}
+          <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=selected.id) }}">Voir classement</a>
+        {% endif %}
+      </div>
+    </form>
   </div>
-{% endif %}
 
-{% if selected and results %}
-  {% if rows|length == 0 %}
-    <p class="card" style="max-width:1100px;margin:12px auto;">Aucun prono trouvé pour ce GP.</p>
-  {% else %}
-    <div class="card" style="max-width:1100px;margin:12px auto;">
-      <h3 style="margin-top:0;">Classement détaillé</h3>
-
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Joueur</th>
-            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Qualifs</th>
-            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Sprint</th>
-            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">GP</th>
-            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Bonus</th>
-            <th style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.2);">Total</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {% for r in rows %}
-            <tr>
-              <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
-                <strong>{{ r.player }}</strong><br>
-                <small style="opacity:.75;">MAJ: {{ r.updated_at }}</small>
-              </td>
-
-              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
-                {{ r.pts.qualif.total }}
-              </td>
-
-              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
-                {{ r.pts.sprint.total }}
-              </td>
-
-              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
-                {{ r.pts.gp.total }}
-              </td>
-
-              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
-                {{ r.pts.bonus.total }}
-              </td>
-
-              <td style="text-align:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.12);">
-                <strong style="font-size:18px;">{{ r.pts.total }}</strong>
-              </td>
-            </tr>
-
-            <tr>
-              <td colspan="6" style="padding:10px;border-bottom:1px solid rgba(255,255,255,.12);text-align:left;">
-                <details>
-                  <summary style="cursor:pointer;">Voir le détail complet</summary>
-
-                  <div style="margin-top:10px;">
-                    <h4>Qualifs — {{ r.pts.qualif.total }} pts</h4>
-                    <ul style="margin-top:6px;padding-left:18px;">
-                      <li>Pole : <em>{{ r.p.pole }}</em>
-                        {% if r.pts.qualif.pole_ok %} ✅ +{{ r.pts.qualif.pole_pts }} {% else %} ❌ +0 {% endif %}
-                      </li>
-                      <li>Q1 sortants :
-                        <em>{{ r.p.q1_1 }}</em>, <em>{{ r.p.q1_2 }}</em>
-                        — +{{ r.pts.qualif.q1_pts }}
-                      </li>
-                    </ul>
-
-                    <h4>Sprint — {{ r.pts.sprint.total }} pts</h4>
-                    <ul style="margin-top:6px;padding-left:18px;">
-                      <li>Prono : {{ r.p.sprint_p1 }} / {{ r.p.sprint_p2 }} / {{ r.p.sprint_p3 }}</li>
-                      <li>Détail : P1={{ r.pts.sprint.p1 }}, P2={{ r.pts.sprint.p2 }}, P3={{ r.pts.sprint.p3 }}
-                        {% if r.pts.sprint.bonus and r.pts.sprint.bonus > 0 %} + Bonus={{ r.pts.sprint.bonus }} ({{ r.pts.sprint.bonus_label }}){% endif %}
-                      </li>
-                    </ul>
-
-                    <h4>GP — {{ r.pts.gp.total }} pts</h4>
-                    <ul style="margin-top:6px;padding-left:18px;">
-                      <li>Prono : {{ r.p.gp_p1 }} / {{ r.p.gp_p2 }} / {{ r.p.gp_p3 }}</li>
-                      <li>Détail : P1={{ r.pts.gp.p1 }}, P2={{ r.pts.gp.p2 }}, P3={{ r.pts.gp.p3 }}
-                        {% if r.pts.gp.bonus and r.pts.gp.bonus > 0 %} + Bonus={{ r.pts.gp.bonus }} ({{ r.pts.gp.bonus_label }}){% endif %}
-                      </li>
-                    </ul>
-
-                    <h4>Bonus — {{ r.pts.bonus.total }} pts</h4>
-                    {% if r.pts.bonus.items and (r.pts.bonus.items|length > 0) %}
-                      <ul style="margin-top:6px;padding-left:18px;">
-                        {% for b in r.pts.bonus.items %}
-                          <li>
-                            {{ b.label }} :
-                            <em>{{ b.pred }}</em> (officiel: <em>{{ b.real }}</em>)
-                            {% if b.ok %} ✅ +{{ b.pts }} {% else %} ❌ +0 {% endif %}
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    {% else %}
-                      <p style="opacity:.8;margin-top:6px;">Aucune question bonus sur ce GP.</p>
-                    {% endif %}
-                  </div>
-                </details>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  {% if notice %}
+    <p class="notice">{{ notice }}</p>
   {% endif %}
-{% endif %}
 
+  {% if selected and results %}
+    <div class="card" style="text-align:left;">
+      <h3 style="margin-top:0;">🏁 {{ selected.label }} — Résultats officiels</h3>
+
+      <div class="row" style="justify-content:flex-start; margin-top:10px;">
+        <span class="pill">Pole : <strong>{{ results.pole or '—' }}</strong></span>
+        <span class="pill">Q1 : <strong>{{ results.q1[0] or '—' }}</strong> + <strong>{{ results.q1[1] or '—' }}</strong></span>
+      </div>
+
+      <div class="row" style="justify-content:flex-start; margin-top:10px;">
+        <span class="pill">Sprint : <strong>{{ results.sprint[0] or '—' }}</strong> / <strong>{{ results.sprint[1] or '—' }}</strong> / <strong>{{ results.sprint[2] or '—' }}</strong></span>
+      </div>
+
+      <div class="row" style="justify-content:flex-start; margin-top:10px;">
+        <span class="pill">GP : <strong>{{ results.gp[0] or '—' }}</strong> / <strong>{{ results.gp[1] or '—' }}</strong> / <strong>{{ results.gp[2] or '—' }}</strong></span>
+      </div>
+
+      {% if selected.bonus_questions %}
+        <div style="margin-top:12px;">
+          <div style="font-weight:800; margin-bottom:6px;">Questions bonus :</div>
+          {% for b in selected.bonus_questions %}
+            <div class="pill" style="justify-content:space-between; width:100%; margin:6px 0;">
+              <span>{{ b.label }}</span>
+              <strong>{{ results.bonus[b.id] or '—' }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+    <h3 style="margin-top:18px;">👥 Détail des points par joueur</h3>
+
+    {% if rows|length == 0 %}
+      <p class="muted">Aucun pronostic trouvé pour ce GP.</p>
+    {% else %}
+
+      <!-- Tableau rapide (classement total) -->
+      <div class="card" style="padding:0; overflow:auto; text-align:left;">
+        <table class="classement">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Joueur</th>
+              <th>Qualif</th>
+              <th>Sprint</th>
+              <th>GP</th>
+              <th>Bonus</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr class="{% if loop.index==1 %}row-gold{% elif loop.index==2 %}row-silver{% elif loop.index==3 %}row-bronze{% endif %}">
+                <td><strong>{{ loop.index }}</strong></td>
+                <td style="text-align:left;"><strong>{{ r.player }}</strong></td>
+                <td>{{ r.pts.qualif.total }}</td>
+                <td>{{ r.pts.sprint.total }}</td>
+                <td>{{ r.pts.gp.total }}</td>
+                <td>{{ r.pts.bonus.total }}</td>
+                <td><strong>{{ r.pts.total }}</strong></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Détail dépliable joueur par joueur -->
+      <div style="margin-top:14px;">
+        {% for r in rows %}
+          <details class="card" style="text-align:left; margin-top:12px;">
+            <summary style="cursor:pointer; font-weight:900;">
+              {{ loop.index }}. {{ r.player }} — Total : {{ r.pts.total }} pts
+              <span class="muted" style="font-weight:600;">(cliquer pour le détail)</span>
+            </summary>
+
+            <div style="margin-top:12px;">
+              <!-- QUALIF -->
+              <h3 style="margin:12px 0 8px;">Qualifications — {{ r.pts.qualif.total }} pts</h3>
+              <div class="row" style="justify-content:flex-start;">
+                <span class="pill">Pole : <strong>{{ r.p.pole or '—' }}</strong></span>
+                <span class="pill">
+                  Pole OK :
+                  <strong>{% if r.pts.qualif.pole_ok %}✅{% else %}❌{% endif %}</strong>
+                  ({{ r.pts.qualif.pole_pts }} pt)
+                </span>
+              </div>
+
+              <div style="margin-top:10px;">
+                <div class="pill" style="width:100%; justify-content:space-between;">
+                  <span>Q1 picks</span>
+                  <strong>{{ r.pts.qualif.q1_pts }} pt(s)</strong>
+                </div>
+                {% for item in r.pts.qualif.q1 %}
+                  <div class="pill" style="width:100%; justify-content:space-between; margin-top:6px;">
+                    <span>{{ item.pick or '—' }}</span>
+                    <span>
+                      {% if item.ok %}✅{% else %}❌{% endif %}
+                      <strong>{{ item.pts }}</strong>
+                    </span>
+                  </div>
+                {% endfor %}
+              </div>
+
+              <!-- SPRINT -->
+              <h3 style="margin:16px 0 8px;">Sprint — {{ r.pts.sprint.total }} pts</h3>
+              <div class="row" style="justify-content:flex-start;">
+                <span class="pill">P1 : <strong>{{ r.p.sprint_p1 or '—' }}</strong> ({{ r.pts.sprint.p1 }})</span>
+                <span class="pill">P2 : <strong>{{ r.p.sprint_p2 or '—' }}</strong> ({{ r.pts.sprint.p2 }})</span>
+                <span class="pill">P3 : <strong>{{ r.p.sprint_p3 or '—' }}</strong> ({{ r.pts.sprint.p3 }})</span>
+              </div>
+              {% if r.pts.sprint.bonus and r.pts.sprint.bonus > 0 %}
+                <div class="pill" style="margin-top:8px;">
+                  Bonus podium sprint :
+                  <strong>{{ r.pts.sprint.bonus }}</strong>
+                  {% if r.pts.sprint.bonus_label %}({{ r.pts.sprint.bonus_label }}){% endif %}
+                </div>
+              {% endif %}
+
+              <!-- GP -->
+              <h3 style="margin:16px 0 8px;">Grand Prix — {{ r.pts.gp.total }} pts</h3>
+              <div class="row" style="justify-content:flex-start;">
+                <span class="pill">P1 : <strong>{{ r.p.gp_p1 or '—' }}</strong> ({{ r.pts.gp.p1 }})</span>
+                <span class="pill">P2 : <strong>{{ r.p.gp_p2 or '—' }}</strong> ({{ r.pts.gp.p2 }})</span>
+                <span class="pill">P3 : <strong>{{ r.p.gp_p3 or '—' }}</strong> ({{ r.pts.gp.p3 }})</span>
+              </div>
+              {% if r.pts.gp.bonus and r.pts.gp.bonus > 0 %}
+                <div class="pill" style="margin-top:8px;">
+                  Bonus podium GP :
+                  <strong>{{ r.pts.gp.bonus }}</strong>
+                  {% if r.pts.gp.bonus_label %}({{ r.pts.gp.bonus_label }}){% endif %}
+                </div>
+              {% endif %}
+
+              <!-- BONUS -->
+              <h3 style="margin:16px 0 8px;">Questions bonus — {{ r.pts.bonus.total }} pts</h3>
+              {% if r.pts.bonus.items|length == 0 %}
+                <p class="muted">Pas de questions bonus sur ce GP.</p>
+              {% else %}
+                {% for b in r.pts.bonus.items %}
+                  <div class="pill" style="width:100%; justify-content:space-between; margin-top:6px;">
+                    <span>{{ b.label }}</span>
+                    <span>
+                      <span class="muted">{{ b.pred or '—' }}</span>
+                      →
+                      <strong>{{ b.real or '—' }}</strong>
+                      &nbsp; {% if b.ok %}✅{% else %}❌{% endif %}
+                      <strong>{{ b.pts }}</strong>
+                    </span>
+                  </div>
+                {% endfor %}
+              {% endif %}
+
+              <div style="margin-top:14px;" class="pill">
+                Total joueur :
+                <strong style="font-size:16px;">{{ r.pts.total }} pts</strong>
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endif %}
 {% endblock %}
