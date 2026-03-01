@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Classement général — Saison{% endblock %}
+{% block content %}
+  <h2>🏆 Classement général — Saison</h2>
+
+  {% if notice %}
+    <p class="notice">{{ notice }}</p>
+  {% else %}
+    {% if gp_scored and gp_scored|length > 0 %}
+      <p style="opacity:.85; margin-top:-6px;">
+        GP comptabilisés :
+        {% for g in gp_scored %}
+          <span style="white-space:nowrap;">• {{ g.label }}</span>
+        {% endfor %}
+      </p>
+    {% endif %}
+
+    <table class="classement">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Joueur</th>
+          <th>GP scorés</th>
+          <th>Qualifications</th>
+          <th>Sprint</th>
+          <th>Grand Prix</th>
+          <th>Bonus</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td><strong>{{ loop.index }}</strong></td>
+            <td>{{ r.player }}</td>
+            <td>{{ r.gps }}</td>
+            <td>{{ r.q }}</td>
+            <td>{{ r.s }}</td>
+            <td>{{ r.gp }}</td>
+            <td>{{ r.bonus }}</td>
+            <td><strong>{{ r.total }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <div style="margin-top:16px;">
+    <a class="btn" href="{{ url_for('results_by_race') }}">➡️ Voir les résultats par course</a>
+  </div>
+{% endblock %}
