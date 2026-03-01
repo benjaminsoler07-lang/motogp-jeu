@@ -1131,11 +1131,11 @@ def classement_weekend(weekend_id):
         total = round(q_score + s_score + g_score + bonus_score, 2)
         rows.append({
             "player": player_name or p.get("player_name", "??"),
-            "q": q_score,
-            "s": s_score,
-            "gp": g_score,
-            "bonus": bonus_score,
-            "total": total
+            "q": round(q_score, 2),
+            "s": round(s_score, 2),
+            "gp": round(g_score, 2),
+            "bonus": round(bonus_score, 2),
+            "total": round(total, 2)
         })
 
     rows.sort(key=lambda r: r["total"], reverse=True)
@@ -1165,6 +1165,7 @@ def classement_general():
         )
 
     season_year = get_season_year()
+
     def _w_sort_key(w):
         d = parse_weekend_date(w.get("date", ""), season_year)
         return d or date.max
