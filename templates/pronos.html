@@ -2,12 +2,24 @@
 {% block title %}Pronostics — MotoGP Jeu{% endblock %}
 {% block content %}
   <h2>{{ w.label }}</h2>
-  <p>Fais tes pronostics ! (modifiables à volonté)</p>
+
+  {% if closed %}
+    <div class="card" style="text-align:left;">
+      <p><strong>🔒 Pronos fermés</strong> — tu ne peux plus modifier.</p>
+      <p style="opacity:.9; margin-top:6px;">
+        Les pronos des autres sont maintenant visibles 👀
+      </p>
+      <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Voir les pronos publics</a>
+      <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=w.id) }}" style="margin-left:8px;">📊 Voir le classement</a>
+    </div>
+  {% else %}
+    <p>Fais tes pronostics ! (modifiables à volonté)</p>
+  {% endif %}
 
   <form method="post" class="card">
     <h3>Qualifications</h3>
     <label>Pôle position :</label>
-    <select name="pole">
+    <select name="pole" {% if closed %}disabled{% endif %}>
       <option value="">--</option>
       {% for r in riders %}
         <option value="{{ r }}" {% if my.pole==r %}selected{% endif %}>{{ r }}</option>
@@ -15,7 +27,7 @@
     </select>
 
     <label>Sortie Q1 - Pilote 1 :</label>
-    <select name="q1_1">
+    <select name="q1_1" {% if closed %}disabled{% endif %}>
       <option value="">--</option>
       {% for r in riders %}
         <option value="{{ r }}" {% if my.q1_1==r %}selected{% endif %}>{{ r }}</option>
@@ -23,7 +35,7 @@
     </select>
 
     <label>Sortie Q1 - Pilote 2 :</label>
-    <select name="q1_2">
+    <select name="q1_2" {% if closed %}disabled{% endif %}>
       <option value="">--</option>
       {% for r in riders %}
         <option value="{{ r }}" {% if my.q1_2==r %}selected{% endif %}>{{ r }}</option>
@@ -33,7 +45,7 @@
     <h3>Sprint</h3>
     {% for i in range(1,4) %}
       <label>Position {{ i }} :</label>
-      <select name="sprint_p{{ i }}">
+      <select name="sprint_p{{ i }}" {% if closed %}disabled{% endif %}>
         <option value="">--</option>
         {% for r in riders %}
           <option value="{{ r }}" {% if my["sprint_p"~i]==r %}selected{% endif %}>{{ r }}</option>
@@ -44,7 +56,7 @@
     <h3>Grand Prix</h3>
     {% for i in range(1,4) %}
       <label>Position {{ i }} :</label>
-      <select name="gp_p{{ i }}">
+      <select name="gp_p{{ i }}" {% if closed %}disabled{% endif %}>
         <option value="">--</option>
         {% for r in riders %}
           <option value="{{ r }}" {% if my["gp_p"~i]==r %}selected{% endif %}>{{ r }}</option>
@@ -53,69 +65,84 @@
     {% endfor %}
 
     <h3>Questions bonus</h3>
+    {% set my_bonus = my.get('bonus', {}) if my else {} %}
     {% for b in w.bonus_questions %}
       <label>{{ b.label }}</label>
-      <select name="bonus_{{ b.id }}">
+      <select name="bonus_{{ b.id }}" {% if closed %}disabled{% endif %}>
         <option value="">--</option>
-        <option value="oui" {% if my.bonus[b.id]=='oui' %}selected{% endif %}>Oui</option>
-        <option value="non" {% if my.bonus[b.id]=='non' %}selected{% endif %}>Non</option>
+        <option value="oui" {% if my_bonus.get(b.id)=='oui' %}selected{% endif %}>Oui</option>
+        <option value="non" {% if my_bonus.get(b.id)=='non' %}selected{% endif %}>Non</option>
       </select>
     {% endfor %}
 
-   <div class="sticky-save">
-  <button class="btn" type="submit">💾 Enregistrer mes pronos</button>
-</div>
+    {% if not closed %}
+      <div class="sticky-save">
+        <button class="btn" type="submit">💾 Enregistrer mes pronos</button>
+      </div>
+    {% else %}
+      <div style="margin-top:14px; opacity:.8;">
+        <em>Pronos verrouillés : enregistrement désactivé.</em>
+      </div>
+    {% endif %}
+  </form>
 
-  <p><a href="{{ url_for('classement_weekend', weekend_id=w.id) }}">Voir le classement</a></p>
+  <p style="margin-top:14px;">
+    <a href="{{ url_for('classement_weekend', weekend_id=w.id) }}">📊 Voir le classement</a>
+    {% if closed %}
+      &nbsp;•&nbsp;
+      <a href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Voir les pronos publics</a>
+    {% endif %}
+  </p>
 
-<script>
-  function disableDuplicates(groupNames) {
-    const selects = groupNames.map(n => document.querySelector(`select[name="${n}"]`)).filter(Boolean);
+  <script>
+    // Si page fermée, on ne fait rien côté JS (selects désactivés)
+    const IS_CLOSED = {{ 'true' if closed else 'false' }};
+    if (!IS_CLOSED) {
 
-    function refresh() {
-      // valeurs sélectionnées (dans le groupe)
-      const chosen = new Set(selects.map(s => s.value).filter(v => v));
+      function disableDuplicates(groupNames) {
+        const selects = groupNames.map(n => document.querySelector(`select[name="${n}"]`)).filter(Boolean);
 
-      selects.forEach(sel => {
-        const myValue = sel.value;
-        Array.from(sel.options).forEach(opt => {
-          if (!opt.value) return; // ignore l'option "— Choisir —"
-          // désactiver si déjà choisi ailleurs, sauf si c'est MA propre valeur
-          opt.disabled = chosen.has(opt.value) && opt.value !== myValue;
-        });
-      });
-    }
+        function refresh() {
+          const chosen = new Set(selects.map(s => s.value).filter(v => v));
+          selects.forEach(sel => {
+            const myValue = sel.value;
+            Array.from(sel.options).forEach(opt => {
+              if (!opt.value) return;
+              opt.disabled = chosen.has(opt.value) && opt.value !== myValue;
+            });
+          });
+        }
 
-    selects.forEach(sel => sel.addEventListener("change", refresh));
-    refresh();
-  }
-
-  // Groupes à sécuriser
-  disableDuplicates(["q1_1", "q1_2"]);
-  disableDuplicates(["sprint_p1", "sprint_p2", "sprint_p3"]);
-  disableDuplicates(["gp_p1", "gp_p2", "gp_p3"]);
-
-  // Blocage à l'envoi si doublon (au cas où)
-  document.querySelector("form")?.addEventListener("submit", function(e) {
-    const groups = [
-      ["q1_1", "q1_2"],
-      ["sprint_p1", "sprint_p2", "sprint_p3"],
-      ["gp_p1", "gp_p2", "gp_p3"]
-    ];
-
-    for (const g of groups) {
-      const vals = g
-        .map(n => document.querySelector(`select[name="${n}"]`)?.value || "")
-        .filter(v => v);
-
-      const setVals = new Set(vals);
-      if (setVals.size !== vals.length) {
-        e.preventDefault();
-        alert("Doublon détecté dans un podium (ou Q1). Choisis 3 pilotes différents 🙂");
-        return;
+        selects.forEach(sel => sel.addEventListener("change", refresh));
+        refresh();
       }
+
+      disableDuplicates(["q1_1", "q1_2"]);
+      disableDuplicates(["sprint_p1", "sprint_p2", "sprint_p3"]);
+      disableDuplicates(["gp_p1", "gp_p2", "gp_p3"]);
+
+      document.querySelector("form")?.addEventListener("submit", function(e) {
+        const groups = [
+          ["q1_1", "q1_2"],
+          ["sprint_p1", "sprint_p2", "sprint_p3"],
+          ["gp_p1", "gp_p2", "gp_p3"]
+        ];
+
+        for (const g of groups) {
+          const vals = g
+            .map(n => document.querySelector(`select[name="${n}"]`)?.value || "")
+            .filter(v => v);
+
+          const setVals = new Set(vals);
+          if (setVals.size !== vals.length) {
+            e.preventDefault();
+            alert("Doublon détecté dans un podium (ou Q1). Choisis 3 pilotes différents 🙂");
+            return;
+          }
+        }
+      });
+
     }
-  });
-</script>
+  </script>
 
 {% endblock %}
