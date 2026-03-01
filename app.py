@@ -863,7 +863,7 @@ def admin_results(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
-    # ✅ MAJ: DB d'abord
+    # ✅ DB d'abord
     results = load_results(weekend_id) or {}
 
     if request.method == "POST":
@@ -981,7 +981,7 @@ def results_by_race():
             is_admin=is_admin()
         )
 
-    # ✅ MAJ: DB d'abord
+    # ✅ DB d'abord
     results = load_results(gp_id)
     if not results:
         return render_template(
@@ -1062,6 +1062,9 @@ def classement_weekend(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
+    # ✅ utile pour ton nouveau classement.html (bouton retour pronos/pronos publics)
+    closed = is_weekend_closed(weekend_id) if engine else False
+
     # ✅ anti-doublons : 1 ligne par pseudo (dernier prono)
     pronos_by_player = {}
 
@@ -1091,7 +1094,7 @@ def classement_weekend(weekend_id):
         for it in tmp:
             pronos_by_player[it["player_name"]] = it["payload"]
 
-    # ✅ MAJ: DB d'abord
+    # ✅ DB d'abord
     results = load_results(weekend_id)
     if not results:
         name, _ = current_player(request)
@@ -1099,6 +1102,7 @@ def classement_weekend(weekend_id):
             "classement.html",
             name=name, w=w, rows=[],
             notice="Entre d’abord les résultats officiels (Admin).",
+            closed=closed,  # ✅ IMPORTANT
             admin_enabled=admin_enabled(), is_admin=is_admin()
         )
 
@@ -1145,6 +1149,7 @@ def classement_weekend(weekend_id):
     return render_template(
         "classement.html",
         name=name, w=w, rows=rows, notice=None,
+        closed=closed,  # ✅ IMPORTANT
         admin_enabled=admin_enabled(), is_admin=is_admin()
     )
 
