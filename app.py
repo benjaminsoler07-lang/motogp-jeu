@@ -9,6 +9,7 @@
 #     - Résultats par course (/results_by_race)
 #   (car un même joueur peut avoir plusieurs user_key si cookies perdus)
 # + ✅ MAJ IMPORTANT : Résultats officiels persistants en DB (sinon Render "perd" les fichiers)
+# + ✅ NOUVEAU : Classement général saison (/classement)
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
@@ -524,6 +525,38 @@ def dedupe_pronos_by_playername(items):
         x.pop("_dt", None)
     return out
 
+# ✅ NOUVEAU : helper unique (DB + fallback) => {player_name: payload}
+def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
+    out = {}
+
+    if engine:
+        with engine.begin() as conn:
+            rows = conn.execute(text("""
+                SELECT DISTINCT ON (player_name)
+                    player_name, payload_json, updated_at
+                FROM pronos
+                WHERE weekend_id=:w
+                ORDER BY player_name, updated_at DESC
+            """), {"w": weekend_id}).fetchall()
+
+        for r in rows:
+            out[(r[0] or "??")] = dict(r[1] or {})
+        return out
+
+    all_pronos = load_json(pronos_path(weekend_id), {})
+    tmp = []
+    if isinstance(all_pronos, dict):
+        for _, p in all_pronos.items():
+            tmp.append({
+                "player_name": p.get("player_name", "??"),
+                "payload": dict(p or {}),
+                "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at"),
+            })
+    tmp = dedupe_pronos_by_playername(tmp)
+    for it in tmp:
+        out[it["player_name"]] = it["payload"]
+    return out
+
 
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
@@ -768,7 +801,6 @@ def admin_home():
         count = 0
         if engine:
             with engine.begin() as conn:
-                # ✅ nombre de joueurs uniques
                 row = conn.execute(
                     text("SELECT COUNT(DISTINCT player_name) FROM pronos WHERE weekend_id=:w"),
                     {"w": wid}
@@ -794,7 +826,7 @@ def admin_home():
             "date": w.get("date"),
             "count": count,
             "closed": is_weekend_closed(wid) if engine else False,
-            "public": is_weekend_closed(wid) if engine else False,  # fermé = public
+            "public": is_weekend_closed(wid) if engine else False,
         })
 
     name, _ = current_player(request)
@@ -830,18 +862,16 @@ def admin_weekend(weekend_id):
             count = 0
 
     closed = is_weekend_closed(weekend_id) if engine else False
-    public = closed  # fermé = public
+    public = closed
 
     name, _ = current_player(request)
     return render_template("admin_weekend.html", name=name, w=w, count=count, closed=closed, public=public)
 
-# ✅ route switch ON/OFF
 @app.route("/admin/w/<weekend_id>/toggle_pronos", methods=["POST"])
 @require_admin
 def admin_toggle_pronos(weekend_id):
     if not get_weekend(weekend_id):
         return "Week-end inconnu", 404
-
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
@@ -863,7 +893,6 @@ def admin_results(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
-    # ✅ DB d'abord
     results = load_results(weekend_id) or {}
 
     if request.method == "POST":
@@ -912,7 +941,6 @@ def admin_questions(weekend_id):
         return redirect(url_for("admin_questions", weekend_id=weekend_id))
 
     name, _ = current_player(request)
-    # Safety: ton repo montre "admin_question.html" (sans s)
     try:
         return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
     except Exception:
@@ -924,16 +952,13 @@ def public_pronos(weekend_id):
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
-
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
-    # ✅ fermé = public
     if not is_weekend_closed(weekend_id):
         return "Pronos pas encore visibles : le GP est encore ouvert.", 403
 
     with engine.begin() as conn:
-        # ✅ anti-doublons : dernier prono par pseudo
         rows = conn.execute(text("""
             SELECT DISTINCT ON (player_name)
                 player_name, payload_json, updated_at
@@ -948,7 +973,6 @@ def public_pronos(weekend_id):
         "p": dict(r[1] or {}),
     } for r in rows]
 
-    # tri décroissant global par date
     pronos_list.sort(key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min, reverse=True)
 
     name, _ = current_player(request)
@@ -981,7 +1005,6 @@ def results_by_race():
             is_admin=is_admin()
         )
 
-    # ✅ DB d'abord
     results = load_results(gp_id)
     if not results:
         return render_template(
@@ -999,7 +1022,6 @@ def results_by_race():
     pronos_list = []
     if engine:
         with engine.begin() as conn:
-            # ✅ anti-doublons : dernier prono par pseudo
             db_rows = conn.execute(text("""
                 SELECT DISTINCT ON (player_name)
                     player_name, payload_json, created_at, updated_at
@@ -1032,7 +1054,6 @@ def results_by_race():
     for item in pronos_list:
         p = item["payload"] or {}
         breakdown = compute_points_breakdown(p, results, selected)
-
         rows.append({
             "player": item["player_name"],
             "created_at": item.get("created_at"),
@@ -1055,46 +1076,16 @@ def results_by_race():
         is_admin=is_admin()
     )
 
-# ------------------ Classement ------------------
+# ------------------ Classement GP (par week-end) ------------------
 @app.route("/w/<weekend_id>/classement")
 def classement_weekend(weekend_id):
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
 
-    # ✅ utile pour ton nouveau classement.html (bouton retour pronos/pronos publics)
     closed = is_weekend_closed(weekend_id) if engine else False
+    pronos_by_player = get_latest_pronos_by_player_for_weekend(weekend_id)
 
-    # ✅ anti-doublons : 1 ligne par pseudo (dernier prono)
-    pronos_by_player = {}
-
-    if engine:
-        with engine.begin() as conn:
-            db_rows = conn.execute(text("""
-                SELECT DISTINCT ON (player_name)
-                    player_name, payload_json, updated_at
-                FROM pronos
-                WHERE weekend_id=:w
-                ORDER BY player_name, updated_at DESC
-            """), {"w": weekend_id}).fetchall()
-
-        for r in db_rows:
-            pronos_by_player[r[0]] = dict(r[1] or {})
-    else:
-        all_pronos = load_json(pronos_path(weekend_id), {})
-        tmp = []
-        if isinstance(all_pronos, dict):
-            for _, p in all_pronos.items():
-                tmp.append({
-                    "player_name": p.get("player_name", "??"),
-                    "payload": dict(p or {}),
-                    "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at"),
-                })
-        tmp = dedupe_pronos_by_playername(tmp)
-        for it in tmp:
-            pronos_by_player[it["player_name"]] = it["payload"]
-
-    # ✅ DB d'abord
     results = load_results(weekend_id)
     if not results:
         name, _ = current_player(request)
@@ -1102,7 +1093,7 @@ def classement_weekend(weekend_id):
             "classement.html",
             name=name, w=w, rows=[],
             notice="Entre d’abord les résultats officiels (Admin).",
-            closed=closed,  # ✅ IMPORTANT
+            closed=closed,
             admin_enabled=admin_enabled(), is_admin=is_admin()
         )
 
@@ -1129,8 +1120,11 @@ def classement_weekend(weekend_id):
 
         bonus_score = 0.0
         for b in w.get("bonus_questions", []):
-            pred = (p.get("bonus", {}).get(b["id"]) or "").lower()
-            real = (results.get("bonus", {}).get(b["id"]) or "").lower()
+            bid = b.get("id")
+            if not bid:
+                continue
+            pred = (p.get("bonus", {}).get(bid) or "").lower()
+            real = (results.get("bonus", {}).get(bid) or "").lower()
             if pred and real and pred == real:
                 bonus_score += 0.5
 
@@ -1149,8 +1143,117 @@ def classement_weekend(weekend_id):
     return render_template(
         "classement.html",
         name=name, w=w, rows=rows, notice=None,
-        closed=closed,  # ✅ IMPORTANT
+        closed=closed,
         admin_enabled=admin_enabled(), is_admin=is_admin()
+    )
+
+# ------------------ ✅ NOUVEAU : Classement général saison ------------------
+@app.route("/classement")
+def classement_general():
+    name, _ = current_player(request)
+
+    weekends = load_weekends_list()
+    if not weekends:
+        return render_template(
+            "classement_general.html",
+            name=name,
+            rows=[],
+            gp_scored=[],
+            notice="Aucun week-end configuré.",
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
+        )
+
+    season_year = get_season_year()
+    def _w_sort_key(w):
+        d = parse_weekend_date(w.get("date", ""), season_year)
+        return d or date.max
+
+    weekends_sorted = sorted(weekends, key=_w_sort_key)
+
+    totals = {}
+    gp_scored = []
+
+    for w in weekends_sorted:
+        wid = (w.get("id") or "").strip()
+        if not wid:
+            continue
+
+        results = load_results(wid)
+        if not results:
+            continue
+
+        gp_scored.append({"id": wid, "label": w.get("label", wid)})
+
+        pronos_by_player = get_latest_pronos_by_player_for_weekend(wid)
+
+        for player_name, p in pronos_by_player.items():
+            q_score = qualif_points(
+                p.get("pole"),
+                results.get("pole"),
+                [p.get("q1_1"), p.get("q1_2")],
+                results.get("q1", []),
+            )
+
+            s_score = podium_points(
+                [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
+                results.get("sprint", []),
+                well_placed=1.0, mis_placed=0.5, bonus_exact=3.0, bonus_all=1.5
+            )
+
+            g_score = podium_points(
+                [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
+                results.get("gp", []),
+                well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
+            )
+
+            bonus_score = 0.0
+            for b in (w.get("bonus_questions", []) or []):
+                bid = b.get("id")
+                if not bid:
+                    continue
+                pred = (p.get("bonus", {}).get(bid) or "").lower()
+                real = (results.get("bonus", {}).get(bid) or "").lower()
+                if pred and real and pred == real:
+                    bonus_score += 0.5
+
+            total_gp = round(q_score + s_score + g_score + bonus_score, 2)
+
+            cur = totals.get(player_name)
+            if not cur:
+                totals[player_name] = {
+                    "player": player_name,
+                    "q": 0.0,
+                    "s": 0.0,
+                    "gp": 0.0,
+                    "bonus": 0.0,
+                    "total": 0.0,
+                    "gps": 0
+                }
+                cur = totals[player_name]
+
+            cur["q"] = round(cur["q"] + q_score, 2)
+            cur["s"] = round(cur["s"] + s_score, 2)
+            cur["gp"] = round(cur["gp"] + g_score, 2)
+            cur["bonus"] = round(cur["bonus"] + bonus_score, 2)
+            cur["total"] = round(cur["total"] + total_gp, 2)
+            cur["gps"] += 1
+
+    rows = list(totals.values())
+    rows.sort(key=lambda r: (r["total"], r["gps"]), reverse=True)
+
+    notice = None
+    if not gp_scored:
+        notice = "Aucun résultat saisi pour le moment (Admin → Entrer résultats)."
+
+    return render_template(
+        "classement_general.html",
+        name=name,
+        rows=rows,
+        gp_scored=gp_scored,
+        notice=notice,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
     )
 
 # ------------------ Health checks ------------------
