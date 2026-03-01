@@ -2,8 +2,31 @@
 {% block title %}Pronos publics — {{ w.label }}{% endblock %}
 
 {% block content %}
-  <h2>Pronos publics — {{ w.label }}</h2>
-  <p style="opacity:.9">Les pronos deviennent visibles dès la clôture (début Q1).</p>
+  <h2>👀 Pronos publics — {{ w.label }}</h2>
+
+  {# Valeurs envoyées par la route. Si pas envoyées, on met false par défaut #}
+  {% set is_closed = closed|default(false) %}
+  {% set is_public = public|default(false) %}
+
+  <div style="margin:10px 0 12px;">
+    {% if is_closed %}
+      <span class="status-closed">🔒 GP fermé</span>
+    {% else %}
+      <span class="status-open">🟢 GP ouvert</span>
+    {% endif %}
+
+    {% if is_closed or is_public %}
+      <span class="status-public" style="margin-left:12px;">👀 Public</span>
+    {% else %}
+      <span class="status-private" style="margin-left:12px;">🙈 Non public</span>
+    {% endif %}
+  </div>
+
+  {% if is_closed or is_public %}
+    <p style="opacity:.9">✅ Les pronos deviennent visibles dès que tu mets le GP en <strong>OFF</strong> (fermé) dans l’admin.</p>
+  {% else %}
+    <p style="opacity:.9">Les pronos deviennent visibles dès la clôture (début Q1).</p>
+  {% endif %}
 
   <div class="card">
     {% if not pronos %}
@@ -39,5 +62,10 @@
         {% endfor %}
       </ul>
     {% endif %}
+  </div>
+
+  <div style="margin-top:16px;">
+    <a class="btn btn-small" href="{{ url_for('home') }}">⬅ Retour accueil</a>
+    <a class="btn btn-small" style="margin-left:8px;" href="{{ url_for('pronos', weekend_id=w.id) }}">📝 Retour GP</a>
   </div>
 {% endblock %}
