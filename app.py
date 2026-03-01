@@ -2,7 +2,7 @@
 # + ADMIN login (nom + mdp) + "Clôturer & Publier les pronos" + page publique HTML
 # + Page "Résultats par course" (dropdown GP + détail points)
 # + Switch admin ON/OFF pour ouvrir/fermer les pronos (fermé = public)
-# + Auto: si GP fermé => /w/<gp>/pronos affiche automatiquement les pronos publics
+# + Auto-redirect : si GP fermé, /w/<id>/pronos => /w/<id>/public/pronos
 
 import os, json, uuid
 from datetime import datetime, date, timedelta
@@ -316,21 +316,14 @@ def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
 
 # ---- Détail complet pour "Résultats par course" ----
 def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
-    """
-    Donne le détail par position + bonus, basé sur normalize().
-    pred: [p1,p2,p3] ; actual: [a1,a2,a3]
-    """
     p = [normalize(x) for x in (pred or [])]
     a = [normalize(x) for x in (actual or [])]
 
     pos = [0.0, 0.0, 0.0]
-
-    # points bien placés
     for i in range(3):
         if i < len(a) and i < len(p) and p[i] and p[i] == a[i]:
             pos[i] += float(well_placed)
 
-    # points mal placés (présent dans le podium mais pas à la bonne place)
     for i in range(3):
         if i < len(p) and p[i] and p[i] in a and (i >= len(a) or p[i] != a[i]):
             pos[i] += float(mis_placed)
@@ -378,10 +371,6 @@ def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
     }
 
 def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list):
-    """
-    Chez toi : +0.5 par question si réponse identique (comme dans /classement)
-    pred/real sont des strings ("oui"/"non") ou équivalents.
-    """
     pred_bonus = pred_bonus or {}
     real_bonus = real_bonus or {}
     items = []
@@ -408,10 +397,6 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
     return {"items": items, "total": round(total, 2)}
 
 def compute_points_breakdown(prono: dict, results: dict, w: dict):
-    """
-    Retourne le détail complet : qualifs + sprint + gp + bonus + total.
-    Aligne tes règles actuelles (identiques à /classement_weekend).
-    """
     prono = prono or {}
     results = results or {}
     w = w or {}
@@ -578,13 +563,11 @@ def pronos(weekend_id):
 
     closed = is_weekend_closed(weekend_id) if engine else False
 
-    # ✅ MAJ : si le GP est fermé, on affiche automatiquement les pronos publics
+    # ✅ NOUVEAU : si le GP est fermé, on affiche automatiquement les pronos publics
     if closed:
         if not engine:
             return "Mode public indisponible sans DB (DATABASE_URL manquant).", 500
-        if is_pronos_public(weekend_id):
-            return redirect(url_for("public_pronos", weekend_id=weekend_id))
-        return "Pronos fermés mais pas encore publiés.", 403
+        return redirect(url_for("public_pronos", weekend_id=weekend_id))
 
     my = {}
     if engine:
@@ -603,7 +586,6 @@ def pronos(weekend_id):
         my = all_pronos.get(pid, {})
 
     if request.method == "POST":
-        # (normalement jamais atteint si closed=True car on redirect avant)
         if closed:
             flash("Pronos clos : modification impossible.")
             return redirect(url_for("pronos", weekend_id=weekend_id))
@@ -715,7 +697,7 @@ def admin_home():
             "date": w.get("date"),
             "count": count,
             "closed": is_weekend_closed(wid) if engine else False,
-            "public": is_pronos_public(wid) if engine else False,
+            "public": is_weekend_closed(wid) if engine else False,  # fermé = public
         })
 
     name, _ = current_player(request)
@@ -738,7 +720,7 @@ def admin_weekend(weekend_id):
         count = len(all_pronos) if isinstance(all_pronos, dict) else 0
 
     closed = is_weekend_closed(weekend_id) if engine else False
-    public = is_pronos_public(weekend_id) if engine else False
+    public = closed  # fermé = public
 
     name, _ = current_player(request)
     return render_template("admin_weekend.html", name=name, w=w, count=count, closed=closed, public=public)
@@ -819,7 +801,13 @@ def admin_questions(weekend_id):
         return redirect(url_for("admin_questions", weekend_id=weekend_id))
 
     name, _ = current_player(request)
-    return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
+
+    # ✅ Safety: ton repo montre "admin_question.html" (sans s)
+    # On essaie d'abord admin_questions.html puis fallback
+    try:
+        return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
+    except Exception:
+        return render_template("admin_question.html", name=name, w=w, q1=q1, q2=q2)
 
 # ------------------ Public : page HTML pronos ------------------
 @app.route("/w/<weekend_id>/public/pronos")
@@ -831,8 +819,9 @@ def public_pronos(weekend_id):
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
-    if not is_pronos_public(weekend_id):
-        return "Pronos pas encore publics (weekend non clos).", 403
+    # ✅ MAJ : fermé = public (plus besoin de pronos_public_at)
+    if not is_weekend_closed(weekend_id):
+        return "Pronos pas encore visibles : le GP est encore ouvert.", 403
 
     with engine.begin() as conn:
         rows = conn.execute(text("""
