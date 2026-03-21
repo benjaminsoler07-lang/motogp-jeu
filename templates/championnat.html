@@ -3,40 +3,62 @@
 {% block content %}
 
 <h2>Pronostic Championnat du Monde</h2>
-<p>Choisis le podium final (1er / 2e / 3e). Modifiable à volonté.</p>
+
+{% if championnat_state.is_open %}
+  <p>Choisis le podium final (1er / 2e / 3e). Modifiable à volonté.</p>
+{% else %}
+  <p><strong>🔒 Les pronostics championnat du monde sont fermés.</strong></p>
+  {% if championnat_state.locked_at %}
+    <p>Fermeture : {{ championnat_state.locked_at }}</p>
+  {% endif %}
+{% endif %}
+
+{% if championnat_state.revealed %}
+  <p>
+    <a class="btn" href="{{ url_for('championnat_public') }}">👁️ Voir les pronos divulgués</a>
+  </p>
+{% endif %}
 
 <form method="post" class="card">
+  <fieldset {% if not championnat_state.is_open %}disabled{% endif %} style="border:0; padding:0; margin:0;">
 
-  <h3>Podium final</h3>
+    <h3>Podium final</h3>
 
-  <label>🥇 Champion du monde</label>
-  <select name="wc_p1">
-    <option value="">--</option>
-    {% for r in riders %}
-      <option value="{{ r }}" {% if my.get('wc_p1') == r %}selected{% endif %}>{{ r }}</option>
-    {% endfor %}
-  </select>
+    <label>🥇 Champion du monde</label>
+    <select name="wc_p1">
+      <option value="">--</option>
+      {% for r in riders %}
+        <option value="{{ r }}" {% if my.get('wc_p1') == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
 
-  <label>🥈 Vice-champion</label>
-  <select name="wc_p2">
-    <option value="">--</option>
-    {% for r in riders %}
-      <option value="{{ r }}" {% if my.get('wc_p2') == r %}selected{% endif %}>{{ r }}</option>
-    {% endfor %}
-  </select>
+    <label>🥈 Vice-champion</label>
+    <select name="wc_p2">
+      <option value="">--</option>
+      {% for r in riders %}
+        <option value="{{ r }}" {% if my.get('wc_p2') == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
 
-  <label>🥉 3e du championnat</label>
-  <select name="wc_p3">
-    <option value="">--</option>
-    {% for r in riders %}
-      <option value="{{ r }}" {% if my.get('wc_p3') == r %}selected{% endif %}>{{ r }}</option>
-    {% endfor %}
-  </select>
+    <label>🥉 3e du championnat</label>
+    <select name="wc_p3">
+      <option value="">--</option>
+      {% for r in riders %}
+        <option value="{{ r }}" {% if my.get('wc_p3') == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
 
-  <div class="sticky-save">
-    <button class="btn" type="submit">💾 Enregistrer mon pronostic championnat</button>
-  </div>
+    {% if championnat_state.is_open %}
+      <div class="sticky-save">
+        <button class="btn" type="submit">💾 Enregistrer mon pronostic championnat</button>
+      </div>
+    {% else %}
+      <div class="sticky-save">
+        <button class="btn" type="button" disabled>🔒 Pronostics fermés</button>
+      </div>
+    {% endif %}
 
+  </fieldset>
 </form>
 
 {% endblock %}
