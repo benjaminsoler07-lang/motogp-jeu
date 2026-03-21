@@ -12,6 +12,53 @@
   </p>
 </div>
 
+<h3>Gestion du championnat du monde</h3>
+
+<div class="card">
+  <div class="admin-left">
+    <div class="admin-title">
+      <strong>🏆 Pronostics championnat du monde</strong>
+    </div>
+
+    <div class="admin-meta">
+      <span>Pronos : <strong>{{ championnat_count }}</strong></span>
+      <span>Fermé le : {{ championnat_state.locked_at or "—" }}</span>
+    </div>
+
+    <div class="admin-status">
+      {% if championnat_state.is_open %}
+        <span class="status-open">🟢 Ouvert</span>
+      {% else %}
+        <span class="status-closed">🔒 Clos</span>
+      {% endif %}
+
+      {% if championnat_state.revealed %}
+        <span class="status-public">👀 Divulgué</span>
+      {% else %}
+        <span class="status-private">🙈 Non divulgué</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="admin-actions" style="margin-top:12px;">
+    <a class="btn btn-small" href="{{ url_for('admin_championnat') }}">
+      ⚙️ Gérer championnat
+    </a>
+
+    <a class="btn btn-small" href="{{ url_for('championnat') }}">
+      👥 Page joueurs
+    </a>
+
+    {% if championnat_state.revealed %}
+      <a class="btn btn-small" href="{{ url_for('championnat_public') }}">
+        👀 Voir public
+      </a>
+    {% else %}
+      <span class="btn btn-small btn-disabled">👀 Voir public</span>
+    {% endif %}
+  </div>
+</div>
+
 <h3>Gestion des Week-ends</h3>
 
 <div class="card">
@@ -51,7 +98,6 @@
           ⚙️ Gérer
         </a>
 
-        <!-- ✅ SWITCH ON/OFF (remplace "Clôturer & Publier") -->
         {% if w.closed %}
           <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
             <input type="hidden" name="state" value="on">
