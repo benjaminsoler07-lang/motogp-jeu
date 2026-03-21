@@ -2,7 +2,8 @@
 {% block title %}Connexion — MotoGP Jeu{% endblock %}
 
 {% block content %}
-  <h2>Choisis ton pseudo</h2>
+  <h2>Connexion joueur</h2>
+  <p class="muted">Choisis ton pseudo puis saisis ton code secret.</p>
 
   <form method="post" class="card">
 
@@ -18,13 +19,23 @@
       {% endfor %}
     </select>
 
-    <button class="btn">Continuer</button>
+    <label for="secret" style="margin-top:12px;">Code secret</label>
+    <input
+      type="password"
+      name="secret"
+      id="secret"
+      placeholder="Entre ton code secret"
+      required
+      autocomplete="current-password"
+    >
+
+    <button class="btn" style="margin-top:14px;">Continuer</button>
 
   </form>
 
   {% if not participants %}
     <p style="margin-top:15px;">
-      ⚠️ Aucun joueur enregistré.  
+      ⚠️ Aucun joueur enregistré.
       Demande à l’admin d’ajouter les participants.
     </p>
   {% endif %}
