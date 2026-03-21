@@ -1,10 +1,32 @@
 {% extends 'base.html' %}
 {% block title %}Connexion — MotoGP Jeu{% endblock %}
+
 {% block content %}
   <h2>Choisis ton pseudo</h2>
+
   <form method="post" class="card">
-    <label>Pseudo</label>
-    <input type="text" name="name" required />
+
+    <label for="pseudo">Pseudo</label>
+    <select name="pseudo" id="pseudo" required>
+      <option value="">-- Sélectionne ton pseudo --</option>
+
+      {% for p in participants %}
+        <option value="{{ p.pseudo }}"
+          {% if selected_pseudo and selected_pseudo == p.pseudo %}selected{% endif %}>
+          {{ p.pseudo }}
+        </option>
+      {% endfor %}
+    </select>
+
     <button class="btn">Continuer</button>
+
   </form>
+
+  {% if not participants %}
+    <p style="margin-top:15px;">
+      ⚠️ Aucun joueur enregistré.  
+      Demande à l’admin d’ajouter les participants.
+    </p>
+  {% endif %}
+
 {% endblock %}
