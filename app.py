@@ -3,18 +3,12 @@
 # + Page "Résultats par course" (dropdown GP + détail points)
 # + Switch admin ON/OFF pour ouvrir/fermer les pronos (fermé = public)
 # + Auto-redirect : si GP fermé, /w/<id>/pronos => /w/<id>/public/pronos
-# + ✅ MAJ anti-doublons : 1 seule ligne par pseudo (dernier prono) dans :
-#     - Classement (/w/<id>/classement)
-#     - Pronos publics (/w/<id>/public/pronos)
-#     - Résultats par course (/results_by_race)
-#   (car un même joueur peut avoir plusieurs user_key si cookies perdus)
-# + ✅ MAJ IMPORTANT : Résultats officiels persistants en DB (sinon Render "perd" les fichiers)
-# + ✅ NOUVEAU : Classement général saison (/classement)
-# + ✅ NOUVEAU : Gestion admin du prono championnat du monde
-#     - open / close
-#     - reveal / hide
-#     - locked_at
-#     - page publique dédiée
+# + MAJ anti-doublons : 1 seule ligne par pseudo (dernier prono)
+# + Résultats officiels persistants en DB
+# + Classement général saison
+# + Gestion admin du prono championnat du monde
+# + NOUVEAU : gestion des participants (pseudo autorisé uniquement)
+# + NOUVEAU : persistance des pronos basée sur le pseudo autorisé
 
 import os
 import json
@@ -56,6 +50,8 @@ def require_admin(fn):
 DATA_DIR = "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
+PARTICIPANTS_FILE = os.path.join(DATA_DIR, "participants.json")
+
 os.makedirs(PRONOS_DIR, exist_ok=True)
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -86,6 +82,18 @@ RIDERS = [
     "#93 Marc Marquez",
 ]
 
+# ------------------ Utils ------------------
+def normalize_pseudo(pseudo: str) -> str:
+    return " ".join((pseudo or "").strip().lower().split())
+
+def _parse_dt_maybe(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
 # ------------------ DB (PostgreSQL) ------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
 engine = None
@@ -106,10 +114,23 @@ def db_init():
         );
         """))
 
-        # ✅ Ajout colonnes (idempotent)
         conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS pronos_public_at TIMESTAMPTZ NULL;"))
         conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS results_published_at TIMESTAMPTZ NULL;"))
 
+        # Participants autorisés
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS participants (
+            id SERIAL PRIMARY KEY,
+            pseudo TEXT NOT NULL,
+            pseudo_normalized TEXT NOT NULL,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_participants_pseudo_normalized ON participants(pseudo_normalized);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_participants_active ON participants(active);"))
+
+        # Pronos GP
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS pronos (
             id SERIAL PRIMARY KEY,
@@ -118,24 +139,34 @@ def db_init():
             player_name TEXT NOT NULL,
             payload_json JSONB NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            UNIQUE (weekend_id, user_key)
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """))
+
+        # Colonnes ajoutées pour la nouvelle logique
+        conn.execute(text("ALTER TABLE pronos ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;"))
+        conn.execute(text("ALTER TABLE pronos ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend ON pronos(weekend_id);"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend_player ON pronos(weekend_id, player_name);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend_player_norm ON pronos(weekend_id, player_norm);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_participant_id ON pronos(participant_id);"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_updated_at ON pronos(updated_at);"))
 
+        # Championnat
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_pronos (
             id SERIAL PRIMARY KEY,
-            user_key TEXT NOT NULL UNIQUE,
+            user_key TEXT NOT NULL,
             player_name TEXT NOT NULL,
             payload_json JSONB NOT NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """))
+        conn.execute(text("ALTER TABLE championnat_pronos ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;"))
+        conn.execute(text("ALTER TABLE championnat_pronos ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_championnat_pronos_player_norm ON championnat_pronos(player_norm);"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_championnat_pronos_participant_id ON championnat_pronos(participant_id);"))
 
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_state (
@@ -153,7 +184,6 @@ def db_init():
             ON CONFLICT (id) DO NOTHING
         """))
 
-        # ✅ NOUVEAU : résultats persistants (Render ne garde pas les fichiers)
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS results (
             weekend_id TEXT PRIMARY KEY,
@@ -162,71 +192,20 @@ def db_init():
         );
         """))
 
+        # Backfill player_norm pour anciennes lignes
+        conn.execute(text("""
+            UPDATE pronos
+            SET player_norm = LOWER(BTRIM(player_name))
+            WHERE player_norm IS NULL
+        """))
+
+        conn.execute(text("""
+            UPDATE championnat_pronos
+            SET player_norm = LOWER(BTRIM(player_name))
+            WHERE player_norm IS NULL
+        """))
+
 db_init()
-
-def is_weekend_closed(weekend_id: str) -> bool:
-    if not engine:
-        return False
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT closed_at FROM weekends WHERE weekend_id=:w"),
-            {"w": weekend_id}
-        ).fetchone()
-    return bool(row and row[0])
-
-def is_pronos_public(weekend_id: str) -> bool:
-    # (conservé pour compat / historiques) - chez toi on utilise "fermé = public"
-    if not engine:
-        return False
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT pronos_public_at FROM weekends WHERE weekend_id=:w"),
-            {"w": weekend_id}
-        ).fetchone()
-    return bool(row and row[0])
-
-def close_and_publish_pronos(weekend_id: str):
-    """Compat: ancienne action. Règle : dès la clôture, les pronos deviennent publics."""
-    if not engine:
-        return
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
-            VALUES (:w, NOW(), NOW())
-            ON CONFLICT (weekend_id)
-            DO UPDATE SET
-              closed_at = NOW(),
-              pronos_public_at = NOW()
-        """), {"w": weekend_id})
-
-# ✅ SWITCH ON/OFF
-def set_weekend_open(weekend_id: str):
-    """ON = ouvert : on remet closed_at/pronos_public_at à NULL (donc privé)."""
-    if not engine:
-        return
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
-            VALUES (:w, NULL, NULL)
-            ON CONFLICT (weekend_id)
-            DO UPDATE SET
-              closed_at = NULL,
-              pronos_public_at = NULL
-        """), {"w": weekend_id})
-
-def set_weekend_closed_and_public(weekend_id: str):
-    """OFF = fermé : pronos fermés et rendus publics."""
-    if not engine:
-        return
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
-            VALUES (:w, NOW(), NOW())
-            ON CONFLICT (weekend_id)
-            DO UPDATE SET
-              closed_at = NOW(),
-              pronos_public_at = NOW()
-        """), {"w": weekend_id})
 
 # ------------------ JSON helpers (fallback) ------------------
 def load_json(path, default):
@@ -242,6 +221,170 @@ def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+# ------------------ Participants helpers ------------------
+def load_participants_fallback():
+    data = load_json(PARTICIPANTS_FILE, {"participants": []})
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return data.get("participants", [])
+    return []
+
+def save_participants_fallback(items):
+    save_json(PARTICIPANTS_FILE, {"participants": items or []})
+
+def get_all_participants(include_inactive=True):
+    if engine:
+        with engine.begin() as conn:
+            if include_inactive:
+                rows = conn.execute(text("""
+                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    FROM participants
+                    ORDER BY pseudo ASC
+                """)).fetchall()
+            else:
+                rows = conn.execute(text("""
+                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    FROM participants
+                    WHERE active = TRUE
+                    ORDER BY pseudo ASC
+                """)).fetchall()
+
+        return [{
+            "id": r[0],
+            "pseudo": r[1],
+            "pseudo_normalized": r[2],
+            "active": bool(r[3]),
+            "created_at": str(r[4]) if r[4] else None
+        } for r in rows]
+
+    items = load_participants_fallback()
+    out = []
+    for i, p in enumerate(items, start=1):
+        active = bool(p.get("active", True))
+        if include_inactive or active:
+            out.append({
+                "id": p.get("id", i),
+                "pseudo": p.get("pseudo", ""),
+                "pseudo_normalized": p.get("pseudo_normalized") or normalize_pseudo(p.get("pseudo", "")),
+                "active": active,
+                "created_at": p.get("created_at"),
+            })
+    out.sort(key=lambda x: (x.get("pseudo") or "").lower())
+    return out
+
+def get_active_participants():
+    return get_all_participants(include_inactive=False)
+
+def get_participant_by_input(pseudo_input: str, active_only=True):
+    pseudo_norm = normalize_pseudo(pseudo_input)
+    if not pseudo_norm:
+        return None
+
+    if engine:
+        with engine.begin() as conn:
+            if active_only:
+                row = conn.execute(text("""
+                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    FROM participants
+                    WHERE pseudo_normalized=:pn AND active=TRUE
+                    LIMIT 1
+                """), {"pn": pseudo_norm}).fetchone()
+            else:
+                row = conn.execute(text("""
+                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    FROM participants
+                    WHERE pseudo_normalized=:pn
+                    LIMIT 1
+                """), {"pn": pseudo_norm}).fetchone()
+
+        if not row:
+            return None
+
+        return {
+            "id": row[0],
+            "pseudo": row[1],
+            "pseudo_normalized": row[2],
+            "active": bool(row[3]),
+            "created_at": str(row[4]) if row[4] else None
+        }
+
+    for p in get_all_participants(include_inactive=not active_only):
+        if p["pseudo_normalized"] == pseudo_norm:
+            return p
+    return None
+
+def add_participant(pseudo: str):
+    pseudo = (pseudo or "").strip()
+    pseudo_norm = normalize_pseudo(pseudo)
+    if not pseudo or not pseudo_norm:
+        return False, "Le pseudo est obligatoire."
+
+    existing = get_participant_by_input(pseudo, active_only=False)
+    if existing:
+        return False, "Ce pseudo existe déjà."
+
+    if engine:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO participants (pseudo, pseudo_normalized, active, created_at)
+                VALUES (:p, :pn, TRUE, NOW())
+            """), {"p": pseudo, "pn": pseudo_norm})
+        return True, "Joueur ajouté."
+
+    items = load_participants_fallback()
+    items.append({
+        "id": len(items) + 1,
+        "pseudo": pseudo,
+        "pseudo_normalized": pseudo_norm,
+        "active": True,
+        "created_at": datetime.utcnow().isoformat()
+    })
+    save_participants_fallback(items)
+    return True, "Joueur ajouté."
+
+def toggle_participant(participant_id: int):
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT id, pseudo, active
+                FROM participants
+                WHERE id=:pid
+                LIMIT 1
+            """), {"pid": participant_id}).fetchone()
+
+            if not row:
+                return False, "Joueur introuvable."
+
+            new_state = not bool(row[2])
+            conn.execute(text("""
+                UPDATE participants
+                SET active=:a
+                WHERE id=:pid
+            """), {"a": new_state, "pid": participant_id})
+
+        return True, f"Statut mis à jour pour {row[1]}."
+
+    items = load_participants_fallback()
+    found = None
+    for p in items:
+        if int(p.get("id", 0)) == int(participant_id):
+            p["active"] = not bool(p.get("active", True))
+            found = p
+            break
+
+    if not found:
+        return False, "Joueur introuvable."
+
+    save_participants_fallback(items)
+    return True, f"Statut mis à jour pour {found.get('pseudo', '??')}."
+
+def get_current_participant(req):
+    raw_name = (req.cookies.get("player_name") or "").strip()
+    if not raw_name:
+        return None
+    return get_participant_by_input(raw_name, active_only=True)
 
 # ------------------ Championnat state ------------------
 def get_championnat_state():
@@ -332,10 +475,10 @@ def get_latest_championnat_pronos_by_player() -> list:
     if engine:
         with engine.begin() as conn:
             rows = conn.execute(text("""
-                SELECT DISTINCT ON (player_name)
+                SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
                     player_name, payload_json, created_at, updated_at
                 FROM championnat_pronos
-                ORDER BY player_name, updated_at DESC
+                ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
             """)).fetchall()
 
         items = []
@@ -438,11 +581,72 @@ def weekend_status(weekend_date: date, open_days_before: int = 10):
 
 # ------------------ Identification joueurs (cookies) ------------------
 def current_player(req):
-    name = req.cookies.get("player_name")
+    participant = get_current_participant(req)
+    name = participant["pseudo"] if participant else (req.cookies.get("player_name") or "").strip()
     pid = req.cookies.get("player_id")
     if not pid:
         pid = str(uuid.uuid4())
     return name, pid
+
+# ------------------ Week-end open/close ------------------
+def is_weekend_closed(weekend_id: str) -> bool:
+    if not engine:
+        return False
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT closed_at FROM weekends WHERE weekend_id=:w"),
+            {"w": weekend_id}
+        ).fetchone()
+    return bool(row and row[0])
+
+def is_pronos_public(weekend_id: str) -> bool:
+    if not engine:
+        return False
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT pronos_public_at FROM weekends WHERE weekend_id=:w"),
+            {"w": weekend_id}
+        ).fetchone()
+    return bool(row and row[0])
+
+def close_and_publish_pronos(weekend_id: str):
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
+            VALUES (:w, NOW(), NOW())
+            ON CONFLICT (weekend_id)
+            DO UPDATE SET
+              closed_at = NOW(),
+              pronos_public_at = NOW()
+        """), {"w": weekend_id})
+
+def set_weekend_open(weekend_id: str):
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
+            VALUES (:w, NULL, NULL)
+            ON CONFLICT (weekend_id)
+            DO UPDATE SET
+              closed_at = NULL,
+              pronos_public_at = NULL
+        """), {"w": weekend_id})
+
+def set_weekend_closed_and_public(weekend_id: str):
+    if not engine:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO weekends (weekend_id, closed_at, pronos_public_at)
+            VALUES (:w, NOW(), NOW())
+            ON CONFLICT (weekend_id)
+            DO UPDATE SET
+              closed_at = NOW(),
+              pronos_public_at = NOW()
+        """), {"w": weekend_id})
 
 # ------------------ Points ------------------
 def normalize(x):
@@ -474,7 +678,6 @@ def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
             score += 0.5
     return score
 
-# ---- Détail complet pour "Résultats par course" ----
 def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
     p = [normalize(x) for x in (pred or [])]
     a = [normalize(x) for x in (actual or [])]
@@ -603,9 +806,7 @@ def results_path(weekend_id):
 def championnat_path():
     return os.path.join(PRONOS_DIR, "championnat.json")
 
-# ✅ NOUVEAU : résultats persistants (DB d’abord, fichier en fallback)
 def load_results(weekend_id: str):
-    """DB prioritaire (persistant Render), sinon fichier JSON (dev/local)."""
     if engine:
         with engine.begin() as conn:
             row = conn.execute(text("""
@@ -618,7 +819,6 @@ def load_results(weekend_id: str):
     return load_json(results_path(weekend_id), None)
 
 def save_results(weekend_id: str, results: dict):
-    """Sauvegarde en DB (si dispo) + fallback fichier."""
     results = results or {}
     if engine:
         with engine.begin() as conn:
@@ -632,23 +832,8 @@ def save_results(weekend_id: str, results: dict):
             """), {"w": weekend_id, "p": json.dumps(results, ensure_ascii=False)})
     save_json(results_path(weekend_id), results)
 
-# ------------------ Helpers anti-doublons (1 pseudo = dernier prono) ------------------
-def _parse_dt_maybe(s):
-    if not s:
-        return None
-    try:
-        return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
-    except Exception:
-        return None
-
+# ------------------ Helpers anti-doublons ------------------
 def dedupe_pronos_by_playername(items):
-    """
-    items: liste de dicts contenant au moins:
-      - player_name (ou player)
-      - payload/p (dict)
-      - updated_at (str/iso) optionnel
-    Retourne: liste dédoublonnée (1 par pseudo), en gardant le plus récent.
-    """
     best = {}
     for it in items or []:
         name = (it.get("player_name") or it.get("player") or "").strip()
@@ -666,18 +851,17 @@ def dedupe_pronos_by_playername(items):
         x.pop("_dt", None)
     return out
 
-# ✅ NOUVEAU : helper unique (DB + fallback) => {player_name: payload}
 def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
     out = {}
 
     if engine:
         with engine.begin() as conn:
             rows = conn.execute(text("""
-                SELECT DISTINCT ON (player_name)
+                SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
                     player_name, payload_json, updated_at
                 FROM pronos
                 WHERE weekend_id=:w
-                ORDER BY player_name, updated_at DESC
+                ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
             """), {"w": weekend_id}).fetchall()
 
         for r in rows:
@@ -698,6 +882,32 @@ def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
         out[it["player_name"]] = it["payload"]
     return out
 
+def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT COUNT(*) FROM (
+                    SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
+                        COALESCE(player_norm, LOWER(BTRIM(player_name)))
+                    FROM pronos
+                    WHERE weekend_id=:w
+                    ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
+                ) t
+            """), {"w": weekend_id}).fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    all_pronos = load_json(pronos_path(weekend_id), {})
+    if isinstance(all_pronos, dict):
+        tmp = []
+        for _, p in all_pronos.items():
+            tmp.append({
+                "player_name": (p.get("player_name") or "??"),
+                "payload": dict(p or {}),
+                "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at")
+            })
+        return len(dedupe_pronos_by_playername(tmp))
+    return 0
+
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
 def home():
@@ -716,23 +926,40 @@ def home():
         weekends.append(w2)
 
     weekends.sort(key=lambda x: x["date_obj"] or date.max)
-    return render_template("index.html", name=name, weekends=weekends, admin_enabled=admin_enabled(), is_admin=is_admin())
+    return render_template(
+        "index.html",
+        name=name,
+        weekends=weekends,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
+    )
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    active_participants = get_active_participants()
+
     if request.method == "POST":
-        name = (request.form.get("name") or "").strip()
-        if not name:
-            flash("Entre un pseudo pour continuer.")
+        pseudo_input = (request.form.get("name") or request.form.get("pseudo") or "").strip()
+        participant = get_participant_by_input(pseudo_input, active_only=True)
+
+        if not participant:
+            flash("Pseudo non reconnu. Merci de choisir un pseudo autorisé.")
             return redirect(url_for("login"))
 
         _, pid = current_player(request)
         resp = make_response(redirect(url_for("home")))
-        resp.set_cookie("player_name", name, max_age=60 * 60 * 24 * 365)
+        resp.set_cookie("player_name", participant["pseudo"], max_age=60 * 60 * 24 * 365)
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
 
-    return render_template("login.html", admin_enabled=admin_enabled(), is_admin=is_admin())
+    current = get_current_participant(request)
+    return render_template(
+        "login.html",
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin(),
+        participants=active_participants,
+        selected_pseudo=current["pseudo"] if current else None
+    )
 
 @app.route("/logout")
 def logout():
@@ -744,9 +971,14 @@ def logout():
 # ------------------ Championnat ------------------
 @app.route("/championnat", methods=["GET", "POST"])
 def championnat():
-    name, pid = current_player(request)
-    if not name:
+    participant = get_current_participant(request)
+    if not participant:
+        flash("Choisis d’abord un pseudo autorisé.")
         return redirect(url_for("login"))
+
+    name = participant["pseudo"]
+    pid = request.cookies.get("player_id") or str(uuid.uuid4())
+    player_norm = participant["pseudo_normalized"]
 
     state = get_championnat_state()
 
@@ -756,15 +988,23 @@ def championnat():
             row = conn.execute(text("""
                 SELECT payload_json, created_at, updated_at
                 FROM championnat_pronos
-                WHERE user_key=:u
-            """), {"u": pid}).fetchone()
+                WHERE COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """), {"pn": player_norm}).fetchone()
         if row:
             my = dict(row[0] or {})
-            my["_created_at"] = str(row[1])
-            my["_updated_at"] = str(row[2])
+            my["_created_at"] = str(row[1]) if row[1] else None
+            my["_updated_at"] = str(row[2]) if row[2] else None
     else:
         all_preds = load_json(championnat_path(), {})
-        my = all_preds.get(pid, {})
+        best = None
+        for _, p in (all_preds or {}).items():
+            if normalize_pseudo(p.get("player_name")) == player_norm:
+                if best is None or (_parse_dt_maybe(p.get("updated_at")) or datetime.min) > (_parse_dt_maybe(best.get("updated_at")) or datetime.min):
+                    best = p
+        if best:
+            my = dict(best)
 
     if request.method == "POST":
         if not state.get("is_open", True):
@@ -787,27 +1027,61 @@ def championnat():
 
         if engine:
             with engine.begin() as conn:
-                conn.execute(text("""
-                    INSERT INTO championnat_pronos (user_key, player_name, payload_json, created_at, updated_at)
-                    VALUES (:u, :n, CAST(:p AS jsonb), NOW(), NOW())
-                    ON CONFLICT (user_key)
-                    DO UPDATE SET
-                        player_name = EXCLUDED.player_name,
-                        payload_json = EXCLUDED.payload_json,
-                        updated_at = NOW()
-                """), {
-                    "u": pid,
-                    "n": name,
-                    "p": json.dumps(payload, ensure_ascii=False)
-                })
+                existing = conn.execute(text("""
+                    SELECT id
+                    FROM championnat_pronos
+                    WHERE COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """), {"pn": player_norm}).fetchone()
+
+                if existing:
+                    conn.execute(text("""
+                        UPDATE championnat_pronos
+                        SET user_key=:u,
+                            player_name=:n,
+                            player_norm=:pn,
+                            participant_id=:pidb,
+                            payload_json=CAST(:p AS jsonb),
+                            updated_at=NOW()
+                        WHERE id=:id
+                    """), {
+                        "u": pid,
+                        "n": name,
+                        "pn": player_norm,
+                        "pidb": participant["id"],
+                        "p": json.dumps(payload, ensure_ascii=False),
+                        "id": existing[0]
+                    })
+                else:
+                    conn.execute(text("""
+                        INSERT INTO championnat_pronos (
+                            user_key, player_name, player_norm, participant_id,
+                            payload_json, created_at, updated_at
+                        )
+                        VALUES (
+                            :u, :n, :pn, :pidb,
+                            CAST(:p AS jsonb), NOW(), NOW()
+                        )
+                    """), {
+                        "u": pid,
+                        "n": name,
+                        "pn": player_norm,
+                        "pidb": participant["id"],
+                        "p": json.dumps(payload, ensure_ascii=False)
+                    })
         else:
             all_preds = load_json(championnat_path(), {})
             payload["updated_at"] = datetime.utcnow().isoformat()
-            all_preds[pid] = payload
+            payload["player_name"] = name
+            all_preds[player_norm] = payload
             save_json(championnat_path(), all_preds)
 
         flash("Pronostic championnat enregistré ✅")
-        return redirect(url_for("championnat"))
+        resp = make_response(redirect(url_for("championnat")))
+        resp.set_cookie("player_name", name, max_age=60 * 60 * 24 * 365)
+        resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
+        return resp
 
     return render_template(
         "championnat.html",
@@ -844,9 +1118,14 @@ def championnat_public():
 # ------------------ Week-end pronos ------------------
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
 def pronos(weekend_id):
-    name, pid = current_player(request)
-    if not name:
+    participant = get_current_participant(request)
+    if not participant:
+        flash("Choisis d’abord un pseudo autorisé.")
         return redirect(url_for("login"))
+
+    name = participant["pseudo"]
+    pid = request.cookies.get("player_id") or str(uuid.uuid4())
+    player_norm = participant["pseudo_normalized"]
 
     w = get_weekend(weekend_id)
     if not w:
@@ -854,7 +1133,6 @@ def pronos(weekend_id):
 
     closed = is_weekend_closed(weekend_id) if engine else False
 
-    # ✅ si fermé -> redirige vers pronos publics
     if closed:
         if not engine:
             return "Mode public indisponible sans DB (DATABASE_URL manquant).", 500
@@ -866,15 +1144,24 @@ def pronos(weekend_id):
             row = conn.execute(text("""
                 SELECT payload_json, created_at, updated_at
                 FROM pronos
-                WHERE weekend_id=:w AND user_key=:u
-            """), {"w": weekend_id, "u": pid}).fetchone()
+                WHERE weekend_id=:w
+                  AND COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """), {"w": weekend_id, "pn": player_norm}).fetchone()
         if row:
             my = dict(row[0] or {})
-            my["_created_at"] = str(row[1])
-            my["_updated_at"] = str(row[2])
+            my["_created_at"] = str(row[1]) if row[1] else None
+            my["_updated_at"] = str(row[2]) if row[2] else None
     else:
         all_pronos = load_json(pronos_path(weekend_id), {})
-        my = all_pronos.get(pid, {})
+        best = None
+        for _, p in (all_pronos or {}).items():
+            if normalize_pseudo(p.get("player_name")) == player_norm:
+                if best is None or (_parse_dt_maybe(p.get("updated_at")) or datetime.min) > (_parse_dt_maybe(best.get("updated_at")) or datetime.min):
+                    best = p
+        if best:
+            my = dict(best)
 
     if request.method == "POST":
         if closed:
@@ -909,30 +1196,74 @@ def pronos(weekend_id):
 
         if engine:
             with engine.begin() as conn:
-                conn.execute(text("""
-                    INSERT INTO pronos (weekend_id, user_key, player_name, payload_json, created_at, updated_at)
-                    VALUES (:w, :u, :n, CAST(:p AS jsonb), NOW(), NOW())
-                    ON CONFLICT (weekend_id, user_key)
-                    DO UPDATE SET
-                        player_name = EXCLUDED.player_name,
-                        payload_json = EXCLUDED.payload_json,
-                        updated_at = NOW()
-                """), {
-                    "w": weekend_id,
-                    "u": pid,
-                    "n": name,
-                    "p": json.dumps(payload, ensure_ascii=False)
-                })
+                existing = conn.execute(text("""
+                    SELECT id
+                    FROM pronos
+                    WHERE weekend_id=:w
+                      AND COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """), {"w": weekend_id, "pn": player_norm}).fetchone()
+
+                if existing:
+                    conn.execute(text("""
+                        UPDATE pronos
+                        SET user_key=:u,
+                            player_name=:n,
+                            player_norm=:pn,
+                            participant_id=:pidb,
+                            payload_json=CAST(:p AS jsonb),
+                            updated_at=NOW()
+                        WHERE id=:id
+                    """), {
+                        "u": pid,
+                        "n": name,
+                        "pn": player_norm,
+                        "pidb": participant["id"],
+                        "p": json.dumps(payload, ensure_ascii=False),
+                        "id": existing[0]
+                    })
+                else:
+                    conn.execute(text("""
+                        INSERT INTO pronos (
+                            weekend_id, user_key, player_name, player_norm, participant_id,
+                            payload_json, created_at, updated_at
+                        )
+                        VALUES (
+                            :w, :u, :n, :pn, :pidb,
+                            CAST(:p AS jsonb), NOW(), NOW()
+                        )
+                    """), {
+                        "w": weekend_id,
+                        "u": pid,
+                        "n": name,
+                        "pn": player_norm,
+                        "pidb": participant["id"],
+                        "p": json.dumps(payload, ensure_ascii=False)
+                    })
         else:
             all_pronos = load_json(pronos_path(weekend_id), {})
             payload["updated_at"] = datetime.utcnow().isoformat()
-            all_pronos[pid] = payload
+            payload["player_name"] = name
+            all_pronos[player_norm] = payload
             save_json(pronos_path(weekend_id), all_pronos)
 
         flash("Pronostic enregistré ✅ (modifiable à volonté)")
-        return redirect(url_for("pronos", weekend_id=weekend_id))
+        resp = make_response(redirect(url_for("pronos", weekend_id=weekend_id)))
+        resp.set_cookie("player_name", name, max_age=60 * 60 * 24 * 365)
+        resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
+        return resp
 
-    return render_template("pronos.html", w=w, riders=RIDERS, my=my, name=name, closed=closed, admin_enabled=admin_enabled(), is_admin=is_admin())
+    return render_template(
+        "pronos.html",
+        w=w,
+        riders=RIDERS,
+        my=my,
+        name=name,
+        closed=closed,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
+    )
 
 # ================== ADMIN AUTH ==================
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -974,27 +1305,7 @@ def admin_home():
         if not wid:
             continue
 
-        count = 0
-        if engine:
-            with engine.begin() as conn:
-                row = conn.execute(
-                    text("SELECT COUNT(DISTINCT player_name) FROM pronos WHERE weekend_id=:w"),
-                    {"w": wid}
-                ).fetchone()
-            count = int(row[0]) if row else 0
-        else:
-            all_pronos = load_json(pronos_path(wid), {})
-            if isinstance(all_pronos, dict):
-                tmp = []
-                for _, p in all_pronos.items():
-                    tmp.append({
-                        "player_name": (p.get("player_name") or "??"),
-                        "payload": dict(p or {}),
-                        "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at")
-                    })
-                count = len(dedupe_pronos_by_playername(tmp))
-            else:
-                count = 0
+        count = count_distinct_pronos_for_weekend(wid)
 
         enriched.append({
             "id": wid,
@@ -1007,6 +1318,7 @@ def admin_home():
 
     championnat_count = len(get_latest_championnat_pronos_by_player())
     championnat_state = get_championnat_state()
+    participants_count = len(get_all_participants(include_inactive=True))
 
     name, _ = current_player(request)
     return render_template(
@@ -1014,8 +1326,33 @@ def admin_home():
         name=name,
         weekends=enriched,
         championnat_count=championnat_count,
-        championnat_state=championnat_state
+        championnat_state=championnat_state,
+        participants_count=participants_count
     )
+
+@app.route("/admin/participants", methods=["GET", "POST"])
+@require_admin
+def admin_participants():
+    if request.method == "POST":
+        pseudo = (request.form.get("pseudo") or "").strip()
+        ok, msg = add_participant(pseudo)
+        flash(msg)
+        return redirect(url_for("admin_participants"))
+
+    participants = get_all_participants(include_inactive=True)
+    name, _ = current_player(request)
+    return render_template(
+        "admin_participants.html",
+        name=name,
+        participants=participants
+    )
+
+@app.route("/admin/participants/<int:participant_id>/toggle", methods=["POST"])
+@require_admin
+def admin_toggle_participant(participant_id):
+    ok, msg = toggle_participant(participant_id)
+    flash(msg)
+    return redirect(url_for("admin_participants"))
 
 @app.route("/admin/championnat")
 @require_admin
@@ -1073,28 +1410,7 @@ def admin_weekend(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
-    count = 0
-    if engine:
-        with engine.begin() as conn:
-            row = conn.execute(
-                text("SELECT COUNT(DISTINCT player_name) FROM pronos WHERE weekend_id=:w"),
-                {"w": weekend_id}
-            ).fetchone()
-        count = int(row[0]) if row else 0
-    else:
-        all_pronos = load_json(pronos_path(weekend_id), {})
-        if isinstance(all_pronos, dict):
-            tmp = []
-            for _, p in all_pronos.items():
-                tmp.append({
-                    "player_name": (p.get("player_name") or "??"),
-                    "payload": dict(p or {}),
-                    "updated_at": p.get("_updated_at") or p.get("updated_at") or p.get("created_at")
-                })
-            count = len(dedupe_pronos_by_playername(tmp))
-        else:
-            count = 0
-
+    count = count_distinct_pronos_for_weekend(weekend_id)
     closed = is_weekend_closed(weekend_id) if engine else False
     public = closed
 
@@ -1194,16 +1510,16 @@ def public_pronos(weekend_id):
 
     with engine.begin() as conn:
         rows = conn.execute(text("""
-            SELECT DISTINCT ON (player_name)
+            SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
                 player_name, payload_json, updated_at
             FROM pronos
             WHERE weekend_id=:w
-            ORDER BY player_name, updated_at DESC
+            ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
         """), {"w": weekend_id}).fetchall()
 
     pronos_list = [{
         "player": r[0],
-        "updated_at": str(r[2]),
+        "updated_at": str(r[2]) if r[2] else None,
         "p": dict(r[1] or {}),
     } for r in rows]
 
@@ -1257,19 +1573,19 @@ def results_by_race():
     if engine:
         with engine.begin() as conn:
             db_rows = conn.execute(text("""
-                SELECT DISTINCT ON (player_name)
+                SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
                     player_name, payload_json, created_at, updated_at
                 FROM pronos
                 WHERE weekend_id=:w
-                ORDER BY player_name, updated_at DESC
+                ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
             """), {"w": gp_id}).fetchall()
 
         for r in db_rows:
             pronos_list.append({
                 "player_name": r[0],
                 "payload": dict(r[1] or {}),
-                "created_at": str(r[2]),
-                "updated_at": str(r[3]),
+                "created_at": str(r[2]) if r[2] else None,
+                "updated_at": str(r[3]) if r[3] else None,
             })
     else:
         all_pronos = load_json(pronos_path(gp_id), {})
@@ -1381,7 +1697,7 @@ def classement_weekend(weekend_id):
         admin_enabled=admin_enabled(), is_admin=is_admin()
     )
 
-# ------------------ ✅ NOUVEAU : Classement général saison ------------------
+# ------------------ Classement général saison ------------------
 @app.route("/classement")
 def classement_general():
     name, _ = current_player(request)
