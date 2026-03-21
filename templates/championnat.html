@@ -4,6 +4,16 @@
 
 <h2>Pronostic Championnat du Monde</h2>
 
+<div class="card">
+  <p><strong>Joueur :</strong> {{ name }}</p>
+
+  {% if my and my._updated_at %}
+    <p><small>Dernière mise à jour : {{ my._updated_at }}</small></p>
+  {% elif my and my._created_at %}
+    <p><small>Enregistré le : {{ my._created_at }}</small></p>
+  {% endif %}
+</div>
+
 {% if championnat_state.is_open %}
   <p>Choisis le podium final (1er / 2e / 3e). Modifiable à volonté.</p>
 {% else %}
@@ -60,5 +70,47 @@
 
   </fieldset>
 </form>
+
+{% if not championnat_state.is_open and my %}
+  <div class="card">
+    <h3>Ton pronostic enregistré</h3>
+    <p>🥇 {{ my.get('wc_p1') or "—" }}</p>
+    <p>🥈 {{ my.get('wc_p2') or "—" }}</p>
+    <p>🥉 {{ my.get('wc_p3') or "—" }}</p>
+  </div>
+{% endif %}
+
+<script>
+  function disableDuplicates(groupNames) {
+    const selects = groupNames.map(n => document.querySelector(`select[name="${n}"]`)).filter(Boolean);
+
+    function refresh() {
+      const chosen = new Set(selects.map(s => s.value).filter(v => v));
+      selects.forEach(sel => {
+        const myValue = sel.value;
+        Array.from(sel.options).forEach(opt => {
+          if (!opt.value) return;
+          opt.disabled = chosen.has(opt.value) && opt.value !== myValue;
+        });
+      });
+    }
+
+    selects.forEach(sel => sel.addEventListener("change", refresh));
+    refresh();
+  }
+
+  disableDuplicates(["wc_p1", "wc_p2", "wc_p3"]);
+
+  document.querySelector("form")?.addEventListener("submit", function(e) {
+    const vals = ["wc_p1", "wc_p2", "wc_p3"]
+      .map(n => document.querySelector(`select[name="${n}"]`)?.value || "")
+      .filter(v => v);
+
+    if (new Set(vals).size !== vals.length) {
+      e.preventDefault();
+      alert("Doublon détecté. Choisis des pilotes différents 🙂");
+    }
+  });
+</script>
 
 {% endblock %}
