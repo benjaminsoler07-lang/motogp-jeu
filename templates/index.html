@@ -5,13 +5,24 @@
   <div class="container">
     <h1>Bienvenue sur Pronos MotoGP 🏁</h1>
 
-    <p>Choisis un Grand Prix pour faire ton pronostic :</p>
+    {% if name %}
+      <p>👋 Salut <strong>{{ name }}</strong>, choisis un Grand Prix :</p>
+    {% else %}
+      <p class="notice">
+        ⚠️ Tu dois te connecter pour accéder aux pronostics
+      </p>
+      <a class="btn" href="{{ url_for('login') }}">🔑 Se connecter</a>
+    {% endif %}
 
     <ul class="gp-list">
 
-      <!-- 🏆 Prono Championnat du monde : comme un GP classique -->
+      <!-- 🏆 Championnat -->
       <li class="gp-item gp-open">
-        <a href="{{ url_for('championnat') }}">🏆 Prono championnat du monde</a>
+        {% if name %}
+          <a href="{{ url_for('championnat') }}">🏆 Prono championnat du monde</a>
+        {% else %}
+          <span class="btn-disabled">🏆 Prono championnat du monde</span>
+        {% endif %}
       </li>
 
       {% for w in weekends %}
@@ -20,11 +31,22 @@
             {% if w.status == 'closed' %}gp-closed{% endif %}
             {% if w.status == 'open' %}gp-open{% endif %}
         ">
-          {% if w.status == 'open' %}
-            <a href="{{ url_for('pronos', weekend_id=w.id) }}">{{ w.label }}</a>
+
+          {% if name and w.status == 'open' %}
+            <a href="{{ url_for('pronos', weekend_id=w.id) }}">
+              {{ w.label }}
+            </a>
+
+          {% elif w.status == 'closed' %}
+            <span>🔒 {{ w.label }}</span>
+
+          {% elif w.status == 'past' %}
+            <span>🏁 {{ w.label }}</span>
+
           {% else %}
-            {{ w.label }}
+            <span>{{ w.label }}</span>
           {% endif %}
+
         </li>
       {% endfor %}
 
