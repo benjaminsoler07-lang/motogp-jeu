@@ -9,21 +9,15 @@
 
   <body>
     <header class="checkerbar">
-      <!-- Ligne 1 : Titre centré -->
       <h1 class="header-title">Prono MotoGP 2026</h1>
 
-      <!-- Ligne 2 : Connexion + statut + Admin (centré) -->
       <div class="header-auth">
         {% if name %}
           <span class="status">✅ Connecté{% if session.get('is_admin') %} — 🛠️ Admin{% endif %}</span>
           <span class="status">Bonjour <strong>{{ name }}</strong> 👋</span>
+          <a class="btn" href="{{ url_for('logout') }}">Changer / Déconnexion</a>
         {% else %}
           <span class="status">❌ Non connecté</span>
-        {% endif %}
-
-        {% if name %}
-          <a class="btn" href="{{ url_for('logout') }}">Déconnexion</a>
-        {% else %}
           <a class="btn" href="{{ url_for('login') }}">Connexion</a>
         {% endif %}
 
@@ -35,10 +29,9 @@
         {% endif %}
       </div>
 
-      <!-- Ligne 3 : Menu (dans le bandeau, centré) -->
       <nav class="header-nav">
         <a class="btn" href="{{ url_for('home') }}">Accueil</a>
-       <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
+        <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
         <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par course</a>
       </nav>
     </header>
