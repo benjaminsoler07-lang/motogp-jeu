@@ -1,64 +1,59 @@
-{% extends 'base.html' %}
-{% block title %}Pronostic Championnat — MotoGP{% endblock %}
+{% extends "base.html" %}
+{% block title %}Admin — Championnat{% endblock %}
+
 {% block content %}
 
-<h2>Pronostic Championnat du Monde</h2>
+<h2>Admin — Pronostics championnat du monde</h2>
 
-{% if championnat_state.is_open %}
-  <p>Choisis le podium final (1er / 2e / 3e). Modifiable à volonté.</p>
-{% else %}
-  <p><strong>🔒 Les pronostics championnat du monde sont fermés.</strong></p>
-  {% if championnat_state.locked_at %}
-    <p>Fermeture : {{ championnat_state.locked_at }}</p>
-  {% endif %}
-{% endif %}
+<div class="card" style="text-align:left; margin-bottom:16px;">
+  <p><strong>Nombre de pronos :</strong> {{ count }}</p>
+  <p><strong>Ouvert :</strong> {{ "Oui" if championnat_state.is_open else "Non" }}</p>
+  <p><strong>Divulgué :</strong> {{ "Oui" if championnat_state.revealed else "Non" }}</p>
+  <p><strong>Fermé le :</strong> {{ championnat_state.locked_at or "—" }}</p>
+</div>
 
-{% if championnat_state.revealed %}
-  <p>
-    <a class="btn" href="{{ url_for('championnat_public') }}">👁️ Voir les pronos divulgués</a>
+<div class="card" style="text-align:left; margin-bottom:16px;">
+  <h3>Actions</h3>
+
+  <form method="post" action="{{ url_for('admin_open_championnat') }}" style="margin:8px 0;">
+    <button class="btn" type="submit">🟢 Ouvrir les pronos championnat</button>
+  </form>
+
+  <form method="post" action="{{ url_for('admin_close_championnat') }}" style="margin:8px 0;">
+    <button class="btn btn-danger" type="submit">🔒 Fermer les pronos championnat</button>
+  </form>
+
+  <form method="post" action="{{ url_for('admin_reveal_championnat') }}" style="margin:8px 0;">
+    <button class="btn" type="submit">👁️ Divulguer les pronos championnat</button>
+  </form>
+
+  <form method="post" action="{{ url_for('admin_hide_championnat') }}" style="margin:8px 0;">
+    <button class="btn" type="submit">🙈 Masquer les pronos championnat</button>
+  </form>
+
+  <p style="margin-top:16px;">
+    <a class="btn" href="{{ url_for('championnat') }}">🏁 Aller à la page championnat</a>
+    <a class="btn" href="{{ url_for('championnat_public') }}">👁️ Voir la page publique</a>
   </p>
-{% endif %}
+</div>
 
-<form method="post" class="card">
-  <fieldset {% if not championnat_state.is_open %}disabled{% endif %} style="border:0; padding:0; margin:0;">
+<div class="card" style="text-align:left;">
+  <h3>Pronos enregistrés</h3>
 
-    <h3>Podium final</h3>
-
-    <label>🥇 Champion du monde</label>
-    <select name="wc_p1">
-      <option value="">--</option>
-      {% for r in riders %}
-        <option value="{{ r }}" {% if my.get('wc_p1') == r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
-
-    <label>🥈 Vice-champion</label>
-    <select name="wc_p2">
-      <option value="">--</option>
-      {% for r in riders %}
-        <option value="{{ r }}" {% if my.get('wc_p2') == r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
-
-    <label>🥉 3e du championnat</label>
-    <select name="wc_p3">
-      <option value="">--</option>
-      {% for r in riders %}
-        <option value="{{ r }}" {% if my.get('wc_p3') == r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
-
-    {% if championnat_state.is_open %}
-      <div class="sticky-save">
-        <button class="btn" type="submit">💾 Enregistrer mon pronostic championnat</button>
+  {% if pronos %}
+    {% for item in pronos %}
+      <div style="padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.12);">
+        <p><strong>{{ item.player_name }}</strong></p>
+        <p>🥇 {{ item.payload.wc_p1 or "-" }}</p>
+        <p>🥈 {{ item.payload.wc_p2 or "-" }}</p>
+        <p>🥉 {{ item.payload.wc_p3 or "-" }}</p>
+        <p><small>Créé : {{ item.created_at or "-" }}</small></p>
+        <p><small>Mis à jour : {{ item.updated_at or "-" }}</small></p>
       </div>
-    {% else %}
-      <div class="sticky-save">
-        <button class="btn" type="button" disabled>🔒 Pronostics fermés</button>
-      </div>
-    {% endif %}
-
-  </fieldset>
-</form>
+    {% endfor %}
+  {% else %}
+    <p>Aucun pronostic enregistré.</p>
+  {% endif %}
+</div>
 
 {% endblock %}
