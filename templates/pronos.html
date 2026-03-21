@@ -4,11 +4,55 @@
 
   <h2>{{ w.label }}</h2>
 
+  <div class="card">
+    <p><strong>Joueur :</strong> {{ name }}</p>
+
+    {% if not closed %}
+      <p class="admin-tip">
+        💾 Ton pronostic est sauvegardé automatiquement. Tu peux le modifier jusqu’à la clôture des pronos.
+      </p>
+
+      {% if my and my._updated_at %}
+        <p><small>Dernière mise à jour : {{ my._updated_at }}</small></p>
+      {% elif my and my._created_at %}
+        <p><small>Enregistré le : {{ my._created_at }}</small></p>
+      {% endif %}
+    {% endif %}
+  </div>
+
   {% if closed %}
     <p class="notice">
       🔒 Les pronos sont <strong>fermés</strong> pour ce GP.
       Tu ne peux plus modifier ton pronostic.
     </p>
+
+    {% if my %}
+      <div class="card">
+        <h3>Ton pronostic enregistré</h3>
+
+        <p><strong>Qualifications</strong></p>
+        <p>Pôle : {{ my.pole or "—" }}</p>
+        <p>Q1 : {{ my.q1_1 or "—" }} / {{ my.q1_2 or "—" }}</p>
+
+        <p><strong>Sprint</strong></p>
+        <p>1. {{ my.sprint_p1 or "—" }}</p>
+        <p>2. {{ my.sprint_p2 or "—" }}</p>
+        <p>3. {{ my.sprint_p3 or "—" }}</p>
+
+        <p><strong>Grand Prix</strong></p>
+        <p>1. {{ my.gp_p1 or "—" }}</p>
+        <p>2. {{ my.gp_p2 or "—" }}</p>
+        <p>3. {{ my.gp_p3 or "—" }}</p>
+
+        {% if w.bonus_questions and w.bonus_questions|length > 0 %}
+          <p><strong>Questions bonus</strong></p>
+          {% set mb = my.bonus if my.bonus is defined and my.bonus else {} %}
+          {% for b in w.bonus_questions %}
+            <p>{{ b.label }} : {{ mb[b.id] or "—" }}</p>
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endif %}
 
     <div class="card">
       <p>Accès rapide :</p>
@@ -117,30 +161,4 @@
       }
 
       disableDuplicates(["q1_1", "q1_2"]);
-      disableDuplicates(["sprint_p1", "sprint_p2", "sprint_p3"]);
-      disableDuplicates(["gp_p1", "gp_p2", "gp_p3"]);
-
-      document.querySelector("form")?.addEventListener("submit", function(e) {
-        const groups = [
-          ["q1_1", "q1_2"],
-          ["sprint_p1", "sprint_p2", "sprint_p3"],
-          ["gp_p1", "gp_p2", "gp_p3"]
-        ];
-
-        for (const g of groups) {
-          const vals = g
-            .map(n => document.querySelector(`select[name="${n}"]`)?.value || "")
-            .filter(v => v);
-
-          const setVals = new Set(vals);
-          if (setVals.size !== vals.length) {
-            e.preventDefault();
-            alert("Doublon détecté dans un podium (ou Q1). Choisis des pilotes différents 🙂");
-            return;
-          }
-        }
-      });
-    </script>
-  {% endif %}
-
-{% endblock %}
+      disableDuplicates(["sprint_p1", "
