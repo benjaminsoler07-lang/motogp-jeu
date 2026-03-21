@@ -73,7 +73,7 @@
       <select name="pole">
         <option value="">--</option>
         {% for r in riders %}
-          <option value="{{ r }}" {% if my.pole==r %}selected{% endif %}>{{ r }}</option>
+          <option value="{{ r }}" {% if my.pole == r %}selected{% endif %}>{{ r }}</option>
         {% endfor %}
       </select>
 
@@ -81,7 +81,7 @@
       <select name="q1_1">
         <option value="">--</option>
         {% for r in riders %}
-          <option value="{{ r }}" {% if my.q1_1==r %}selected{% endif %}>{{ r }}</option>
+          <option value="{{ r }}" {% if my.q1_1 == r %}selected{% endif %}>{{ r }}</option>
         {% endfor %}
       </select>
 
@@ -89,7 +89,7 @@
       <select name="q1_2">
         <option value="">--</option>
         {% for r in riders %}
-          <option value="{{ r }}" {% if my.q1_2==r %}selected{% endif %}>{{ r }}</option>
+          <option value="{{ r }}" {% if my.q1_2 == r %}selected{% endif %}>{{ r }}</option>
         {% endfor %}
       </select>
 
@@ -99,7 +99,7 @@
         <select name="sprint_p{{ i }}">
           <option value="">--</option>
           {% for r in riders %}
-            <option value="{{ r }}" {% if my["sprint_p"~i]==r %}selected{% endif %}>{{ r }}</option>
+            <option value="{{ r }}" {% if my["sprint_p" ~ i] == r %}selected{% endif %}>{{ r }}</option>
           {% endfor %}
         </select>
       {% endfor %}
@@ -110,7 +110,7 @@
         <select name="gp_p{{ i }}">
           <option value="">--</option>
           {% for r in riders %}
-            <option value="{{ r }}" {% if my["gp_p"~i]==r %}selected{% endif %}>{{ r }}</option>
+            <option value="{{ r }}" {% if my["gp_p" ~ i] == r %}selected{% endif %}>{{ r }}</option>
           {% endfor %}
         </select>
       {% endfor %}
@@ -122,8 +122,8 @@
           <label>{{ b.label }}</label>
           <select name="bonus_{{ b.id }}">
             <option value="">--</option>
-            <option value="oui" {% if mb[b.id]=='oui' %}selected{% endif %}>Oui</option>
-            <option value="non" {% if mb[b.id]=='non' %}selected{% endif %}>Non</option>
+            <option value="oui" {% if mb[b.id] == 'oui' %}selected{% endif %}>Oui</option>
+            <option value="non" {% if mb[b.id] == 'non' %}selected{% endif %}>Non</option>
           </select>
         {% endfor %}
       {% endif %}
@@ -161,4 +161,9 @@
       }
 
       disableDuplicates(["q1_1", "q1_2"]);
-      disableDuplicates(["sprint_p1", "
+      disableDuplicates(["sprint_p1", "sprint_p2", "sprint_p3"]);
+      disableDuplicates(["gp_p1", "gp_p2", "gp_p3"]);
+    </script>
+  {% endif %}
+
+{% endblock %}
