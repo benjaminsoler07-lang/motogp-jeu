@@ -10,8 +10,15 @@
 #   (car un même joueur peut avoir plusieurs user_key si cookies perdus)
 # + ✅ MAJ IMPORTANT : Résultats officiels persistants en DB (sinon Render "perd" les fichiers)
 # + ✅ NOUVEAU : Classement général saison (/classement)
+# + ✅ NOUVEAU : Gestion admin du prono championnat du monde
+#     - open / close
+#     - reveal / hide
+#     - locked_at
+#     - page publique dédiée
 
-import os, json, uuid
+import os
+import json
+import uuid
 from datetime import datetime, date, timedelta
 from functools import wraps
 
@@ -90,6 +97,7 @@ if DATABASE_URL:
 def db_init():
     if not engine:
         return
+
     with engine.begin() as conn:
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS weekends (
@@ -97,6 +105,7 @@ def db_init():
             closed_at TIMESTAMPTZ NULL
         );
         """))
+
         # ✅ Ajout colonnes (idempotent)
         conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS pronos_public_at TIMESTAMPTZ NULL;"))
         conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS results_published_at TIMESTAMPTZ NULL;"))
@@ -126,6 +135,22 @@ def db_init():
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        """))
+
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS championnat_state (
+            id INTEGER PRIMARY KEY,
+            is_open BOOLEAN NOT NULL DEFAULT TRUE,
+            revealed BOOLEAN NOT NULL DEFAULT FALSE,
+            locked_at TIMESTAMPTZ NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+
+        conn.execute(text("""
+            INSERT INTO championnat_state (id, is_open, revealed, locked_at, updated_at)
+            VALUES (1, TRUE, FALSE, NULL, NOW())
+            ON CONFLICT (id) DO NOTHING
         """))
 
         # ✅ NOUVEAU : résultats persistants (Render ne garde pas les fichiers)
@@ -203,7 +228,6 @@ def set_weekend_closed_and_public(weekend_id: str):
               pronos_public_at = NOW()
         """), {"w": weekend_id})
 
-
 # ------------------ JSON helpers (fallback) ------------------
 def load_json(path, default):
     if not os.path.exists(path):
@@ -218,6 +242,123 @@ def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+# ------------------ Championnat state ------------------
+def get_championnat_state():
+    default = {
+        "is_open": True,
+        "revealed": False,
+        "locked_at": None,
+    }
+
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT is_open, revealed, locked_at
+                FROM championnat_state
+                WHERE id=1
+            """)).fetchone()
+
+        if row:
+            return {
+                "is_open": bool(row[0]),
+                "revealed": bool(row[1]),
+                "locked_at": str(row[2]) if row[2] else None,
+            }
+        return default
+
+    path = os.path.join(DATA_DIR, "championnat_state.json")
+    return load_json(path, default)
+
+def save_championnat_state(state: dict):
+    state = {
+        "is_open": bool(state.get("is_open", True)),
+        "revealed": bool(state.get("revealed", False)),
+        "locked_at": state.get("locked_at"),
+    }
+
+    if engine:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO championnat_state (id, is_open, revealed, locked_at, updated_at)
+                VALUES (
+                    1,
+                    :is_open,
+                    :revealed,
+                    :locked_at,
+                    NOW()
+                )
+                ON CONFLICT (id)
+                DO UPDATE SET
+                    is_open = EXCLUDED.is_open,
+                    revealed = EXCLUDED.revealed,
+                    locked_at = EXCLUDED.locked_at,
+                    updated_at = NOW()
+            """), state)
+    else:
+        path = os.path.join(DATA_DIR, "championnat_state.json")
+        save_json(path, state)
+
+def is_championnat_open() -> bool:
+    return bool(get_championnat_state().get("is_open", True))
+
+def is_championnat_revealed() -> bool:
+    return bool(get_championnat_state().get("revealed", False))
+
+def close_championnat():
+    state = get_championnat_state()
+    state["is_open"] = False
+    state["locked_at"] = datetime.utcnow().isoformat()
+    save_championnat_state(state)
+
+def open_championnat():
+    state = get_championnat_state()
+    state["is_open"] = True
+    state["revealed"] = False
+    state["locked_at"] = None
+    save_championnat_state(state)
+
+def reveal_championnat():
+    state = get_championnat_state()
+    state["revealed"] = True
+    save_championnat_state(state)
+
+def hide_championnat():
+    state = get_championnat_state()
+    state["revealed"] = False
+    save_championnat_state(state)
+
+def get_latest_championnat_pronos_by_player() -> list:
+    if engine:
+        with engine.begin() as conn:
+            rows = conn.execute(text("""
+                SELECT DISTINCT ON (player_name)
+                    player_name, payload_json, created_at, updated_at
+                FROM championnat_pronos
+                ORDER BY player_name, updated_at DESC
+            """)).fetchall()
+
+        items = []
+        for r in rows:
+            items.append({
+                "player_name": r[0] or "??",
+                "payload": dict(r[1] or {}),
+                "created_at": str(r[2]) if r[2] else None,
+                "updated_at": str(r[3]) if r[3] else None,
+            })
+        return items
+
+    all_preds = load_json(championnat_path(), {})
+    tmp = []
+    if isinstance(all_preds, dict):
+        for _, p in all_preds.items():
+            tmp.append({
+                "player_name": p.get("player_name", "??"),
+                "payload": dict(p or {}),
+                "created_at": p.get("_created_at") or p.get("created_at"),
+                "updated_at": p.get("_updated_at") or p.get("updated_at"),
+            })
+    return dedupe_pronos_by_playername(tmp)
 
 # ------------------ Weekends helpers ------------------
 def load_weekends_data():
@@ -557,7 +698,6 @@ def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
         out[it["player_name"]] = it["payload"]
     return out
 
-
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
 def home():
@@ -608,6 +748,8 @@ def championnat():
     if not name:
         return redirect(url_for("login"))
 
+    state = get_championnat_state()
+
     my = {}
     if engine:
         with engine.begin() as conn:
@@ -625,6 +767,10 @@ def championnat():
         my = all_preds.get(pid, {})
 
     if request.method == "POST":
+        if not state.get("is_open", True):
+            flash("Les pronostics championnat du monde sont fermés.")
+            return redirect(url_for("championnat"))
+
         form = request.form
         picks = [form.get("wc_p1"), form.get("wc_p2"), form.get("wc_p3")]
         v = [x for x in picks if x]
@@ -660,10 +806,40 @@ def championnat():
             all_preds[pid] = payload
             save_json(championnat_path(), all_preds)
 
-        flash("Pronostic championnat enregistré ✅ (modifiable)")
+        flash("Pronostic championnat enregistré ✅")
         return redirect(url_for("championnat"))
 
-    return render_template("championnat.html", riders=RIDERS, my=my, name=name, admin_enabled=admin_enabled(), is_admin=is_admin())
+    return render_template(
+        "championnat.html",
+        riders=RIDERS,
+        my=my,
+        name=name,
+        championnat_state=state,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
+    )
+
+@app.route("/championnat/public")
+def championnat_public():
+    state = get_championnat_state()
+    if not state.get("revealed", False):
+        return "Les pronostics championnat ne sont pas encore divulgués.", 403
+
+    pronos_list = get_latest_championnat_pronos_by_player()
+    pronos_list.sort(
+        key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min,
+        reverse=True
+    )
+
+    name, _ = current_player(request)
+    return render_template(
+        "championnat_public.html",
+        name=name,
+        pronos=pronos_list,
+        championnat_state=state,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
+    )
 
 # ------------------ Week-end pronos ------------------
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
@@ -829,8 +1005,66 @@ def admin_home():
             "public": is_weekend_closed(wid) if engine else False,
         })
 
+    championnat_count = len(get_latest_championnat_pronos_by_player())
+    championnat_state = get_championnat_state()
+
     name, _ = current_player(request)
-    return render_template("admin_home.html", name=name, weekends=enriched)
+    return render_template(
+        "admin_home.html",
+        name=name,
+        weekends=enriched,
+        championnat_count=championnat_count,
+        championnat_state=championnat_state
+    )
+
+@app.route("/admin/championnat")
+@require_admin
+def admin_championnat():
+    state = get_championnat_state()
+    pronos_list = get_latest_championnat_pronos_by_player()
+    count = len(pronos_list)
+
+    name, _ = current_player(request)
+    return render_template(
+        "admin_championnat.html",
+        name=name,
+        championnat_state=state,
+        count=count,
+        pronos=pronos_list
+    )
+
+@app.route("/admin/championnat/open", methods=["POST"])
+@require_admin
+def admin_open_championnat():
+    open_championnat()
+    flash("🟢 Pronostics championnat OUVERTS")
+    return redirect(url_for("admin_championnat"))
+
+@app.route("/admin/championnat/close", methods=["POST"])
+@require_admin
+def admin_close_championnat():
+    close_championnat()
+    flash("🔒 Pronostics championnat FERMÉS")
+    return redirect(url_for("admin_championnat"))
+
+@app.route("/admin/championnat/reveal", methods=["POST"])
+@require_admin
+def admin_reveal_championnat():
+    state = get_championnat_state()
+    if state.get("is_open", True):
+        flash("Ferme d’abord les pronostics avant de les divulguer.")
+        return redirect(url_for("admin_championnat"))
+
+    reveal_championnat()
+    flash("👁️ Pronostics championnat divulgués")
+    return redirect(url_for("admin_championnat"))
+
+@app.route("/admin/championnat/hide", methods=["POST"])
+@require_admin
+def admin_hide_championnat():
+    hide_championnat()
+    flash("🙈 Pronostics championnat masqués")
+    return redirect(url_for("admin_championnat"))
 
 @app.route("/admin/w/<weekend_id>")
 @require_admin
