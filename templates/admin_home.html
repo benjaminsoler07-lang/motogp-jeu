@@ -12,6 +12,30 @@
   </p>
 </div>
 
+<h3>Gestion des joueurs</h3>
+
+<div class="card">
+  <div class="admin-left">
+    <div class="admin-title">
+      <strong>👥 Participants autorisés</strong>
+    </div>
+
+    <div class="admin-meta">
+      <span>Joueurs enregistrés : <strong>{{ participants_count }}</strong></span>
+    </div>
+
+    <div class="admin-status">
+      <span class="status-open">✅ Pseudos contrôlés</span>
+    </div>
+  </div>
+
+  <div class="admin-actions" style="margin-top:12px;">
+    <a class="btn btn-small" href="{{ url_for('admin_participants') }}">
+      👥 Gérer les joueurs
+    </a>
+  </div>
+</div>
+
 <h3>Gestion du championnat du monde</h3>
 
 <div class="card">
