@@ -9,6 +9,7 @@
 # + Gestion admin du prono championnat du monde
 # + NOUVEAU : gestion des participants (pseudo autorisé uniquement)
 # + NOUVEAU : persistance des pronos basée sur le pseudo autorisé
+# + NOUVEAU : authentification joueur par pseudo + code secret
 
 import os
 import json
@@ -21,6 +22,7 @@ from flask import (
     make_response, flash, session
 )
 from sqlalchemy import create_engine, text
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
@@ -123,10 +125,12 @@ def db_init():
             id SERIAL PRIMARY KEY,
             pseudo TEXT NOT NULL,
             pseudo_normalized TEXT NOT NULL,
+            secret_hash TEXT NULL,
             active BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """))
+        conn.execute(text("ALTER TABLE participants ADD COLUMN IF NOT EXISTS secret_hash TEXT NULL;"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_participants_pseudo_normalized ON participants(pseudo_normalized);"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_participants_active ON participants(active);"))
 
@@ -234,18 +238,21 @@ def load_participants_fallback():
 def save_participants_fallback(items):
     save_json(PARTICIPANTS_FILE, {"participants": items or []})
 
+def participant_has_secret(participant: dict) -> bool:
+    return bool((participant or {}).get("secret_hash"))
+
 def get_all_participants(include_inactive=True):
     if engine:
         with engine.begin() as conn:
             if include_inactive:
                 rows = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
                     FROM participants
                     ORDER BY pseudo ASC
                 """)).fetchall()
             else:
                 rows = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
                     FROM participants
                     WHERE active = TRUE
                     ORDER BY pseudo ASC
@@ -255,8 +262,9 @@ def get_all_participants(include_inactive=True):
             "id": r[0],
             "pseudo": r[1],
             "pseudo_normalized": r[2],
-            "active": bool(r[3]),
-            "created_at": str(r[4]) if r[4] else None
+            "secret_hash": r[3],
+            "active": bool(r[4]),
+            "created_at": str(r[5]) if r[5] else None
         } for r in rows]
 
     items = load_participants_fallback()
@@ -268,6 +276,7 @@ def get_all_participants(include_inactive=True):
                 "id": p.get("id", i),
                 "pseudo": p.get("pseudo", ""),
                 "pseudo_normalized": p.get("pseudo_normalized") or normalize_pseudo(p.get("pseudo", "")),
+                "secret_hash": p.get("secret_hash"),
                 "active": active,
                 "created_at": p.get("created_at"),
             })
@@ -286,14 +295,14 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
         with engine.begin() as conn:
             if active_only:
                 row = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
                     FROM participants
                     WHERE pseudo_normalized=:pn AND active=TRUE
                     LIMIT 1
                 """), {"pn": pseudo_norm}).fetchone()
             else:
                 row = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
                     FROM participants
                     WHERE pseudo_normalized=:pn
                     LIMIT 1
@@ -306,8 +315,9 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
             "id": row[0],
             "pseudo": row[1],
             "pseudo_normalized": row[2],
-            "active": bool(row[3]),
-            "created_at": str(row[4]) if row[4] else None
+            "secret_hash": row[3],
+            "active": bool(row[4]),
+            "created_at": str(row[5]) if row[5] else None
         }
 
     for p in get_all_participants(include_inactive=not active_only):
@@ -315,22 +325,44 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
             return p
     return None
 
-def add_participant(pseudo: str):
+def verify_participant_secret(participant: dict, secret_input: str) -> bool:
+    if not participant:
+        return False
+
+    stored = (participant.get("secret_hash") or "").strip()
+    secret_input = (secret_input or "").strip()
+
+    if not stored or not secret_input:
+        return False
+
+    try:
+        return check_password_hash(stored, secret_input)
+    except Exception:
+        return False
+
+def add_participant(pseudo: str, secret: str):
     pseudo = (pseudo or "").strip()
+    secret = (secret or "").strip()
     pseudo_norm = normalize_pseudo(pseudo)
+
     if not pseudo or not pseudo_norm:
         return False, "Le pseudo est obligatoire."
+
+    if not secret:
+        return False, "Le code secret est obligatoire."
 
     existing = get_participant_by_input(pseudo, active_only=False)
     if existing:
         return False, "Ce pseudo existe déjà."
 
+    secret_hash = generate_password_hash(secret)
+
     if engine:
         with engine.begin() as conn:
             conn.execute(text("""
-                INSERT INTO participants (pseudo, pseudo_normalized, active, created_at)
-                VALUES (:p, :pn, TRUE, NOW())
-            """), {"p": pseudo, "pn": pseudo_norm})
+                INSERT INTO participants (pseudo, pseudo_normalized, secret_hash, active, created_at)
+                VALUES (:p, :pn, :sh, TRUE, NOW())
+            """), {"p": pseudo, "pn": pseudo_norm, "sh": secret_hash})
         return True, "Joueur ajouté."
 
     items = load_participants_fallback()
@@ -338,11 +370,53 @@ def add_participant(pseudo: str):
         "id": len(items) + 1,
         "pseudo": pseudo,
         "pseudo_normalized": pseudo_norm,
+        "secret_hash": secret_hash,
         "active": True,
         "created_at": datetime.utcnow().isoformat()
     })
     save_participants_fallback(items)
     return True, "Joueur ajouté."
+
+def reset_participant_secret(participant_id: int, new_secret: str):
+    new_secret = (new_secret or "").strip()
+    if not new_secret:
+        return False, "Le nouveau code secret est obligatoire."
+
+    secret_hash = generate_password_hash(new_secret)
+
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT id, pseudo
+                FROM participants
+                WHERE id=:pid
+                LIMIT 1
+            """), {"pid": participant_id}).fetchone()
+
+            if not row:
+                return False, "Joueur introuvable."
+
+            conn.execute(text("""
+                UPDATE participants
+                SET secret_hash=:sh
+                WHERE id=:pid
+            """), {"sh": secret_hash, "pid": participant_id})
+
+        return True, f"Code secret mis à jour pour {row[1]}."
+
+    items = load_participants_fallback()
+    found = None
+    for p in items:
+        if int(p.get("id", 0)) == int(participant_id):
+            p["secret_hash"] = secret_hash
+            found = p
+            break
+
+    if not found:
+        return False, "Joueur introuvable."
+
+    save_participants_fallback(items)
+    return True, f"Code secret mis à jour pour {found.get('pseudo', '??')}."
 
 def toggle_participant(participant_id: int):
     if engine:
@@ -940,10 +1014,16 @@ def login():
 
     if request.method == "POST":
         pseudo_input = (request.form.get("name") or request.form.get("pseudo") or "").strip()
+        secret_input = (request.form.get("secret") or "").strip()
+
         participant = get_participant_by_input(pseudo_input, active_only=True)
 
         if not participant:
             flash("Pseudo non reconnu. Merci de choisir un pseudo autorisé.")
+            return redirect(url_for("login"))
+
+        if not verify_participant_secret(participant, secret_input):
+            flash("Code secret incorrect.")
             return redirect(url_for("login"))
 
         _, pid = current_player(request)
@@ -1335,7 +1415,8 @@ def admin_home():
 def admin_participants():
     if request.method == "POST":
         pseudo = (request.form.get("pseudo") or "").strip()
-        ok, msg = add_participant(pseudo)
+        secret = (request.form.get("secret") or "").strip()
+        ok, msg = add_participant(pseudo, secret)
         flash(msg)
         return redirect(url_for("admin_participants"))
 
@@ -1351,6 +1432,14 @@ def admin_participants():
 @require_admin
 def admin_toggle_participant(participant_id):
     ok, msg = toggle_participant(participant_id)
+    flash(msg)
+    return redirect(url_for("admin_participants"))
+
+@app.route("/admin/participants/<int:participant_id>/reset_secret", methods=["POST"])
+@require_admin
+def admin_reset_participant_secret(participant_id):
+    new_secret = (request.form.get("new_secret") or request.form.get("secret") or "").strip()
+    ok, msg = reset_participant_secret(participant_id, new_secret)
     flash(msg)
     return redirect(url_for("admin_participants"))
 
