@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Admin — Joueurs{% endblock %}
+
+{% block content %}
+<h2>👥 Admin — Joueurs</h2>
+
+<div class="card admin-intro">
+  <p><strong>Gestion des participants autorisés</strong></p>
+  <p class="admin-tip">
+    Ajoute ici les pseudos autorisés à se connecter et à enregistrer des pronostics.
+    Un joueur désactivé ne pourra plus se connecter, mais ses anciens pronos resteront visibles.
+  </p>
+</div>
+
+<div class="card">
+  <form method="post">
+    <div class="admin-left">
+      <div class="admin-title">
+        <strong>➕ Ajouter un joueur</strong>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px;">
+      <label for="pseudo"><strong>Pseudo</strong></label>
+      <input
+        type="text"
+        id="pseudo"
+        name="pseudo"
+        placeholder="Ex : Adrien"
+        required
+        maxlength="50"
+      >
+    </div>
+
+    <div class="admin-actions" style="margin-top:12px;">
+      <button class="btn btn-small" type="submit">➕ Ajouter</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="admin-left">
+    <div class="admin-title">
+      <strong>📋 Liste des joueurs</strong>
+    </div>
+
+    <div class="admin-meta">
+      <span>Total : <strong>{{ participants|length }}</strong></span>
+    </div>
+  </div>
+
+  {% if participants %}
+    <ul class="gp-list admin-list" style="margin-top: 12px;">
+      {% for p in participants %}
+      <li class="gp-item admin-item">
+
+        <div class="admin-left">
+          <div class="admin-title">
+            <strong>{{ p.pseudo }}</strong>
+          </div>
+
+          <div class="admin-meta">
+            <span>ID : <code>{{ p.id }}</code></span>
+            <span>Créé le : {{ p.created_at or "—" }}</span>
+          </div>
+
+          <div class="admin-status">
+            {% if p.active %}
+              <span class="status-open">✅ Actif</span>
+            {% else %}
+              <span class="status-closed">⛔ Inactif</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="admin-actions">
+          <form method="post" action="{{ url_for('admin_toggle_participant', participant_id=p.id) }}">
+            {% if p.active %}
+              <button class="btn btn-small btn-warning" type="submit">
+                ⛔ Désactiver
+              </button>
+            {% else %}
+              <button class="btn btn-small" type="submit">
+                ✅ Réactiver
+              </button>
+            {% endif %}
+          </form>
+        </div>
+
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p style="margin-top:12px;">Aucun joueur enregistré pour le moment.</p>
+  {% endif %}
+</div>
+
+<div style="margin-top: 16px;">
+  <a class="btn btn-small" href="{{ url_for('admin_home') }}">⬅️ Retour admin</a>
+</div>
+
+{% endblock %}
