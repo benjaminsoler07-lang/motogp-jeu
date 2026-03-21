@@ -8,6 +8,7 @@
   <p><strong>Gestion des participants autorisés</strong></p>
   <p class="admin-tip">
     Ajoute ici les pseudos autorisés à se connecter et à enregistrer des pronostics.
+    Chaque joueur doit avoir son propre code secret.
     Un joueur désactivé ne pourra plus se connecter, mais ses anciens pronos resteront visibles.
   </p>
 </div>
@@ -29,6 +30,18 @@
         placeholder="Ex : Adrien"
         required
         maxlength="50"
+      >
+    </div>
+
+    <div style="margin-top: 12px;">
+      <label for="secret"><strong>Code secret</strong></label>
+      <input
+        type="text"
+        id="secret"
+        name="secret"
+        placeholder="Ex : 4721"
+        required
+        maxlength="100"
       >
     </div>
 
@@ -64,12 +77,38 @@
             <span>Créé le : {{ p.created_at or "—" }}</span>
           </div>
 
-          <div class="admin-status">
+          <div class="admin-status" style="margin-top:8px;">
             {% if p.active %}
               <span class="status-open">✅ Actif</span>
             {% else %}
               <span class="status-closed">⛔ Inactif</span>
             {% endif %}
+          </div>
+
+          <div class="admin-meta" style="margin-top:8px;">
+            {% if p.secret_hash %}
+              <span>🔐 Code secret défini</span>
+            {% else %}
+              <span>⚠️ Aucun code secret</span>
+            {% endif %}
+          </div>
+
+          <div style="margin-top: 12px;">
+            <form method="post" action="{{ url_for('admin_reset_participant_secret', participant_id=p.id) }}">
+              <label for="secret_{{ p.id }}"><strong>Réinitialiser le code secret</strong></label>
+              <input
+                type="text"
+                id="secret_{{ p.id }}"
+                name="new_secret"
+                placeholder="Nouveau code secret"
+                required
+                maxlength="100"
+                style="margin-top:6px;"
+              >
+              <div class="admin-actions" style="margin-top:8px;">
+                <button class="btn btn-small" type="submit">🔁 Mettre à jour le code</button>
+              </div>
+            </form>
           </div>
         </div>
 
