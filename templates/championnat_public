@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Pronos Championnat du monde{% endblock %}
+
+{% block content %}
+
+<h2>Pronostics championnat du monde</h2>
+
+{% if championnat_state.revealed %}
+  <p>Les pronostics sont désormais visibles.</p>
+{% else %}
+  <p>Les pronostics ne sont pas encore divulgués.</p>
+{% endif %}
+
+{% if pronos %}
+  {% for item in pronos %}
+    <div class="card" style="text-align:left; margin-bottom:12px;">
+      <p><strong>{{ item.player_name }}</strong></p>
+      <p>🥇 {{ item.payload.wc_p1 or "-" }}</p>
+      <p>🥈 {{ item.payload.wc_p2 or "-" }}</p>
+      <p>🥉 {{ item.payload.wc_p3 or "-" }}</p>
+      <p><small>Dernière mise à jour : {{ item.updated_at or "-" }}</small></p>
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="card">
+    <p>Aucun pronostic enregistré.</p>
+  </div>
+{% endif %}
+
+{% endblock %}
