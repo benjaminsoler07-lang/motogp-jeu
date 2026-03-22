@@ -2,6 +2,102 @@
 {% block title %}Classement général — MotoGP{% endblock %}
 
 {% block content %}
+
+  <style>
+    .classement-wrap{
+      padding:0;
+      overflow:auto;
+      text-align:left;
+      margin-top:14px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .classement{
+      width:100%;
+      min-width:860px;
+      border-collapse:separate;
+      border-spacing:0;
+    }
+
+    .classement th,
+    .classement td{
+      white-space:nowrap;
+      vertical-align:middle;
+    }
+
+    /* Colonne joueur figée */
+    .classement th.player-col,
+    .classement td.player-col{
+      position:sticky;
+      left:0;
+      z-index:3;
+      background:#184a7a;
+      box-shadow:6px 0 10px rgba(0,0,0,0.18);
+    }
+
+    .classement thead th.player-col{
+      z-index:5;
+      background:#1f568d;
+    }
+
+    /* Colonne total mise en avant */
+    .classement th.total-col{
+      background:rgba(255, 214, 10, 0.30);
+      color:#fff;
+      font-weight:800;
+    }
+
+    .classement td.total-col{
+      background:rgba(255, 214, 10, 0.16);
+      color:#ffd60a;
+      font-weight:900;
+      font-size:1.05rem;
+    }
+
+    /* Garder l'effet podium sur la colonne figée */
+    .classement tr.row-gold td.player-col{
+      background:rgba(255, 215, 0, 0.18);
+    }
+
+    .classement tr.row-silver td.player-col{
+      background:rgba(192, 192, 192, 0.18);
+    }
+
+    .classement tr.row-bronze td.player-col{
+      background:rgba(205, 127, 50, 0.18);
+    }
+
+    /* Garder aussi un effet sur la colonne total pour le podium */
+    .classement tr.row-gold td.total-col{
+      background:rgba(255, 215, 0, 0.24);
+    }
+
+    .classement tr.row-silver td.total-col{
+      background:rgba(192, 192, 192, 0.20);
+      color:#ffffff;
+    }
+
+    .classement tr.row-bronze td.total-col{
+      background:rgba(205, 127, 50, 0.20);
+      color:#ffffff;
+    }
+
+    @media (max-width: 768px){
+      .classement{
+        min-width:820px;
+      }
+
+      .classement th,
+      .classement td{
+        font-size:0.95rem;
+      }
+
+      .classement td.total-col{
+        font-size:1rem;
+      }
+    }
+  </style>
+
   <h2>🏆 Classement général — Saison</h2>
 
   {% if notice %}
@@ -91,17 +187,17 @@
     </div>
 
     {# ========== TABLEAU ========== #}
-    <div class="card" style="padding:0; overflow:auto; text-align:left; margin-top:14px;">
+    <div class="card classement-wrap">
       <table class="classement">
         <thead>
           <tr>
             <th>#</th>
-            <th>Joueur</th>
+            <th class="player-col">Joueur</th>
+            <th class="total-col">Total</th>
             <th>Qualifications</th>
             <th>Sprint</th>
             <th>Grand Prix</th>
             <th>Bonus</th>
-            <th>Total</th>
             <th>GP joués</th>
           </tr>
         </thead>
@@ -109,12 +205,12 @@
           {% for r in rows %}
             <tr class="{% if loop.index==1 %}row-gold{% elif loop.index==2 %}row-silver{% elif loop.index==3 %}row-bronze{% endif %}">
               <td><strong>{{ loop.index }}</strong></td>
-              <td style="text-align:left;"><strong>{{ r.player }}</strong></td>
+              <td class="player-col" style="text-align:left;"><strong>{{ r.player }}</strong></td>
+              <td class="total-col"><strong>{{ r.total }}</strong></td>
               <td>{{ r.q }}</td>
               <td>{{ r.s }}</td>
               <td>{{ r.gp }}</td>
               <td>{{ r.bonus }}</td>
-              <td><strong>{{ r.total }}</strong></td>
               <td>{{ r.gps }}</td>
             </tr>
           {% endfor %}
