@@ -10,7 +10,8 @@
 # + NOUVEAU : gestion des participants (pseudo autorisé uniquement)
 # + NOUVEAU : persistance des pronos basée sur le pseudo autorisé
 # + NOUVEAU : authentification joueur par pseudo + code secret
-# + NOUVEAU : gestion admin approfondie des pronos GP (liste / recherche / suppression unitaire / suppression groupée)
+# + NOUVEAU : gestion admin approfondie des pronos GP
+#   (liste / recherche / suppression unitaire / suppression groupée)
 
 import os
 import json
@@ -25,6 +26,7 @@ from flask import (
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret")
 app.permanent_session_lifetime = timedelta(days=365)
@@ -33,11 +35,14 @@ app.permanent_session_lifetime = timedelta(days=365)
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 
+
 def admin_enabled():
     return bool(ADMIN_USER and ADMIN_PASS)
 
+
 def is_admin():
     return session.get("is_admin") is True
+
 
 def require_admin(fn):
     @wraps(fn)
@@ -54,11 +59,10 @@ DATA_DIR = "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
 PARTICIPANTS_FILE = os.path.join(DATA_DIR, "participants.json")
+WEEKENDS_FILE = os.path.join(DATA_DIR, "weekends.json")
 
 os.makedirs(PRONOS_DIR, exist_ok=True)
 os.makedirs(RESULTS_DIR, exist_ok=True)
-
-WEEKENDS_FILE = os.path.join(DATA_DIR, "weekends.json")
 
 RIDERS = [
     "#5 Johann Zarco",
@@ -85,9 +89,11 @@ RIDERS = [
     "#93 Marc Marquez",
 ]
 
+
 # ------------------ Utils ------------------
 def normalize_pseudo(pseudo: str) -> str:
     return " ".join((pseudo or "").strip().lower().split())
+
 
 def _parse_dt_maybe(s):
     if not s:
@@ -97,16 +103,20 @@ def _parse_dt_maybe(s):
     except Exception:
         return None
 
+
 def normalize(x):
     return (x or "").strip().lower()
+
 
 # ------------------ DB (PostgreSQL) ------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
 engine = None
+
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
 
 def db_init():
     if not engine:
@@ -120,8 +130,14 @@ def db_init():
         );
         """))
 
-        conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS pronos_public_at TIMESTAMPTZ NULL;"))
-        conn.execute(text("ALTER TABLE weekends ADD COLUMN IF NOT EXISTS results_published_at TIMESTAMPTZ NULL;"))
+        conn.execute(text("""
+            ALTER TABLE weekends
+            ADD COLUMN IF NOT EXISTS pronos_public_at TIMESTAMPTZ NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE weekends
+            ADD COLUMN IF NOT EXISTS results_published_at TIMESTAMPTZ NULL;
+        """))
 
         # Participants autorisés
         conn.execute(text("""
@@ -134,9 +150,21 @@ def db_init():
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """))
-        conn.execute(text("ALTER TABLE participants ADD COLUMN IF NOT EXISTS secret_hash TEXT NULL;"))
-        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_participants_pseudo_normalized ON participants(pseudo_normalized);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_participants_active ON participants(active);"))
+
+        conn.execute(text("""
+            ALTER TABLE participants
+            ADD COLUMN IF NOT EXISTS secret_hash TEXT NULL;
+        """))
+
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_participants_pseudo_normalized
+            ON participants(pseudo_normalized);
+        """))
+
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_participants_active
+            ON participants(active);
+        """))
 
         # Pronos GP
         conn.execute(text("""
@@ -151,13 +179,35 @@ def db_init():
         );
         """))
 
-        conn.execute(text("ALTER TABLE pronos ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;"))
-        conn.execute(text("ALTER TABLE pronos ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend ON pronos(weekend_id);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend_player ON pronos(weekend_id, player_name);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend_player_norm ON pronos(weekend_id, player_norm);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_participant_id ON pronos(participant_id);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_updated_at ON pronos(updated_at);"))
+        conn.execute(text("""
+            ALTER TABLE pronos
+            ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE pronos
+            ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;
+        """))
+
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_weekend
+            ON pronos(weekend_id);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_weekend_player
+            ON pronos(weekend_id, player_name);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_weekend_player_norm
+            ON pronos(weekend_id, player_norm);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_participant_id
+            ON pronos(participant_id);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_updated_at
+            ON pronos(updated_at);
+        """))
 
         # Championnat
         conn.execute(text("""
@@ -170,10 +220,24 @@ def db_init():
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """))
-        conn.execute(text("ALTER TABLE championnat_pronos ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;"))
-        conn.execute(text("ALTER TABLE championnat_pronos ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_championnat_pronos_player_norm ON championnat_pronos(player_norm);"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_championnat_pronos_participant_id ON championnat_pronos(participant_id);"))
+
+        conn.execute(text("""
+            ALTER TABLE championnat_pronos
+            ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE championnat_pronos
+            ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;
+        """))
+
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_championnat_pronos_player_norm
+            ON championnat_pronos(player_norm);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_championnat_pronos_participant_id
+            ON championnat_pronos(participant_id);
+        """))
 
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_state (
@@ -211,7 +275,9 @@ def db_init():
             WHERE player_norm IS NULL
         """))
 
+
 db_init()
+
 
 # ------------------ JSON helpers (fallback) ------------------
 def load_json(path, default):
@@ -223,10 +289,13 @@ def load_json(path, default):
         except Exception:
             return default
 
+
 def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 # ------------------ Participants helpers ------------------
 def load_participants_fallback():
     data = load_json(PARTICIPANTS_FILE, {"participants": []})
@@ -236,11 +305,14 @@ def load_participants_fallback():
         return data.get("participants", [])
     return []
 
+
 def save_participants_fallback(items):
     save_json(PARTICIPANTS_FILE, {"participants": items or []})
 
+
 def participant_has_secret(participant: dict) -> bool:
     return bool((participant or {}).get("secret_hash"))
+
 
 def get_all_participants(include_inactive=True):
     if engine:
@@ -284,8 +356,10 @@ def get_all_participants(include_inactive=True):
     out.sort(key=lambda x: (x.get("pseudo") or "").lower())
     return out
 
+
 def get_active_participants():
     return get_all_participants(include_inactive=False)
+
 
 def get_participant_by_input(pseudo_input: str, active_only=True):
     pseudo_norm = normalize_pseudo(pseudo_input)
@@ -326,6 +400,7 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
             return p
     return None
 
+
 def verify_participant_secret(participant: dict, secret_input: str) -> bool:
     if not participant:
         return False
@@ -340,6 +415,7 @@ def verify_participant_secret(participant: dict, secret_input: str) -> bool:
         return check_password_hash(stored, secret_input)
     except Exception:
         return False
+
 
 def add_participant(pseudo: str, secret: str):
     pseudo = (pseudo or "").strip()
@@ -377,6 +453,7 @@ def add_participant(pseudo: str, secret: str):
     })
     save_participants_fallback(items)
     return True, "Joueur ajouté."
+
 
 def reset_participant_secret(participant_id: int, new_secret: str):
     new_secret = (new_secret or "").strip()
@@ -419,6 +496,7 @@ def reset_participant_secret(participant_id: int, new_secret: str):
     save_participants_fallback(items)
     return True, f"Code secret mis à jour pour {found.get('pseudo', '??')}."
 
+
 def toggle_participant(participant_id: int):
     if engine:
         with engine.begin() as conn:
@@ -455,11 +533,13 @@ def toggle_participant(participant_id: int):
     save_participants_fallback(items)
     return True, f"Statut mis à jour pour {found.get('pseudo', '??')}."
 
+
 def get_current_participant(req):
     raw_name = (req.cookies.get("player_name") or "").strip()
     if not raw_name:
         return None
     return get_participant_by_input(raw_name, active_only=True)
+
 
 # ------------------ Championnat state ------------------
 def get_championnat_state():
@@ -487,6 +567,7 @@ def get_championnat_state():
 
     path = os.path.join(DATA_DIR, "championnat_state.json")
     return load_json(path, default)
+
 
 def save_championnat_state(state: dict):
     state = {
@@ -517,17 +598,21 @@ def save_championnat_state(state: dict):
         path = os.path.join(DATA_DIR, "championnat_state.json")
         save_json(path, state)
 
+
 def is_championnat_open() -> bool:
     return bool(get_championnat_state().get("is_open", True))
 
+
 def is_championnat_revealed() -> bool:
     return bool(get_championnat_state().get("revealed", False))
+
 
 def close_championnat():
     state = get_championnat_state()
     state["is_open"] = False
     state["locked_at"] = datetime.utcnow().isoformat()
     save_championnat_state(state)
+
 
 def open_championnat():
     state = get_championnat_state()
@@ -536,15 +621,18 @@ def open_championnat():
     state["locked_at"] = None
     save_championnat_state(state)
 
+
 def reveal_championnat():
     state = get_championnat_state()
     state["revealed"] = True
     save_championnat_state(state)
 
+
 def hide_championnat():
     state = get_championnat_state()
     state["revealed"] = False
     save_championnat_state(state)
+
 
 def get_latest_championnat_pronos_by_player() -> list:
     if engine:
@@ -577,6 +665,8 @@ def get_latest_championnat_pronos_by_player() -> list:
                 "updated_at": p.get("_updated_at") or p.get("updated_at"),
             })
     return dedupe_pronos_by_playername(tmp)
+
+
 # ------------------ Weekends helpers ------------------
 def load_weekends_data():
     data = load_json(WEEKENDS_FILE, {"weekends": []})
@@ -586,12 +676,15 @@ def load_weekends_data():
         return data
     return {"weekends": []}
 
+
 def load_weekends_list():
     return load_weekends_data().get("weekends", [])
+
 
 def bootstrap_weekends():
     if os.path.exists(WEEKENDS_FILE):
         return
+
     demo = {
         "season_year": date.today().year,
         "timezone": "Europe/Paris",
@@ -611,7 +704,9 @@ def bootstrap_weekends():
     os.makedirs(DATA_DIR, exist_ok=True)
     save_json(WEEKENDS_FILE, demo)
 
+
 bootstrap_weekends()
+
 
 def get_weekend(weekend_id):
     for w in load_weekends_list():
@@ -620,6 +715,7 @@ def get_weekend(weekend_id):
             return w
     return None
 
+
 # ------------------ Statuts GP ------------------
 def get_season_year():
     data = load_weekends_data()
@@ -627,6 +723,7 @@ def get_season_year():
     if isinstance(y, int):
         return y
     return date.today().year
+
 
 def parse_weekend_date(raw_date: str, season_year: int):
     raw_date = (raw_date or "").strip()
@@ -642,6 +739,7 @@ def parse_weekend_date(raw_date: str, season_year: int):
     except Exception:
         return None
 
+
 def weekend_status(weekend_date: date, open_days_before: int = 10):
     if not weekend_date:
         return "closed"
@@ -653,6 +751,7 @@ def weekend_status(weekend_date: date, open_days_before: int = 10):
         return "open"
     return "closed"
 
+
 # ------------------ Identification joueurs (cookies) ------------------
 def current_player(req):
     participant = get_current_participant(req)
@@ -661,6 +760,7 @@ def current_player(req):
     if not pid:
         pid = str(uuid.uuid4())
     return name, pid
+
 
 # ------------------ Week-end open/close ------------------
 def is_weekend_closed(weekend_id: str) -> bool:
@@ -673,6 +773,7 @@ def is_weekend_closed(weekend_id: str) -> bool:
         ).fetchone()
     return bool(row and row[0])
 
+
 def is_pronos_public(weekend_id: str) -> bool:
     if not engine:
         return False
@@ -682,6 +783,7 @@ def is_pronos_public(weekend_id: str) -> bool:
             {"w": weekend_id}
         ).fetchone()
     return bool(row and row[0])
+
 
 def close_and_publish_pronos(weekend_id: str):
     if not engine:
@@ -696,6 +798,7 @@ def close_and_publish_pronos(weekend_id: str):
               pronos_public_at = NOW()
         """), {"w": weekend_id})
 
+
 def set_weekend_open(weekend_id: str):
     if not engine:
         return
@@ -708,6 +811,7 @@ def set_weekend_open(weekend_id: str):
               closed_at = NULL,
               pronos_public_at = NULL
         """), {"w": weekend_id})
+
 
 def set_weekend_closed_and_public(weekend_id: str):
     if not engine:
@@ -722,22 +826,28 @@ def set_weekend_closed_and_public(weekend_id: str):
               pronos_public_at = NOW()
         """), {"w": weekend_id})
 
+
 # ------------------ Points ------------------
 def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
     p = [normalize(x) for x in pred]
     a = [normalize(x) for x in (actual or [])]
     score = 0.0
+
     for i in range(3):
         if i < len(a) and p[i] and p[i] == a[i]:
             score += well_placed
+
     for i in range(3):
         if p[i] and p[i] in a and (i >= len(a) or p[i] != a[i]):
             score += mis_placed
+
     if len(a) >= 3 and all(p[i] == a[i] for i in range(3)):
         score += bonus_exact
     elif len(a) >= 3 and set(p) == set(a):
         score += bonus_all
+
     return score
+
 
 def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
     score = 0.0
@@ -748,6 +858,7 @@ def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
         if normalize(p) in real_set:
             score += 0.5
     return score
+
 
 def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
     p = [normalize(x) for x in (pred or [])]
@@ -781,7 +892,6 @@ def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
         "bonus_label": bonus_label,
         "total": total
     }
-
 def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
     pole_ok = normalize(pole_pred) == normalize(pole_real)
     pole_pts = 2.0 if pole_ok else 0.0
@@ -803,6 +913,7 @@ def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
         "q1_pts": round(q1_pts, 2),
         "total": total
     }
+
 
 def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list):
     pred_bonus = pred_bonus or {}
@@ -829,6 +940,7 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
         })
 
     return {"items": items, "total": round(total, 2)}
+
 
 def compute_points_breakdown(prono: dict, results: dict, w: dict):
     prono = prono or {}
@@ -866,15 +978,20 @@ def compute_points_breakdown(prono: dict, results: dict, w: dict):
         "bonus": bonus,
         "total": total
     }
+
+
 # ------------------ Fichiers (fallback) ------------------
 def pronos_path(weekend_id):
     return os.path.join(PRONOS_DIR, f"{weekend_id}.json")
 
+
 def results_path(weekend_id):
     return os.path.join(RESULTS_DIR, f"{weekend_id}.json")
 
+
 def championnat_path():
     return os.path.join(PRONOS_DIR, "championnat.json")
+
 
 def load_results(weekend_id: str):
     if engine:
@@ -887,6 +1004,7 @@ def load_results(weekend_id: str):
         if row and row[0]:
             return dict(row[0] or {})
     return load_json(results_path(weekend_id), None)
+
 
 def save_results(weekend_id: str, results: dict):
     results = results or {}
@@ -902,6 +1020,7 @@ def save_results(weekend_id: str, results: dict):
             """), {"w": weekend_id, "p": json.dumps(results, ensure_ascii=False)})
     save_json(results_path(weekend_id), results)
 
+
 # ------------------ Helpers anti-doublons ------------------
 def dedupe_pronos_by_playername(items):
     best = {}
@@ -909,17 +1028,24 @@ def dedupe_pronos_by_playername(items):
         name = (it.get("player_name") or it.get("player") or "").strip()
         if not name:
             name = "??"
-        dt = _parse_dt_maybe(it.get("updated_at")) or _parse_dt_maybe(it.get("_updated_at")) or _parse_dt_maybe(it.get("created_at")) or datetime.min
+        dt = (
+            _parse_dt_maybe(it.get("updated_at"))
+            or _parse_dt_maybe(it.get("_updated_at"))
+            or _parse_dt_maybe(it.get("created_at"))
+            or datetime.min
+        )
         cur = best.get(name)
         if (cur is None) or (dt > cur["_dt"]):
             it2 = dict(it)
             it2["_dt"] = dt
             best[name] = it2
+
     out = list(best.values())
     out.sort(key=lambda x: x.get("_dt") or datetime.min, reverse=True)
     for x in out:
         x.pop("_dt", None)
     return out
+
 
 def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
     out = {}
@@ -952,6 +1078,7 @@ def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
         out[it["player_name"]] = it["payload"]
     return out
 
+
 def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
     if engine:
         with engine.begin() as conn:
@@ -978,6 +1105,7 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
         return len(dedupe_pronos_by_playername(tmp))
     return 0
 
+
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
 def home():
@@ -1003,6 +1131,7 @@ def home():
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
+
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -1037,12 +1166,14 @@ def login():
         selected_pseudo=current["pseudo"] if current else None
     )
 
+
 @app.route("/logout")
 def logout():
     resp = make_response(redirect(url_for("home")))
     resp.delete_cookie("player_name")
     resp.delete_cookie("player_id")
     return resp
+
 
 # ------------------ Championnat ------------------
 @app.route("/championnat", methods=["GET", "POST"])
@@ -1169,6 +1300,7 @@ def championnat():
         is_admin=is_admin()
     )
 
+
 @app.route("/championnat/public")
 def championnat_public():
     state = get_championnat_state()
@@ -1190,6 +1322,7 @@ def championnat_public():
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
+
 
 # ------------------ Week-end pronos ------------------
 @app.route("/w/<weekend_id>/pronos", methods=["GET", "POST"])
@@ -1341,6 +1474,7 @@ def pronos(weekend_id):
         is_admin=is_admin()
     )
 
+
 # ================== ADMIN AUTH ==================
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
@@ -1362,11 +1496,14 @@ def admin_login():
 
     name, _ = current_player(request)
     return render_template("admin_login.html", name=name)
+
+
 @app.route("/admin/logout")
 def admin_logout():
     session.pop("is_admin", None)
     flash("Déconnecté de l'admin ✅")
     return redirect(url_for("home"))
+
 
 # ================== ADMIN PAGES ==================
 @app.route("/admin")
@@ -1405,6 +1542,7 @@ def admin_home():
         participants_count=participants_count
     )
 
+
 @app.route("/admin/participants", methods=["GET", "POST"])
 @require_admin
 def admin_participants():
@@ -1423,12 +1561,14 @@ def admin_participants():
         participants=participants
     )
 
+
 @app.route("/admin/participants/<int:participant_id>/toggle", methods=["POST"])
 @require_admin
 def admin_toggle_participant(participant_id):
     ok, msg = toggle_participant(participant_id)
     flash(msg)
     return redirect(url_for("admin_participants"))
+
 
 @app.route("/admin/participants/<int:participant_id>/reset_secret", methods=["POST"])
 @require_admin
@@ -1437,6 +1577,7 @@ def admin_reset_participant_secret(participant_id):
     ok, msg = reset_participant_secret(participant_id, new_secret)
     flash(msg)
     return redirect(url_for("admin_participants"))
+
 
 @app.route("/admin/championnat")
 @require_admin
@@ -1454,6 +1595,7 @@ def admin_championnat():
         pronos=pronos_list
     )
 
+
 @app.route("/admin/championnat/open", methods=["POST"])
 @require_admin
 def admin_open_championnat():
@@ -1461,12 +1603,14 @@ def admin_open_championnat():
     flash("🟢 Pronostics championnat OUVERTS")
     return redirect(url_for("admin_championnat"))
 
+
 @app.route("/admin/championnat/close", methods=["POST"])
 @require_admin
 def admin_close_championnat():
     close_championnat()
     flash("🔒 Pronostics championnat FERMÉS")
     return redirect(url_for("admin_championnat"))
+
 
 @app.route("/admin/championnat/reveal", methods=["POST"])
 @require_admin
@@ -1480,13 +1624,13 @@ def admin_reveal_championnat():
     flash("👁️ Pronostics championnat divulgués")
     return redirect(url_for("admin_championnat"))
 
+
 @app.route("/admin/championnat/hide", methods=["POST"])
 @require_admin
 def admin_hide_championnat():
     hide_championnat()
     flash("🙈 Pronostics championnat masqués")
     return redirect(url_for("admin_championnat"))
-
 @app.route("/admin/w/<weekend_id>")
 @require_admin
 def admin_weekend(weekend_id):
@@ -1508,6 +1652,7 @@ def admin_weekend(weekend_id):
         public=public
     )
 
+
 @app.route("/admin/w/<weekend_id>/toggle_pronos", methods=["POST"])
 @require_admin
 def admin_toggle_pronos(weekend_id):
@@ -1525,6 +1670,7 @@ def admin_toggle_pronos(weekend_id):
         flash("🔴 Pronos FERMÉS (et rendus publics)")
 
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
+
 
 # ------------------ ADMIN : results ------------------
 @app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
@@ -1551,6 +1697,7 @@ def admin_results(weekend_id):
 
     name, _ = current_player(request)
     return render_template("admin_results.html", name=name, w=w, riders=RIDERS, results=results)
+
 
 @app.route("/admin/w/<weekend_id>/questions", methods=["GET", "POST"])
 @require_admin
@@ -1587,6 +1734,7 @@ def admin_questions(weekend_id):
     except Exception:
         return render_template("admin_question.html", name=name, w=w, q1=q1, q2=q2)
 
+
 # ------------------ Public : page HTML pronos ------------------
 @app.route("/w/<weekend_id>/public/pronos")
 def public_pronos(weekend_id):
@@ -1614,14 +1762,21 @@ def public_pronos(weekend_id):
         "p": dict(r[1] or {}),
     } for r in rows]
 
-    pronos_list.sort(key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min, reverse=True)
+    pronos_list.sort(
+        key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min,
+        reverse=True
+    )
 
     name, _ = current_player(request)
     return render_template(
         "public_pronos.html",
-        name=name, w=w, pronos=pronos_list,
-        admin_enabled=admin_enabled(), is_admin=is_admin()
+        name=name,
+        w=w,
+        pronos=pronos_list,
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
     )
+
 
 # ------------------ Public : Résultats par course ------------------
 @app.route("/results_by_race")
@@ -1717,6 +1872,7 @@ def results_by_race():
         is_admin=is_admin()
     )
 
+
 # ------------------ Classement GP (par week-end) ------------------
 @app.route("/w/<weekend_id>/classement")
 def classement_weekend(weekend_id):
@@ -1732,10 +1888,13 @@ def classement_weekend(weekend_id):
         name, _ = current_player(request)
         return render_template(
             "classement.html",
-            name=name, w=w, rows=[],
+            name=name,
+            w=w,
+            rows=[],
             notice="Entre d’abord les résultats officiels (Admin).",
             closed=closed,
-            admin_enabled=admin_enabled(), is_admin=is_admin()
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
         )
 
     rows = []
@@ -1750,13 +1909,19 @@ def classement_weekend(weekend_id):
         s_score = podium_points(
             [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
             results.get("sprint", []),
-            well_placed=1.0, mis_placed=0.5, bonus_exact=3.0, bonus_all=1.5
+            well_placed=1.0,
+            mis_placed=0.5,
+            bonus_exact=3.0,
+            bonus_all=1.5
         )
 
         g_score = podium_points(
             [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
             results.get("gp", []),
-            well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
+            well_placed=2.0,
+            mis_placed=1.0,
+            bonus_exact=6.0,
+            bonus_all=3.0
         )
 
         bonus_score = 0.0
@@ -1780,13 +1945,19 @@ def classement_weekend(weekend_id):
         })
 
     rows.sort(key=lambda r: r["total"], reverse=True)
+
     name, _ = current_player(request)
     return render_template(
         "classement.html",
-        name=name, w=w, rows=rows, notice=None,
+        name=name,
+        w=w,
+        rows=rows,
+        notice=None,
         closed=closed,
-        admin_enabled=admin_enabled(), is_admin=is_admin()
+        admin_enabled=admin_enabled(),
+        is_admin=is_admin()
     )
+
 
 # ------------------ Classement général saison ------------------
 @app.route("/classement")
@@ -1840,13 +2011,19 @@ def classement_general():
             s_score = podium_points(
                 [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
                 results.get("sprint", []),
-                well_placed=1.0, mis_placed=0.5, bonus_exact=3.0, bonus_all=1.5
+                well_placed=1.0,
+                mis_placed=0.5,
+                bonus_exact=3.0,
+                bonus_all=1.5
             )
 
             g_score = podium_points(
                 [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
                 results.get("gp", []),
-                well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
+                well_placed=2.0,
+                mis_placed=1.0,
+                bonus_exact=6.0,
+                bonus_all=3.0
             )
 
             bonus_score = 0.0
@@ -1898,12 +2075,14 @@ def classement_general():
         is_admin=is_admin()
     )
 
+
 # ------------------ Health checks ------------------
 @app.route("/healthz")
 def healthz():
     resp = make_response("OK", 200)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
 
 @app.route("/health")
 def health():
@@ -1917,6 +2096,7 @@ def health():
     resp = make_response("OK", 200)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
 
 if __name__ == "__main__":
     app.run(debug=True)
