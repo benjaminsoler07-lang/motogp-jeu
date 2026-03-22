@@ -56,7 +56,10 @@
     🏁 Entrer résultats
   </a>
 
-  <!-- ✅ SWITCH ON/OFF -->
+  <a class="btn btn-small" href="{{ url_for('admin_pronos', weekend_id=w.id) }}">
+    🗂️ Gérer les pronos
+  </a>
+
   {% if closed %}
     <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
       <input type="hidden" name="state" value="on">
