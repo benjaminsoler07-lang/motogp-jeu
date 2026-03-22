@@ -2,6 +2,89 @@
 {% block title %}Classement — {{ w.label }}{% endblock %}
 {% block content %}
 
+  <style>
+    .classement-wrap{
+      margin-top:16px;
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .classement{
+      width:100%;
+      min-width:780px;
+      border-collapse:separate;
+      border-spacing:0;
+    }
+
+    .classement th,
+    .classement td{
+      white-space:nowrap;
+      vertical-align:middle;
+    }
+
+    /* Colonne TOTAL mise en avant */
+    .classement th.total-col{
+      background:rgba(255, 214, 10, 0.28);
+      color:#fff;
+      font-weight:800;
+    }
+
+    .classement td.total-col{
+      background:rgba(255, 214, 10, 0.18);
+      color:#ffd60a;
+      font-weight:800;
+      font-size:1.05rem;
+    }
+
+    /* Pseudo figé au scroll horizontal sur mobile */
+    .classement th.player-col,
+    .classement td.player-col{
+      position:sticky;
+      left:0;
+      z-index:3;
+      background:#0d3b66;
+    }
+
+    .classement thead th.player-col{
+      z-index:5;
+    }
+
+    /* Petit effet de séparation visuelle */
+    .classement th.player-col,
+    .classement td.player-col{
+      box-shadow: 6px 0 10px rgba(0,0,0,0.18);
+    }
+
+    /* On conserve les couleurs des lignes podium même sur la colonne sticky */
+    .classement tr.row-gold td.player-col{
+      background:rgba(255, 215, 0, 0.18);
+    }
+
+    .classement tr.row-silver td.player-col{
+      background:rgba(192, 192, 192, 0.18);
+    }
+
+    .classement tr.row-bronze td.player-col{
+      background:rgba(205, 127, 50, 0.18);
+    }
+
+    /* Mobile */
+    @media (max-width: 768px){
+      .classement{
+        min-width:720px;
+      }
+
+      .classement th,
+      .classement td{
+        font-size:0.95rem;
+      }
+
+      .classement td.total-col{
+        font-size:1rem;
+      }
+    }
+  </style>
+
   <h2>{{ w.label }} — Classement</h2>
 
   {% if notice %}
@@ -76,29 +159,29 @@
     </div>
 
     {# -------- TABLEAU COMPLET -------- #}
-    <div class="card" style="margin-top:16px; overflow:auto;">
+    <div class="card classement-wrap">
       <table class="classement">
         <thead>
           <tr>
             <th>#</th>
-            <th>Joueur</th>
+            <th class="player-col">Joueur</th>
+            <th class="total-col">Total</th>
             <th>Qualifications</th>
             <th>Sprint</th>
             <th>Grand Prix</th>
             <th>Bonus</th>
-            <th>Total</th>
           </tr>
         </thead>
         <tbody>
           {% for r in rows %}
             <tr class="{% if loop.index == 1 %}row-gold{% elif loop.index == 2 %}row-silver{% elif loop.index == 3 %}row-bronze{% endif %}">
               <td><strong>{{ loop.index }}</strong></td>
-              <td>{{ r.player }}</td>
+              <td class="player-col"><strong>{{ r.player }}</strong></td>
+              <td class="total-col"><strong>{{ r.total }}</strong></td>
               <td>{{ r.q }}</td>
               <td>{{ r.s }}</td>
               <td>{{ r.gp }}</td>
               <td>{{ r.bonus }}</td>
-              <td><strong>{{ r.total }}</strong></td>
             </tr>
           {% endfor %}
         </tbody>
