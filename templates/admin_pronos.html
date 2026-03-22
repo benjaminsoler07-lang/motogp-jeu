@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Admin — Gestion des pronos — {{ w.label }}{% endblock %}
+
+{% block content %}
+<h2>🗂️ Admin — Gestion des pronos — {{ w.label }}</h2>
+
+<div class="card admin-intro" style="text-align:left;">
+  <p><strong>ID :</strong> <code>{{ w.id }}</code></p>
+  <p><strong>Date :</strong> {{ w.date or "?" }}</p>
+  <p>
+    <strong>Nombre de pronos affichés :</strong>
+    <span style="font-size:20px;"><strong>{{ count }}</strong></span>
+  </p>
+
+  <div style="margin-top:10px;">
+    {% if closed %}
+      <span class="status-closed">🔒 Clos</span>
+    {% else %}
+      <span class="status-open">🟢 Ouvert</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <form method="get" action="{{ url_for('admin_pronos', weekend_id=w.id) }}" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+    <input
+      type="text"
+      name="q"
+      value="{{ q or '' }}"
+      placeholder="Rechercher un pseudo..."
+      style="flex:1; min-width:220px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06); color:white;"
+    >
+    <button type="submit" class="btn btn-small">🔎 Rechercher</button>
+
+    {% if q %}
+      <a class="btn btn-small" href="{{ url_for('admin_pronos', weekend_id=w.id) }}">✖ Réinitialiser</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if rows %}
+  <form method="post" action="{{ url_for('admin_bulk_delete_pronos', weekend_id=w.id) }}" onsubmit="return confirm('Supprimer tous les pronos cochés ?');">
+    <div class="card" style="margin-top:18px; overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,.15);">
+            <th style="text-align:left; padding:10px;">✔</th>
+            <th style="text-align:left; padding:10px;">Pseudo</th>
+            <th style="text-align:left; padding:10px;">Pole</th>
+            <th style="text-align:left; padding:10px;">Sprint</th>
+            <th style="text-align:left; padding:10px;">GP</th>
+            <th style="text-align:left; padding:10px;">Maj</th>
+            <th style="text-align:left; padding:10px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            {% set p = row.payload %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,.08); vertical-align:top;">
+              <td style="padding:10px;">
+                {% if row.id %}
+                  <input type="checkbox" name="prono_ids" value="{{ row.id }}">
+                {% endif %}
+              </td>
+
+              <td style="padding:10px;">
+                <strong>{{ row.player_name }}</strong>
+                {% if row.participant_id %}
+                  <div style="font-size:12px; opacity:.7;">participant #{{ row.participant_id }}</div>
+                {% endif %}
+              </td>
+
+              <td style="padding:10px;">
+                <div><strong>Pole :</strong> {{ p.pole or "-" }}</div>
+                <div style="margin-top:6px;"><strong>Q1 :</strong></div>
+                <div style="font-size:13px; opacity:.9;">
+                  1. {{ p.q1_1 or "-" }}<br>
+                  2. {{ p.q1_2 or "-" }}
+                </div>
+              </td>
+
+              <td style="padding:10px;">
+                <div style="font-size:13px; opacity:.9;">
+                  1. {{ p.sprint_p1 or "-" }}<br>
+                  2. {{ p.sprint_p2 or "-" }}<br>
+                  3. {{ p.sprint_p3 or "-" }}
+                </div>
+              </td>
+
+              <td style="padding:10px;">
+                <div style="font-size:13px; opacity:.9;">
+                  1. {{ p.gp_p1 or "-" }}<br>
+                  2. {{ p.gp_p2 or "-" }}<br>
+                  3. {{ p.gp_p3 or "-" }}
+                </div>
+
+                {% if p.bonus %}
+                  <div style="margin-top:8px;">
+                    <strong>Bonus :</strong>
+                    <div style="font-size:12px; opacity:.8; margin-top:4px;">
+                      {% for key, value in p.bonus.items() %}
+                        <div>{{ key }} : {{ value or "-" }}</div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endif %}
+              </td>
+
+              <td style="padding:10px; font-size:13px;">
+                <div><strong>Créé :</strong> {{ row.created_at or "-" }}</div>
+                <div style="margin-top:6px;"><strong>Modifié :</strong> {{ row.updated_at or "-" }}</div>
+              </td>
+
+              <td style="padding:10px;">
+                {% if row.id %}
+                  <form method="post"
+                        action="{{ url_for('admin_delete_prono', weekend_id=w.id, prono_id=row.id) }}"
+                        onsubmit="return confirm('Supprimer le prono de {{ row.player_name|replace(\"'\", \"\\'\") }} ?');">
+                    <button type="submit" class="btn btn-small btn-warning">🗑️ Supprimer</button>
+                  </form>
+                {% else %}
+                  <span style="opacity:.6;">Suppression indisponible</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button type="submit" class="btn btn-small btn-warning">🗑️ Supprimer la sélection</button>
+      <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">⬅ Retour au GP</a>
+    </div>
+  </form>
+{% else %}
+  <div class="card" style="margin-top:18px;">
+    <p style="margin:0;">Aucun prono trouvé{% if q %} pour la recherche <strong>{{ q }}</strong>{% endif %}.</p>
+  </div>
+
+  <div style="margin-top:14px;">
+    <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">⬅ Retour au GP</a>
+  </div>
+{% endif %}
+
+{% endblock %}
