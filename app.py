@@ -1655,69 +1655,6 @@ def admin_toggle_pronos(weekend_id):
 
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
-# ------------------ ADMIN : gestion pronos GP ------------------
-@app.route("/admin/w/<weekend_id>/pronos")
-@require_admin
-def admin_pronos(weekend_id):
-    w = get_weekend(weekend_id)
-    if not w:
-        return "Week-end inconnu", 404
-
-    search_text = (request.args.get("q") or "").strip()
-    rows = get_admin_pronos_rows(weekend_id, search_text=search_text)
-
-    name, _ = current_player(request)
-    return render_template(
-        "admin_pronos.html",
-        name=name,
-        w=w,
-        rows=rows,
-        q=search_text,
-        count=len(rows),
-        closed=is_weekend_closed(weekend_id) if engine else False
-    )
-
-@app.route("/admin/w/<weekend_id>/pronos/<int:prono_id>/delete", methods=["POST"])
-@require_admin
-def admin_delete_prono(weekend_id, prono_id):
-    w = get_weekend(weekend_id)
-    if not w:
-        return "Week-end inconnu", 404
-
-    deleted, player_norm = delete_prono_by_row_id(prono_id, weekend_id=weekend_id)
-
-    if deleted > 0:
-        flash(f"🗑️ Prono supprimé pour « {player_norm} » ({deleted} ligne(s) effacée(s)).")
-    else:
-        flash("Aucun prono supprimé.")
-
-    return redirect(url_for("admin_pronos", weekend_id=weekend_id))
-
-@app.route("/admin/w/<weekend_id>/pronos/bulk_delete", methods=["POST"])
-@require_admin
-def admin_bulk_delete_pronos(weekend_id):
-    w = get_weekend(weekend_id)
-    if not w:
-        return "Week-end inconnu", 404
-
-    ids = request.form.getlist("prono_ids")
-    total_deleted = 0
-
-    for raw_id in ids:
-        try:
-            prono_id = int(raw_id)
-        except Exception:
-            continue
-        deleted, _ = delete_prono_by_row_id(prono_id, weekend_id=weekend_id)
-        total_deleted += deleted
-
-    if total_deleted > 0:
-        flash(f"🗑️ Suppression groupée effectuée ({total_deleted} ligne(s) supprimée(s)).")
-    else:
-        flash("Aucune ligne supprimée.")
-
-    return redirect(url_for("admin_pronos", weekend_id=weekend_id))
-
 # ------------------ ADMIN : results ------------------
 @app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
 @require_admin
