@@ -113,11 +113,15 @@
 
               <td style="padding:10px;">
                 {% if row.id %}
-                  <form method="post"
-                        action="{{ url_for('admin_delete_prono', weekend_id=w.id, prono_id=row.id) }}"
-                        onsubmit="return confirm('Supprimer le prono de {{ row.player_name|replace(\"'\", \"\\'\") }} ?');">
-                    <button type="submit" class="btn btn-small btn-warning">🗑️ Supprimer</button>
-                  </form>
+                  <button
+                    type="submit"
+                    class="btn btn-small btn-warning"
+                    formaction="{{ url_for('admin_delete_prono', weekend_id=w.id, prono_id=row.id) }}"
+                    formmethod="post"
+                    onclick="return confirm('Supprimer le prono de {{ row.player_name|replace(\"'\", \"\\'\") }} ?');"
+                  >
+                    🗑️ Supprimer
+                  </button>
                 {% else %}
                   <span style="opacity:.6;">Suppression indisponible</span>
                 {% endif %}
