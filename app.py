@@ -10,6 +10,7 @@
 # + NOUVEAU : gestion des participants (pseudo autorisé uniquement)
 # + NOUVEAU : persistance des pronos basée sur le pseudo autorisé
 # + NOUVEAU : authentification joueur par pseudo + code secret
+# + NOUVEAU : gestion admin approfondie des pronos GP (liste / recherche / suppression unitaire / suppression groupée)
 
 import os
 import json
@@ -96,6 +97,9 @@ def _parse_dt_maybe(s):
     except Exception:
         return None
 
+def normalize(x):
+    return (x or "").strip().lower()
+
 # ------------------ DB (PostgreSQL) ------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
 engine = None
@@ -147,7 +151,6 @@ def db_init():
         );
         """))
 
-        # Colonnes ajoutées pour la nouvelle logique
         conn.execute(text("ALTER TABLE pronos ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;"))
         conn.execute(text("ALTER TABLE pronos ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pronos_weekend ON pronos(weekend_id);"))
@@ -196,7 +199,6 @@ def db_init():
         );
         """))
 
-        # Backfill player_norm pour anciennes lignes
         conn.execute(text("""
             UPDATE pronos
             SET player_norm = LOWER(BTRIM(player_name))
@@ -225,7 +227,6 @@ def save_json(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
 # ------------------ Participants helpers ------------------
 def load_participants_fallback():
     data = load_json(PARTICIPANTS_FILE, {"participants": []})
@@ -576,7 +577,6 @@ def get_latest_championnat_pronos_by_player() -> list:
                 "updated_at": p.get("_updated_at") or p.get("updated_at"),
             })
     return dedupe_pronos_by_playername(tmp)
-
 # ------------------ Weekends helpers ------------------
 def load_weekends_data():
     data = load_json(WEEKENDS_FILE, {"weekends": []})
@@ -723,9 +723,6 @@ def set_weekend_closed_and_public(weekend_id: str):
         """), {"w": weekend_id})
 
 # ------------------ Points ------------------
-def normalize(x):
-    return (x or "").strip().lower()
-
 def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all):
     p = [normalize(x) for x in pred]
     a = [normalize(x) for x in (actual or [])]
@@ -869,7 +866,6 @@ def compute_points_breakdown(prono: dict, results: dict, w: dict):
         "bonus": bonus,
         "total": total
     }
-
 # ------------------ Fichiers (fallback) ------------------
 def pronos_path(weekend_id):
     return os.path.join(PRONOS_DIR, f"{weekend_id}.json")
@@ -982,6 +978,135 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
         return len(dedupe_pronos_by_playername(tmp))
     return 0
 
+# ------------------ Admin pronos helpers ------------------
+def get_admin_pronos_rows(weekend_id: str, search_text: str = "") -> list:
+    search_text = (search_text or "").strip()
+    search_norm = normalize_pseudo(search_text)
+
+    if engine:
+        query = """
+            SELECT DISTINCT ON (COALESCE(p.player_norm, LOWER(BTRIM(p.player_name))))
+                p.id,
+                p.weekend_id,
+                p.player_name,
+                COALESCE(p.player_norm, LOWER(BTRIM(p.player_name))) AS player_norm,
+                p.participant_id,
+                p.payload_json,
+                p.created_at,
+                p.updated_at
+            FROM pronos p
+            WHERE p.weekend_id = :w
+        """
+        params = {"w": weekend_id}
+
+        if search_norm:
+            query += """
+              AND (
+                    LOWER(BTRIM(p.player_name)) LIKE :search
+                 OR COALESCE(p.player_norm, LOWER(BTRIM(p.player_name))) LIKE :search
+              )
+            """
+            params["search"] = f"%{search_norm}%"
+
+        query += """
+            ORDER BY COALESCE(p.player_norm, LOWER(BTRIM(p.player_name))), p.updated_at DESC
+        """
+
+        with engine.begin() as conn:
+            rows = conn.execute(text(query), params).fetchall()
+
+        out = []
+        for r in rows:
+            payload = dict(r[5] or {})
+            out.append({
+                "id": r[0],
+                "weekend_id": r[1],
+                "player_name": r[2] or "??",
+                "player_norm": r[3] or normalize_pseudo(r[2] or ""),
+                "participant_id": r[4],
+                "payload": payload,
+                "created_at": str(r[6]) if r[6] else None,
+                "updated_at": str(r[7]) if r[7] else None,
+            })
+
+        out.sort(key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min, reverse=True)
+        return out
+
+    all_pronos = load_json(pronos_path(weekend_id), {})
+    tmp = []
+    if isinstance(all_pronos, dict):
+        for _, p in all_pronos.items():
+            player_name = p.get("player_name", "??")
+            player_norm = normalize_pseudo(player_name)
+            if search_norm and search_norm not in player_norm:
+                continue
+            tmp.append({
+                "id": None,
+                "weekend_id": weekend_id,
+                "player_name": player_name,
+                "player_norm": player_norm,
+                "participant_id": None,
+                "payload": dict(p or {}),
+                "created_at": p.get("_created_at") or p.get("created_at"),
+                "updated_at": p.get("_updated_at") or p.get("updated_at"),
+            })
+    return dedupe_pronos_by_playername(tmp)
+
+def delete_pronos_for_player_weekend(weekend_id: str, player_norm: str) -> int:
+    weekend_id = (weekend_id or "").strip()
+    player_norm = normalize_pseudo(player_norm)
+
+    if not weekend_id or not player_norm:
+        return 0
+
+    if engine:
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                DELETE FROM pronos
+                WHERE weekend_id = :w
+                  AND COALESCE(player_norm, LOWER(BTRIM(player_name))) = :pn
+            """), {"w": weekend_id, "pn": player_norm})
+            return int(result.rowcount or 0)
+
+    data = load_json(pronos_path(weekend_id), {})
+    if not isinstance(data, dict):
+        return 0
+
+    deleted = 0
+    new_data = {}
+    for k, v in data.items():
+        pn = normalize_pseudo(v.get("player_name", ""))
+        if pn == player_norm:
+            deleted += 1
+            continue
+        new_data[k] = v
+
+    save_json(pronos_path(weekend_id), new_data)
+    return deleted
+
+def delete_prono_by_row_id(prono_id: int, weekend_id: str = None) -> tuple[int, str]:
+    if not engine:
+        return 0, ""
+
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT id, weekend_id, COALESCE(player_norm, LOWER(BTRIM(player_name))) AS player_norm
+            FROM pronos
+            WHERE id = :id
+            LIMIT 1
+        """), {"id": prono_id}).fetchone()
+
+        if not row:
+            return 0, ""
+
+        db_weekend_id = row[1]
+        db_player_norm = row[2] or ""
+
+    if weekend_id and db_weekend_id != weekend_id:
+        return 0, ""
+
+    deleted = delete_pronos_for_player_weekend(db_weekend_id, db_player_norm)
+    return deleted, db_player_norm
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
 def home():
@@ -1366,7 +1491,6 @@ def admin_login():
 
     name, _ = current_player(request)
     return render_template("admin_login.html", name=name)
-
 @app.route("/admin/logout")
 def admin_logout():
     session.pop("is_admin", None)
@@ -1504,7 +1628,14 @@ def admin_weekend(weekend_id):
     public = closed
 
     name, _ = current_player(request)
-    return render_template("admin_weekend.html", name=name, w=w, count=count, closed=closed, public=public)
+    return render_template(
+        "admin_weekend.html",
+        name=name,
+        w=w,
+        count=count,
+        closed=closed,
+        public=public
+    )
 
 @app.route("/admin/w/<weekend_id>/toggle_pronos", methods=["POST"])
 @require_admin
@@ -1523,6 +1654,69 @@ def admin_toggle_pronos(weekend_id):
         flash("🔴 Pronos FERMÉS (et rendus publics)")
 
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
+
+# ------------------ ADMIN : gestion pronos GP ------------------
+@app.route("/admin/w/<weekend_id>/pronos")
+@require_admin
+def admin_pronos(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    search_text = (request.args.get("q") or "").strip()
+    rows = get_admin_pronos_rows(weekend_id, search_text=search_text)
+
+    name, _ = current_player(request)
+    return render_template(
+        "admin_pronos.html",
+        name=name,
+        w=w,
+        rows=rows,
+        q=search_text,
+        count=len(rows),
+        closed=is_weekend_closed(weekend_id) if engine else False
+    )
+
+@app.route("/admin/w/<weekend_id>/pronos/<int:prono_id>/delete", methods=["POST"])
+@require_admin
+def admin_delete_prono(weekend_id, prono_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    deleted, player_norm = delete_prono_by_row_id(prono_id, weekend_id=weekend_id)
+
+    if deleted > 0:
+        flash(f"🗑️ Prono supprimé pour « {player_norm} » ({deleted} ligne(s) effacée(s)).")
+    else:
+        flash("Aucun prono supprimé.")
+
+    return redirect(url_for("admin_pronos", weekend_id=weekend_id))
+
+@app.route("/admin/w/<weekend_id>/pronos/bulk_delete", methods=["POST"])
+@require_admin
+def admin_bulk_delete_pronos(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    ids = request.form.getlist("prono_ids")
+    total_deleted = 0
+
+    for raw_id in ids:
+        try:
+            prono_id = int(raw_id)
+        except Exception:
+            continue
+        deleted, _ = delete_prono_by_row_id(prono_id, weekend_id=weekend_id)
+        total_deleted += deleted
+
+    if total_deleted > 0:
+        flash(f"🗑️ Suppression groupée effectuée ({total_deleted} ligne(s) supprimée(s)).")
+    else:
+        flash("Aucune ligne supprimée.")
+
+    return redirect(url_for("admin_pronos", weekend_id=weekend_id))
 
 # ------------------ ADMIN : results ------------------
 @app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
@@ -1915,3 +2109,6 @@ def health():
     resp = make_response("OK", 200)
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+if __name__ == "__main__":
+    app.run(debug=True)
