@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Admin — Calendrier MotoGP{% endblock %}
+
+{% block content %}
+<h2>🗓️ Admin — Calendrier MotoGP</h2>
+
+<div class="card admin-intro" style="text-align:left;">
+  <p><strong>Gestion des dates de GP</strong></p>
+  <p class="admin-tip">
+    Modifie ici les dates prévisionnelles, renomme un GP si besoin, ou marque-le comme annulé.
+    Les GP sont ensuite automatiquement reclassés dans l’ordre chronologique.
+  </p>
+  <p class="admin-tip">
+    Les GP <strong>clos</strong> sont grisés et ne sont plus modifiables depuis cette page.
+  </p>
+</div>
+
+<ul class="calendar-list">
+  {% for w in weekends %}
+    <li class="calendar-item {% if w.closed %}calendar-closed{% endif %} {% if w.cancelled %}calendar-cancelled{% endif %}">
+      <div class="calendar-top">
+        <div>
+          <div class="calendar-title">
+            {% if w.cancelled %}
+              🚫 <s>{{ w.label }}</s>
+            {% else %}
+              {{ w.label }}
+            {% endif %}
+          </div>
+
+          <div class="calendar-meta">
+            <span>ID : <code>{{ w.id }}</code></span>
+            <span>Date : <strong>{{ w.date or "—" }}</strong></span>
+            <span>Pronos : <strong>{{ w.count }}</strong></span>
+          </div>
+
+          <div class="admin-status" style="margin-top:10px;">
+            {% if w.cancelled %}
+              <span class="status-closed">🚫 Annulé</span>
+            {% elif w.closed %}
+              <span class="status-closed">🔒 Clos</span>
+            {% elif w.status == "open" %}
+              <span class="status-open">🟢 Ouvert</span>
+            {% elif w.status == "past" %}
+              <span class="status-private">🏁 Passé</span>
+            {% else %}
+              <span class="status-private">📅 À venir</span>
+            {% endif %}
+
+            {% if w.public and not w.cancelled %}
+              <span class="status-public">👀 Public</span>
+            {% else %}
+              <span class="status-private">🙈 Non public</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if w.can_edit_date %}
+        <form method="post" action="{{ url_for('admin_calendar_update', weekend_id=w.id) }}" class="calendar-form">
+          <div class="field">
+            <label for="label_{{ w.id }}">Nom du GP</label>
+            <input
+              type="text"
+              id="label_{{ w.id }}"
+              name="label"
+              value="{{ w.label }}"
+              maxlength="120"
+            >
+          </div>
+
+          <div class="field">
+            <label for="date_{{ w.id }}">Date</label>
+            <input
+              type="date"
+              id="date_{{ w.id }}"
+              name="date"
+              value="{{ w.date or '' }}"
+            >
+          </div>
+
+          <button class="btn btn-small" type="submit">
+            💾 Enregistrer
+          </button>
+        </form>
+
+        <div class="calendar-actions">
+          {% if w.can_cancel %}
+            <form method="post" action="{{ url_for('admin_calendar_cancel', weekend_id=w.id) }}">
+              <button class="btn btn-small btn-warning" type="submit">
+                🚫 Marquer comme annulé
+              </button>
+            </form>
+          {% endif %}
+
+          {% if w.can_reactivate %}
+            <form method="post" action="{{ url_for('admin_calendar_reactivate', weekend_id=w.id) }}">
+              <button class="btn btn-small" type="submit">
+                ♻️ Réactiver le GP
+              </button>
+            </form>
+          {% endif %}
+
+          <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">
+            ⚙️ Ouvrir la fiche GP
+          </a>
+        </div>
+
+        {% if w.cancelled %}
+          <div class="calendar-note">
+            Ce GP est annulé. Tu peux le réactiver à tout moment tant qu’il n’est pas clos.
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="calendar-actions">
+          <span class="btn btn-small btn-disabled">🔒 GP clos : modification désactivée</span>
+          <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">
+            ⚙️ Ouvrir la fiche GP
+          </a>
+        </div>
+
+        <div class="calendar-note">
+          Ce GP est déjà clos, son calendrier n’est plus modifiable ici.
+        </div>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
+
+<div class="card" style="text-align:left;">
+  <p style="margin:0 0 8px;"><strong>Navigation</strong></p>
+  <p style="margin:0;">
+    <a href="{{ url_for('admin_home') }}">⬅ Retour au dashboard</a>
+  </p>
+</div>
+
+{% endblock %}
