@@ -9,19 +9,153 @@
   <p style="margin:6px 0 0; opacity:.85; font-size:14px;">
     ID : <code>{{ w.id }}</code>
   </p>
+  <p style="margin:6px 0 0; opacity:.85; font-size:14px;">
+    Questions configurées : <strong>{{ w.bonus_questions|length if w.bonus_questions else 0 }}</strong>
+  </p>
 </div>
 
-<form method="post" class="card" style="text-align:left;">
-  <h3>Question bonus 1</h3>
-  <label>Texte :</label>
-  <input type="text" name="b1_label" value="{{ q1.label }}" placeholder="Ex: Un pilote Ducati sur le podium du GP ?">
+<div class="card" style="text-align:left;">
+  <h3>➕ Ajouter une question bonus</h3>
 
-  <h3>Question bonus 2</h3>
-  <label>Texe :</label>
-  <input type="text" name="b2_label" value="{{ q2.label }}" placeholder="Ex: Chute lors du sprint ?">
+  <form method="post">
+    <input type="hidden" name="action" value="add">
 
-  <button class="btn" type="submit">💾 Enregistrer</button>
-</form>
+    <label for="label">Texte de la question</label>
+    <input
+      type="text"
+      id="label"
+      name="label"
+      placeholder="Ex : Y aura-t-il un drapeau rouge pendant le GP ?"
+      required
+    >
+
+    <label for="type">Type de réponse</label>
+    <select name="type" id="type" onchange="toggleRangeOptions(this, 'add_range_wrap')">
+      {% for t in bonus_type_choices %}
+        <option value="{{ t.value }}">{{ t.label }}</option>
+      {% endfor %}
+    </select>
+
+    <div id="add_range_wrap" style="display:none; margin-top:10px;">
+      <label for="range_options">Options de plage numérique</label>
+      <input
+        type="text"
+        id="range_options"
+        name="range_options"
+        placeholder="Ex : 0 ; 1-2 ; 3-4 ; 5-6 ; 7+"
+      >
+      <p style="margin:6px 0 0; opacity:.75; font-size:13px;">
+        Sépare les options avec un point-virgule.
+      </p>
+    </div>
+
+    <div style="margin-top:14px;">
+      <button class="btn" type="submit">➕ Ajouter la question</button>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="text-align:left;">
+  <h3>🛠️ Questions existantes</h3>
+
+  {% if w.bonus_questions and w.bonus_questions|length > 0 %}
+    {% for b in w.bonus_questions %}
+      <div style="padding:14px 0; border-top:{% if not loop.first %}1px solid rgba(255,255,255,.15){% else %}none{% endif %};">
+        <p style="margin:0 0 10px;">
+          <strong>{{ loop.index }}. {{ b.label }}</strong><br>
+          <small>
+            ID : <code>{{ b.id }}</code>
+            {% if b.type_label %}
+              — Type : {{ b.type_label }}
+            {% else %}
+              — Type : {{ b.type }}
+            {% endif %}
+          </small>
+        </p>
+
+        <form method="post" style="margin-bottom:10px;">
+          <input type="hidden" name="action" value="update">
+          <input type="hidden" name="question_id" value="{{ b.id }}">
+
+          <label for="label_{{ b.id }}">Texte</label>
+          <input
+            type="text"
+            id="label_{{ b.id }}"
+            name="label"
+            value="{{ b.label }}"
+            required
+          >
+
+          <label for="type_{{ b.id }}">Type de réponse</label>
+          <select
+            name="type"
+            id="type_{{ b.id }}"
+            onchange="toggleRangeOptions(this, 'range_wrap_{{ b.id }}')"
+          >
+            {% for t in bonus_type_choices %}
+              <option value="{{ t.value }}" {% if b.type == t.value %}selected{% endif %}>
+                {{ t.label }}
+              </option>
+            {% endfor %}
+          </select>
+
+          <div
+            id="range_wrap_{{ b.id }}"
+            style="display:{% if b.type == 'range' %}block{% else %}none{% endif %}; margin-top:10px;"
+          >
+            <label for="range_options_{{ b.id }}">Options de plage numérique</label>
+            <input
+              type="text"
+              id="range_options_{{ b.id }}"
+              name="range_options"
+              value="{{ (b.options|join(' ; ')) if b.options else '' }}"
+              placeholder="Ex : 0 ; 1-2 ; 3-4 ; 5-6 ; 7+"
+            >
+            <p style="margin:6px 0 0; opacity:.75; font-size:13px;">
+              Sépare les options avec un point-virgule.
+            </p>
+          </div>
+
+          <div style="margin-top:12px;">
+            <button class="btn" type="submit">💾 Modifier</button>
+          </div>
+        </form>
+
+        <form method="post" onsubmit="return confirm('Supprimer cette question bonus ?');">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="question_id" value="{{ b.id }}">
+          <button class="btn" type="submit">🗑️ Supprimer</button>
+        </form>
+
+        {% if b.type == 'range' and b.options %}
+          <p style="margin:10px 0 0; opacity:.85; font-size:14px;">
+            <strong>Options :</strong> {{ b.options|join(' / ') }}
+          </p>
+        {% endif %}
+
+        {% if b.correct_answer %}
+          <p style="margin:6px 0 0; opacity:.85; font-size:14px;">
+            <strong>Bonne réponse actuellement enregistrée :</strong> {{ b.correct_answer }}
+          </p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p style="margin:0;">Aucune question bonus configurée pour ce GP.</p>
+  {% endif %}
+</div>
+
+<div class="card" style="text-align:left;">
+  <p style="margin:0 0 8px;"><strong>Aide rapide — quel type choisir ?</strong></p>
+  <p style="margin:0 0 6px;"><strong>Oui / Non</strong> : question binaire simple.</p>
+  <p style="margin:0 0 6px;"><strong>Choisir un pilote</strong> : la réponse attendue est un pilote précis.</p>
+  <p style="margin:0 0 6px;"><strong>Choisir une team</strong> : toutes les teams possibles.</p>
+  <p style="margin:0 0 6px;"><strong>Team officielle</strong> : seulement les teams usine.</p>
+  <p style="margin:0 0 6px;"><strong>Team satellite</strong> : seulement les satellites.</p>
+  <p style="margin:0 0 6px;"><strong>Plage numérique</strong> : tranches comme 0 / 1-2 / 3-4 / 5-6.</p>
+  <p style="margin:0 0 6px;"><strong>Numérique</strong> : chiffre exact.</p>
+  <p style="margin:0;"><strong>Texte libre</strong> : à garder pour les cas particuliers.</p>
+</div>
 
 <div class="card" style="text-align:left;">
   <p style="margin:0 0 8px;"><strong>Navigation</strong></p>
@@ -33,5 +167,13 @@
     <a href="{{ url_for('admin_results', weekend_id=w.id) }}">🏁 Entrer résultats</a>
   </p>
 </div>
+
+<script>
+  function toggleRangeOptions(selectEl, targetId) {
+    const wrap = document.getElementById(targetId);
+    if (!wrap) return;
+    wrap.style.display = selectEl.value === "range" ? "block" : "none";
+  }
+</script>
 
 {% endblock %}
