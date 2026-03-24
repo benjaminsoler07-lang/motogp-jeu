@@ -12,6 +12,31 @@
   </p>
 </div>
 
+<h3>Gestion du calendrier</h3>
+
+<div class="card">
+  <div class="admin-left">
+    <div class="admin-title">
+      <strong>🗓️ Calendrier MotoGP</strong>
+    </div>
+
+    <div class="admin-meta">
+      <span>GP configurés : <strong>{{ weekends|length }}</strong></span>
+    </div>
+
+    <div class="admin-status">
+      <span class="status-open">📅 Dates pilotables</span>
+      <span class="status-private">🚫 GP annulables / réactivables</span>
+    </div>
+  </div>
+
+  <div class="admin-actions" style="margin-top:12px;">
+    <a class="btn btn-small" href="{{ url_for('admin_calendar') }}">
+      🗓️ Gérer le calendrier
+    </a>
+  </div>
+</div>
+
 <h3>Gestion des joueurs</h3>
 
 <div class="card">
@@ -88,21 +113,26 @@
 <div class="card">
   <ul class="gp-list admin-list">
     {% for w in weekends %}
-    <li class="gp-item admin-item">
+    <li class="gp-item admin-item {% if w.cancelled %}gp-cancelled{% endif %}">
 
       <div class="admin-left">
         <div class="admin-title">
-          <strong>{{ w.label }}</strong>
+          <strong>
+            {% if w.cancelled %}<s>{{ w.label }}</s>{% else %}{{ w.label }}{% endif %}
+          </strong>
         </div>
 
         <div class="admin-meta">
           <span>ID : <code>{{ w.id }}</code></span>
           <span>Date : {{ w.date or "?" }}</span>
           <span>Pronos : <strong>{{ w.count }}</strong></span>
+          <span>Bonus : <strong>{{ w.bonus_count }}</strong></span>
         </div>
 
         <div class="admin-status">
-          {% if w.closed %}
+          {% if w.cancelled %}
+            <span class="status-closed">🚫 Annulé</span>
+          {% elif w.closed %}
             <span class="status-closed">🔒 Clos</span>
           {% else %}
             <span class="status-open">🟢 Ouvert</span>
@@ -122,32 +152,40 @@
           ⚙️ Gérer
         </a>
 
-        {% if w.closed %}
-          <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
-            <input type="hidden" name="state" value="on">
-            <button class="btn btn-small" type="submit">
-              🟢 Ouvrir
-            </button>
-          </form>
+        {% if not w.cancelled %}
+          {% if w.closed %}
+            <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
+              <input type="hidden" name="state" value="on">
+              <button class="btn btn-small" type="submit">
+                🟢 Ouvrir
+              </button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
+              <input type="hidden" name="state" value="off">
+              <button class="btn btn-small btn-warning" type="submit">
+                🔴 Fermer + Public
+              </button>
+            </form>
+          {% endif %}
         {% else %}
-          <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
-            <input type="hidden" name="state" value="off">
-            <button class="btn btn-small btn-warning" type="submit">
-              🔴 Fermer + Public
-            </button>
-          </form>
+          <span class="btn btn-small btn-disabled">🔒 Actions GP désactivées</span>
         {% endif %}
 
-        <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
-          👥 Page joueurs
-        </a>
-
-        {% if w.public %}
-        <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">
-          👀 Voir public
-        </a>
+        {% if not w.cancelled %}
+          <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
+            👥 Page joueurs
+          </a>
         {% else %}
-        <span class="btn btn-small btn-disabled">👀 Voir public</span>
+          <span class="btn btn-small btn-disabled">👥 Page joueurs</span>
+        {% endif %}
+
+        {% if w.public and not w.cancelled %}
+          <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">
+            👀 Voir public
+          </a>
+        {% else %}
+          <span class="btn btn-small btn-disabled">👀 Voir public</span>
         {% endif %}
 
       </div>
