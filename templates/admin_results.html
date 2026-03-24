@@ -5,7 +5,6 @@
 
 <h2>🏁 Admin — Entrer les résultats</h2>
 
-{# Sécurisation des structures (évite pages blanches) #}
 {% set q1 = results.get('q1', []) if results else [] %}
 {% set sprint = results.get('sprint', []) if results else [] %}
 {% set gp = results.get('gp', []) if results else [] %}
@@ -98,14 +97,95 @@
   </select>
 
   {% if w.bonus_questions and w.bonus_questions|length > 0 %}
-    <h3>Bonus</h3>
+    <h3>Questions bonus — Bonnes réponses</h3>
+
     {% for b in w.bonus_questions %}
-      <label>{{ b.label }}</label>
-      <select name="bonus_{{ b.id }}">
-        <option value="">—</option>
-        <option value="oui" {% if bonus.get(b.id) == "oui" %}selected{% endif %}>Oui</option>
-        <option value="non" {% if bonus.get(b.id) == "non" %}selected{% endif %}>Non</option>
-      </select>
+      {% set current = bonus.get(b.id, '') %}
+
+      <div class="bonus-block">
+        <label for="bonus_{{ b.id }}">
+          {{ b.label }}
+          {% if b.type_label %}
+            <small>({{ b.type_label }})</small>
+          {% endif %}
+        </label>
+
+        {% if b.type == 'yes_no' %}
+          <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+            <option value="">—</option>
+            <option value="Oui" {% if current == 'Oui' %}selected{% endif %}>Oui</option>
+            <option value="Non" {% if current == 'Non' %}selected{% endif %}>Non</option>
+          </select>
+
+        {% elif b.type == 'rider' %}
+          <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+            <option value="">—</option>
+            {% for r in riders %}
+              <option value="{{ r }}" {% if current == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif b.type == 'team' %}
+          <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+            <option value="">—</option>
+            {% for team in all_teams %}
+              <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif b.type == 'official_team' %}
+          <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+            <option value="">—</option>
+            {% for team in official_teams %}
+              <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif b.type == 'satellite_team' %}
+          <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+            <option value="">—</option>
+            {% for team in satellite_teams %}
+              <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif b.type == 'range' %}
+          <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+            <option value="">—</option>
+            {% for opt in b.resolved_options %}
+              <option value="{{ opt }}" {% if current == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif b.type == 'number' %}
+          <input
+            type="number"
+            name="bonus_{{ b.id }}"
+            id="bonus_{{ b.id }}"
+            value="{{ current }}"
+            inputmode="numeric"
+            step="1"
+          >
+
+        {% elif b.type == 'text' %}
+          <input
+            type="text"
+            name="bonus_{{ b.id }}"
+            id="bonus_{{ b.id }}"
+            value="{{ current }}"
+            maxlength="120"
+            placeholder="Bonne réponse"
+          >
+
+        {% else %}
+          <input
+            type="text"
+            name="bonus_{{ b.id }}"
+            id="bonus_{{ b.id }}"
+            value="{{ current }}"
+          >
+        {% endif %}
+      </div>
     {% endfor %}
   {% endif %}
 
@@ -122,5 +202,29 @@
     <a href="{{ url_for('classement_weekend', weekend_id=w.id) }}">📊 Voir classement</a>
   </p>
 </div>
+
+<script>
+  function disableDuplicates(groupNames) {
+    const selects = groupNames.map(n => document.querySelector(`select[name="${n}"]`)).filter(Boolean);
+
+    function refresh() {
+      const chosen = new Set(selects.map(s => s.value).filter(v => v));
+      selects.forEach(sel => {
+        const myValue = sel.value;
+        Array.from(sel.options).forEach(opt => {
+          if (!opt.value) return;
+          opt.disabled = chosen.has(opt.value) && opt.value !== myValue;
+        });
+      });
+    }
+
+    selects.forEach(sel => sel.addEventListener("change", refresh));
+    refresh();
+  }
+
+  disableDuplicates(["q1_1", "q1_2"]);
+  disableDuplicates(["sprint_p1", "sprint_p2", "sprint_p3"]);
+  disableDuplicates(["gp_p1", "gp_p2", "gp_p3"]);
+</script>
 
 {% endblock %}
