@@ -12,10 +12,14 @@
 # + NOUVEAU : authentification joueur par pseudo + code secret
 # + NOUVEAU : gestion admin approfondie des pronos GP
 #   (liste / recherche / suppression unitaire / suppression groupée)
+# + NOUVEAU : questions bonus dynamiques par GP
+#   (ajout / modif / suppression + types verrouillés + correction auto)
 
 import os
 import json
 import uuid
+import re
+import unicodedata
 from datetime import datetime, date, timedelta
 from functools import wraps
 
@@ -34,6 +38,8 @@ app.permanent_session_lifetime = timedelta(days=365)
 # ✅ Admin login / password (Render > Environment)
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
+
+BONUS_POINTS_PER_QUESTION = 0.5
 
 
 def admin_enabled():
@@ -89,6 +95,50 @@ RIDERS = [
     "#93 Marc Marquez",
 ]
 
+ALL_TEAMS = [
+    "Aprilia Racing",
+    "Ducati Lenovo Team",
+    "Honda HRC Castrol",
+    "Monster Energy Yamaha MotoGP",
+    "Red Bull KTM Factory Racing",
+    "Gresini Racing MotoGP",
+    "LCR Honda Castrol",
+    "LCR Honda Idemitsu",
+    "Pertamina Enduro VR46 Racing Team",
+    "Prima Pramac Yamaha MotoGP",
+    "Red Bull KTM Tech3",
+    "Trackhouse MotoGP Team",
+]
+
+OFFICIAL_TEAMS = [
+    "Aprilia Racing",
+    "Ducati Lenovo Team",
+    "Honda HRC Castrol",
+    "Monster Energy Yamaha MotoGP",
+    "Red Bull KTM Factory Racing",
+]
+
+SATELLITE_TEAMS = [
+    "Gresini Racing MotoGP",
+    "LCR Honda Castrol",
+    "LCR Honda Idemitsu",
+    "Pertamina Enduro VR46 Racing Team",
+    "Prima Pramac Yamaha MotoGP",
+    "Red Bull KTM Tech3",
+    "Trackhouse MotoGP Team",
+]
+
+BONUS_TYPE_CHOICES = [
+    {"value": "yes_no", "label": "Oui / Non"},
+    {"value": "rider", "label": "Choisir un pilote"},
+    {"value": "team", "label": "Choisir une team"},
+    {"value": "official_team", "label": "Choisir team officielle"},
+    {"value": "satellite_team", "label": "Choisir team satellite"},
+    {"value": "range", "label": "Plage numérique"},
+    {"value": "number", "label": "Numérique"},
+    {"value": "text", "label": "Texte libre"},
+]
+
 
 # ------------------ Utils ------------------
 def normalize_pseudo(pseudo: str) -> str:
@@ -106,6 +156,173 @@ def _parse_dt_maybe(s):
 
 def normalize(x):
     return (x or "").strip().lower()
+
+
+def slugify(value: str) -> str:
+    value = (value or "").strip().lower()
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    value = re.sub(r"[^a-z0-9]+", "-", value).strip("-")
+    return value or "item"
+
+
+def normalize_text_free(value: str) -> str:
+    value = (value or "").strip().lower()
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def normalize_numeric_string(value: str) -> str:
+    return str((value or "")).strip()
+
+
+def parse_range_options(raw: str):
+    items = []
+    for part in (raw or "").split(";"):
+        v = part.strip()
+        if v:
+            items.append(v)
+    return items
+
+
+def get_default_range_options():
+    return ["0", "1-2", "3-4", "5-6", "7-8", "9-10", "11+"]
+
+
+def get_bonus_type_label(type_value: str):
+    for item in BONUS_TYPE_CHOICES:
+        if item["value"] == type_value:
+            return item["label"]
+    return type_value or "?"
+
+
+def get_bonus_options_for_type(qtype: str, question: dict = None):
+    qtype = (qtype or "").strip()
+    question = question or {}
+
+    if qtype == "yes_no":
+        return ["Oui", "Non"]
+    if qtype == "rider":
+        return list(RIDERS)
+    if qtype == "team":
+        return list(ALL_TEAMS)
+    if qtype == "official_team":
+        return list(OFFICIAL_TEAMS)
+    if qtype == "satellite_team":
+        return list(SATELLITE_TEAMS)
+    if qtype == "range":
+        opts = question.get("options") or []
+        return opts if opts else get_default_range_options()
+    return []
+
+
+def validate_bonus_answer_for_question(question: dict, answer):
+    question = question or {}
+    qtype = (question.get("type") or "").strip()
+    answer = "" if answer is None else str(answer).strip()
+
+    if not qtype:
+        return False, "Type de question bonus invalide."
+
+    if qtype in {"yes_no", "rider", "team", "official_team", "satellite_team", "range"}:
+        allowed = get_bonus_options_for_type(qtype, question)
+        if answer and answer not in allowed:
+            return False, f"Réponse non autorisée pour la question '{question.get('label', question.get('id', '?'))}'."
+        return True, ""
+
+    if qtype == "number":
+        if not answer:
+            return True, ""
+        try:
+            int(answer)
+            return True, ""
+        except Exception:
+            return False, f"Réponse numérique invalide pour '{question.get('label', question.get('id', '?'))}'."
+
+    if qtype == "text":
+        return True, ""
+
+    return False, "Type de question bonus non reconnu."
+
+
+def normalize_bonus_answer_by_type(qtype: str, value):
+    qtype = (qtype or "").strip()
+    if value is None:
+        return ""
+
+    if qtype == "number":
+        try:
+            return str(int(str(value).strip()))
+        except Exception:
+            return ""
+
+    if qtype == "text":
+        return normalize_text_free(str(value))
+
+    return str(value).strip()
+
+
+def is_bonus_answer_correct(question: dict, predicted, actual):
+    question = question or {}
+    qtype = question.get("type") or ""
+
+    if not predicted or not actual:
+        return False
+
+    return normalize_bonus_answer_by_type(qtype, predicted) == normalize_bonus_answer_by_type(qtype, actual)
+
+
+def sanitize_bonus_question(raw_question: dict, fallback_id: str = None):
+    raw_question = raw_question or {}
+    qid = (raw_question.get("id") or fallback_id or "").strip()
+    label = (raw_question.get("label") or "").strip()
+    qtype = (raw_question.get("type") or "yes_no").strip()
+    correct_answer = raw_question.get("correct_answer", "")
+    order = raw_question.get("order")
+    options = raw_question.get("options") or []
+
+    if qtype not in {x["value"] for x in BONUS_TYPE_CHOICES}:
+        qtype = "yes_no"
+
+    if not qid:
+        qid = f"b-{uuid.uuid4().hex[:8]}"
+
+    if qtype == "range":
+        cleaned_options = []
+        for o in options:
+            oo = str(o).strip()
+            if oo and oo not in cleaned_options:
+                cleaned_options.append(oo)
+        options = cleaned_options if cleaned_options else get_default_range_options()
+    else:
+        options = []
+
+    return {
+        "id": qid,
+        "label": label,
+        "type": qtype,
+        "options": options,
+        "correct_answer": "" if correct_answer is None else str(correct_answer).strip(),
+        "order": int(order) if str(order).isdigit() else 999,
+    }
+
+
+def sanitize_bonus_questions_list(items):
+    out = []
+    seen = set()
+    for idx, raw in enumerate(items or []):
+        if not isinstance(raw, dict):
+            continue
+        q = sanitize_bonus_question(raw, fallback_id=f"b{idx+1}")
+        if not q.get("label"):
+            continue
+        if q["id"] in seen:
+            q["id"] = f"{q['id']}-{idx+1}"
+        seen.add(q["id"])
+        out.append(q)
+
+    out.sort(key=lambda x: (x.get("order", 999), x.get("label", "").lower()))
+    return out
 
 
 # ------------------ DB (PostgreSQL) ------------------
@@ -673,8 +890,27 @@ def load_weekends_data():
     if isinstance(data, list):
         return {"weekends": data}
     if isinstance(data, dict) and "weekends" in data:
+        data["weekends"] = sanitize_weekends_list(data.get("weekends", []))
         return data
     return {"weekends": []}
+
+
+def save_weekends_data(data: dict):
+    data = dict(data or {})
+    data["weekends"] = sanitize_weekends_list(data.get("weekends", []))
+    save_json(WEEKENDS_FILE, data)
+
+
+def sanitize_weekends_list(weekends):
+    out = []
+    for w in weekends or []:
+        if not isinstance(w, dict):
+            continue
+        ww = dict(w)
+        ww.setdefault("bonus_questions", [])
+        ww["bonus_questions"] = sanitize_bonus_questions_list(ww.get("bonus_questions") or [])
+        out.append(ww)
+    return out
 
 
 def load_weekends_list():
@@ -695,14 +931,28 @@ def bootstrap_weekends():
                 "date": f"{date.today().year}-04-12",
                 "time": None,
                 "bonus_questions": [
-                    {"id": "b1", "label": "Un pilote Ducati sur le podium du GP ?", "type": "bool"},
-                    {"id": "b2", "label": "Chute lors du sprint ?", "type": "bool"},
+                    {
+                        "id": "b1",
+                        "label": "Un pilote Ducati sur le podium du GP ?",
+                        "type": "yes_no",
+                        "options": [],
+                        "correct_answer": "",
+                        "order": 1
+                    },
+                    {
+                        "id": "b2",
+                        "label": "Combien de chutes pendant le GP ?",
+                        "type": "range",
+                        "options": ["0", "1-2", "3-4", "5-6", "7+"],
+                        "correct_answer": "",
+                        "order": 2
+                    },
                 ],
             }
         ],
     }
     os.makedirs(DATA_DIR, exist_ok=True)
-    save_json(WEEKENDS_FILE, demo)
+    save_weekends_data(demo)
 
 
 bootstrap_weekends()
@@ -712,8 +962,112 @@ def get_weekend(weekend_id):
     for w in load_weekends_list():
         if w.get("id") == weekend_id:
             w.setdefault("bonus_questions", [])
+            w["bonus_questions"] = sanitize_bonus_questions_list(w.get("bonus_questions", []))
+            for q in w["bonus_questions"]:
+                q["type_label"] = get_bonus_type_label(q.get("type"))
+                q["resolved_options"] = get_bonus_options_for_type(q.get("type"), q)
             return w
     return None
+
+
+def update_weekend_bonus_questions(weekend_id: str, new_questions: list):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    found = False
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            w["bonus_questions"] = sanitize_bonus_questions_list(new_questions)
+            found = True
+            break
+    if not found:
+        return False
+    save_weekends_data(data)
+    return True
+
+
+def add_bonus_question_to_weekend(weekend_id: str, label: str, qtype: str, options_raw: str = ""):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            questions = sanitize_bonus_questions_list(w.get("bonus_questions", []))
+            next_order = max([q.get("order", 0) for q in questions] + [0]) + 1
+
+            qtype = (qtype or "").strip()
+            if qtype not in {x["value"] for x in BONUS_TYPE_CHOICES}:
+                qtype = "yes_no"
+
+            options = parse_range_options(options_raw) if qtype == "range" else []
+            if qtype == "range" and not options:
+                options = get_default_range_options()
+
+            qid = f"b-{uuid.uuid4().hex[:8]}"
+            questions.append({
+                "id": qid,
+                "label": (label or "").strip(),
+                "type": qtype,
+                "options": options,
+                "correct_answer": "",
+                "order": next_order,
+            })
+            w["bonus_questions"] = questions
+            save_weekends_data(data)
+            return True
+    return False
+
+
+def update_bonus_question_in_weekend(weekend_id: str, question_id: str, label: str, qtype: str, options_raw: str = ""):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            questions = sanitize_bonus_questions_list(w.get("bonus_questions", []))
+            found = False
+            for q in questions:
+                if q.get("id") == question_id:
+                    found = True
+                    q["label"] = (label or "").strip()
+                    q["type"] = (qtype or "").strip()
+                    if q["type"] not in {x["value"] for x in BONUS_TYPE_CHOICES}:
+                        q["type"] = "yes_no"
+                    q["options"] = parse_range_options(options_raw) if q["type"] == "range" else []
+                    if q["type"] == "range" and not q["options"]:
+                        q["options"] = get_default_range_options()
+
+                    correct = q.get("correct_answer")
+                    ok, _ = validate_bonus_answer_for_question(q, correct)
+                    if not ok:
+                        q["correct_answer"] = ""
+                    break
+
+            if not found:
+                return False
+
+            w["bonus_questions"] = questions
+            save_weekends_data(data)
+            return True
+    return False
+
+
+def delete_bonus_question_from_weekend(weekend_id: str, question_id: str):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    changed = False
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            before = len(w.get("bonus_questions", []))
+            w["bonus_questions"] = [
+                q for q in sanitize_bonus_questions_list(w.get("bonus_questions", []))
+                if q.get("id") != question_id
+            ]
+            after = len(w["bonus_questions"])
+            if after != before:
+                changed = True
+            break
+
+    if changed:
+        save_weekends_data(data)
+    return changed
 
 
 # ------------------ Statuts GP ------------------
@@ -892,6 +1246,8 @@ def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
         "bonus_label": bonus_label,
         "total": total
     }
+
+
 def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
     pole_ok = normalize(pole_pred) == normalize(pole_real)
     pole_pts = 2.0 if pole_ok else 0.0
@@ -925,16 +1281,20 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
         bid = b.get("id")
         if not bid:
             continue
-        pred = (pred_bonus.get(bid) or "").strip().lower()
-        real = (real_bonus.get(bid) or "").strip().lower()
-        ok = bool(pred and real and pred == real)
-        pts = 0.5 if ok else 0.0
+
+        pred = pred_bonus.get(bid)
+        real = real_bonus.get(bid)
+        ok = is_bonus_answer_correct(b, pred, real)
+        pts = BONUS_POINTS_PER_QUESTION if ok else 0.0
         total += pts
+
         items.append({
             "id": bid,
             "label": b.get("label", bid),
-            "pred": pred_bonus.get(bid),
-            "real": real_bonus.get(bid),
+            "type": b.get("type"),
+            "type_label": get_bonus_type_label(b.get("type")),
+            "pred": pred,
+            "real": real,
             "ok": ok,
             "pts": pts
         })
@@ -1002,8 +1362,21 @@ def load_results(weekend_id: str):
                 WHERE weekend_id=:w
             """), {"w": weekend_id}).fetchone()
         if row and row[0]:
-            return dict(row[0] or {})
-    return load_json(results_path(weekend_id), None)
+            data = dict(row[0] or {})
+        else:
+            data = None
+    else:
+        data = load_json(results_path(weekend_id), None)
+
+    if not data:
+        return data
+
+    data.setdefault("bonus", {})
+    w = get_weekend(weekend_id)
+    if w:
+        allowed_ids = {q["id"] for q in w.get("bonus_questions", [])}
+        data["bonus"] = {k: v for k, v in (data.get("bonus") or {}).items() if k in allowed_ids}
+    return data
 
 
 def save_results(weekend_id: str, results: dict):
@@ -1389,6 +1762,16 @@ def pronos(weekend_id):
             flash("Doublon détecté : un pilote ne peut apparaître qu'une fois dans Q1 / Sprint / GP.")
             return redirect(url_for("pronos", weekend_id=weekend_id))
 
+        bonus_answers = {}
+        for b in w.get("bonus_questions", []):
+            bid = b["id"]
+            answer = form.get(f"bonus_{bid}")
+            ok, err = validate_bonus_answer_for_question(b, answer)
+            if not ok:
+                flash(err)
+                return redirect(url_for("pronos", weekend_id=weekend_id))
+            bonus_answers[bid] = "" if answer is None else str(answer).strip()
+
         payload = {
             "player_name": name,
             "pole": form.get("pole"),
@@ -1400,7 +1783,7 @@ def pronos(weekend_id):
             "gp_p1": form.get("gp_p1"),
             "gp_p2": form.get("gp_p2"),
             "gp_p3": form.get("gp_p3"),
-            "bonus": {b["id"]: form.get(f"bonus_{b['id']}") for b in w.get("bonus_questions", [])}
+            "bonus": bonus_answers
         }
 
         if engine:
@@ -1467,6 +1850,10 @@ def pronos(weekend_id):
         "pronos.html",
         w=w,
         riders=RIDERS,
+        all_teams=ALL_TEAMS,
+        official_teams=OFFICIAL_TEAMS,
+        satellite_teams=SATELLITE_TEAMS,
+        bonus_type_choices=BONUS_TYPE_CHOICES,
         my=my,
         name=name,
         closed=closed,
@@ -1526,6 +1913,7 @@ def admin_home():
             "count": count,
             "closed": is_weekend_closed(wid) if engine else False,
             "public": is_weekend_closed(wid) if engine else False,
+            "bonus_count": len(w.get("bonus_questions", []) or []),
         })
 
     championnat_count = len(get_latest_championnat_pronos_by_player())
@@ -1631,6 +2019,8 @@ def admin_hide_championnat():
     hide_championnat()
     flash("🙈 Pronostics championnat masqués")
     return redirect(url_for("admin_championnat"))
+
+
 @app.route("/admin/w/<weekend_id>")
 @require_admin
 def admin_weekend(weekend_id):
@@ -1649,7 +2039,11 @@ def admin_weekend(weekend_id):
         w=w,
         count=count,
         closed=closed,
-        public=public
+        public=public,
+        bonus_type_choices=BONUS_TYPE_CHOICES,
+        all_teams=ALL_TEAMS,
+        official_teams=OFFICIAL_TEAMS,
+        satellite_teams=SATELLITE_TEAMS
     )
 
 
@@ -1681,58 +2075,143 @@ def admin_results(weekend_id):
         return "Week-end inconnu", 404
 
     results = load_results(weekend_id) or {}
+    results.setdefault("bonus", {})
 
     if request.method == "POST":
         f = request.form
+
+        bonus_results = {}
+        for b in w.get("bonus_questions", []):
+            bid = b["id"]
+            answer = f.get(f"bonus_{bid}")
+            ok, err = validate_bonus_answer_for_question(b, answer)
+            if not ok:
+                flash(f"Bonne réponse bonus invalide : {err}")
+                return redirect(url_for("admin_results", weekend_id=weekend_id))
+            bonus_results[bid] = "" if answer is None else str(answer).strip()
+
         results = {
             "pole": f.get("pole"),
             "q1": [f.get("q1_1"), f.get("q1_2")],
             "sprint": [f.get("sprint_p1"), f.get("sprint_p2"), f.get("sprint_p3")],
             "gp": [f.get("gp_p1"), f.get("gp_p2"), f.get("gp_p3")],
-            "bonus": {b["id"]: f.get(f"bonus_{b['id']}") for b in w.get("bonus_questions", [])}
+            "bonus": bonus_results
         }
         save_results(weekend_id, results)
+
+        # On met aussi à jour correct_answer dans weekends.json pour garder l'historique côté GP
+        data = load_weekends_data()
+        for ww in data.get("weekends", []):
+            if ww.get("id") == weekend_id:
+                questions = sanitize_bonus_questions_list(ww.get("bonus_questions", []))
+                for q in questions:
+                    q["correct_answer"] = bonus_results.get(q["id"], "")
+                ww["bonus_questions"] = questions
+                break
+        save_weekends_data(data)
+
         flash("Résultats officiels enregistrés ✅")
         return redirect(url_for("admin_results", weekend_id=weekend_id))
 
     name, _ = current_player(request)
-    return render_template("admin_results.html", name=name, w=w, riders=RIDERS, results=results)
+    return render_template(
+        "admin_results.html",
+        name=name,
+        w=w,
+        riders=RIDERS,
+        all_teams=ALL_TEAMS,
+        official_teams=OFFICIAL_TEAMS,
+        satellite_teams=SATELLITE_TEAMS,
+        bonus_type_choices=BONUS_TYPE_CHOICES,
+        results=results
+    )
 
 
+# ------------------ ADMIN : questions bonus dynamiques ------------------
 @app.route("/admin/w/<weekend_id>/questions", methods=["GET", "POST"])
 @require_admin
 def admin_questions(weekend_id):
-    data = load_weekends_data()
-    weekends = data.get("weekends", [])
-    w = None
-    for ww in weekends:
-        if ww.get("id") == weekend_id:
-            w = ww
-            break
+    w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
 
-    w.setdefault("bonus_questions", [])
-    by_id = {q.get("id"): q for q in w["bonus_questions"] if isinstance(q, dict)}
-    q1 = by_id.get("b1", {"id": "b1", "label": "", "type": "bool"})
-    q2 = by_id.get("b2", {"id": "b2", "label": "", "type": "bool"})
-
     if request.method == "POST":
-        q1["label"] = (request.form.get("b1_label") or "").strip()
-        q2["label"] = (request.form.get("b2_label") or "").strip()
-        q1["type"] = "bool"
-        q2["type"] = "bool"
+        action = (request.form.get("action") or "add").strip().lower()
 
-        w["bonus_questions"] = [q1, q2]
-        save_json(WEEKENDS_FILE, data)
-        flash("Questions bonus enregistrées ✅")
+        if action == "add":
+            label = (request.form.get("label") or "").strip()
+            qtype = (request.form.get("type") or "yes_no").strip()
+            options_raw = (request.form.get("range_options") or "").strip()
+
+            if not label:
+                flash("Le texte de la question est obligatoire.")
+                return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+            ok = add_bonus_question_to_weekend(weekend_id, label, qtype, options_raw)
+            if ok:
+                flash("Question bonus ajoutée ✅")
+            else:
+                flash("Impossible d'ajouter la question bonus.")
+            return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+        if action == "update":
+            question_id = (request.form.get("question_id") or "").strip()
+            label = (request.form.get("label") or "").strip()
+            qtype = (request.form.get("type") or "yes_no").strip()
+            options_raw = (request.form.get("range_options") or "").strip()
+
+            if not question_id:
+                flash("Question introuvable.")
+                return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+            if not label:
+                flash("Le texte de la question est obligatoire.")
+                return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+            ok = update_bonus_question_in_weekend(weekend_id, question_id, label, qtype, options_raw)
+            if ok:
+                flash("Question bonus modifiée ✅")
+            else:
+                flash("Impossible de modifier la question bonus.")
+            return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+        if action == "delete":
+            question_id = (request.form.get("question_id") or "").strip()
+            if not question_id:
+                flash("Question introuvable.")
+                return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+            ok = delete_bonus_question_from_weekend(weekend_id, question_id)
+            if ok:
+                flash("Question bonus supprimée ✅")
+            else:
+                flash("Impossible de supprimer la question bonus.")
+            return redirect(url_for("admin_questions", weekend_id=weekend_id))
+
+        flash("Action inconnue.")
         return redirect(url_for("admin_questions", weekend_id=weekend_id))
 
     name, _ = current_player(request)
     try:
-        return render_template("admin_questions.html", name=name, w=w, q1=q1, q2=q2)
+        return render_template(
+            "admin_questions.html",
+            name=name,
+            w=w,
+            bonus_type_choices=BONUS_TYPE_CHOICES,
+            all_teams=ALL_TEAMS,
+            official_teams=OFFICIAL_TEAMS,
+            satellite_teams=SATELLITE_TEAMS
+        )
     except Exception:
-        return render_template("admin_question.html", name=name, w=w, q1=q1, q2=q2)
+        return render_template(
+            "admin_question.html",
+            name=name,
+            w=w,
+            bonus_type_choices=BONUS_TYPE_CHOICES,
+            all_teams=ALL_TEAMS,
+            official_teams=OFFICIAL_TEAMS,
+            satellite_teams=SATELLITE_TEAMS
+        )
 
 
 # ------------------ Public : page HTML pronos ------------------
@@ -1929,10 +2408,10 @@ def classement_weekend(weekend_id):
             bid = b.get("id")
             if not bid:
                 continue
-            pred = (p.get("bonus", {}).get(bid) or "").lower()
-            real = (results.get("bonus", {}).get(bid) or "").lower()
-            if pred and real and pred == real:
-                bonus_score += 0.5
+            pred = (p.get("bonus", {}) or {}).get(bid)
+            real = (results.get("bonus", {}) or {}).get(bid)
+            if is_bonus_answer_correct(b, pred, real):
+                bonus_score += BONUS_POINTS_PER_QUESTION
 
         total = round(q_score + s_score + g_score + bonus_score, 2)
         rows.append({
@@ -2031,10 +2510,10 @@ def classement_general():
                 bid = b.get("id")
                 if not bid:
                     continue
-                pred = (p.get("bonus", {}).get(bid) or "").lower()
-                real = (results.get("bonus", {}).get(bid) or "").lower()
-                if pred and real and pred == real:
-                    bonus_score += 0.5
+                pred = (p.get("bonus", {}) or {}).get(bid)
+                real = (results.get("bonus", {}) or {}).get(bid)
+                if is_bonus_answer_correct(b, pred, real):
+                    bonus_score += BONUS_POINTS_PER_QUESTION
 
             total_gp = round(q_score + s_score + g_score + bonus_score, 2)
 
