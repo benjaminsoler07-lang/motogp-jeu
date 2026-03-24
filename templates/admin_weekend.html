@@ -13,20 +13,28 @@
   </p>
 
   <div style="margin-top:10px;">
-    {% if closed %}
+    {% if cancelled %}
+      <span class="status-closed">🚫 Annulé</span>
+    {% elif closed %}
       <span class="status-closed">🔒 Clos</span>
     {% else %}
       <span class="status-open">🟢 Ouvert</span>
     {% endif %}
 
-    {% if public %}
+    {% if public and not cancelled %}
       <span class="status-public" style="margin-left:15px;">👀 Public</span>
     {% else %}
       <span class="status-private" style="margin-left:15px;">🙈 Non public</span>
     {% endif %}
   </div>
 
-  {% if closed %}
+  {% if cancelled %}
+    <div class="card" style="margin-top:12px; background: rgba(255,255,255,.06);">
+      <p style="margin:0;">
+        🚫 <strong>GP annulé :</strong> pronostics, questions bonus et résultats sont désactivés.
+      </p>
+    </div>
+  {% elif closed %}
     <div class="card" style="margin-top:12px; background: rgba(255,255,255,.06);">
       <p style="margin:0 0 8px 0;">
         ✅ <strong>GP fermé :</strong> les pronos sont maintenant visibles par tout le monde.
@@ -48,47 +56,72 @@
 
 <div class="card admin-actions" style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center;">
 
-  <a class="btn btn-small" href="{{ url_for('admin_questions', weekend_id=w.id) }}">
-    ❓ Questions bonus
-  </a>
+  {% if not cancelled %}
+    <a class="btn btn-small" href="{{ url_for('admin_questions', weekend_id=w.id) }}">
+      ❓ Questions bonus
+    </a>
 
-  <a class="btn btn-small" href="{{ url_for('admin_results', weekend_id=w.id) }}">
-    🏁 Entrer résultats
-  </a>
-
-  {% if closed %}
-    <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
-      <input type="hidden" name="state" value="on">
-      <button class="btn btn-small" type="submit">
-        🟢 Ouvrir les pronos (redevient privé)
-      </button>
-    </form>
+    <a class="btn btn-small" href="{{ url_for('admin_results', weekend_id=w.id) }}">
+      🏁 Entrer résultats
+    </a>
   {% else %}
-    <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
-      <input type="hidden" name="state" value="off">
-      <button class="btn btn-small btn-warning" type="submit">
-        🔴 Fermer + rendre public
-      </button>
-    </form>
+    <span class="btn btn-small btn-disabled">❓ Questions bonus</span>
+    <span class="btn btn-small btn-disabled">🏁 Entrer résultats</span>
   {% endif %}
 
-  <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
-    👥 Page joueurs
-  </a>
+  {% if not cancelled %}
+    {% if closed %}
+      <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
+        <input type="hidden" name="state" value="on">
+        <button class="btn btn-small" type="submit">
+          🟢 Ouvrir les pronos (redevient privé)
+        </button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('admin_toggle_pronos', weekend_id=w.id) }}">
+        <input type="hidden" name="state" value="off">
+        <button class="btn btn-small btn-warning" type="submit">
+          🔴 Fermer + rendre public
+        </button>
+      </form>
+    {% endif %}
+  {% else %}
+    <span class="btn btn-small btn-disabled">🔒 Actions GP désactivées</span>
+  {% endif %}
 
-  {% if public %}
+  {% if not cancelled %}
+    <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">
+      👥 Page joueurs
+    </a>
+  {% else %}
+    <span class="btn btn-small btn-disabled">👥 Page joueurs</span>
+  {% endif %}
+
+  {% if public and not cancelled %}
     <a class="btn btn-small" href="{{ url_for('public_pronos', weekend_id=w.id) }}">
       👀 Voir pronos publics
     </a>
   {% else %}
     <div style="display:flex; align-items:center; gap:10px;">
       <span class="btn btn-small btn-disabled">👀 Voir pronos publics</span>
-      <span style="font-size:13px; opacity:.8;">(disponible quand tu fermes le GP)</span>
+      {% if cancelled %}
+        <span style="font-size:13px; opacity:.8;">(GP annulé)</span>
+      {% else %}
+        <span style="font-size:13px; opacity:.8;">(disponible quand tu fermes le GP)</span>
+      {% endif %}
     </div>
   {% endif %}
 
-  <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">
-    📊 Voir classement
+  {% if not cancelled %}
+    <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">
+      📊 Voir classement
+    </a>
+  {% else %}
+    <span class="btn btn-small btn-disabled">📊 Voir classement</span>
+  {% endif %}
+
+  <a class="btn btn-small" href="{{ url_for('admin_calendar') }}">
+    🗓️ Retour calendrier
   </a>
 
 </div>
