@@ -14,6 +14,8 @@
 #   (liste / recherche / suppression unitaire / suppression groupée)
 # + NOUVEAU : questions bonus dynamiques par GP
 #   (ajout / modif / suppression + types verrouillés + correction auto)
+# + NOUVEAU : gestion admin du calendrier MotoGP
+#   (modif date/libellé, annulation, réactivation, tri auto)
 
 import os
 import json
@@ -909,6 +911,7 @@ def sanitize_weekends_list(weekends):
         ww = dict(w)
         ww.setdefault("bonus_questions", [])
         ww["bonus_questions"] = sanitize_bonus_questions_list(ww.get("bonus_questions") or [])
+        ww["cancelled"] = bool(ww.get("cancelled", False))
         out.append(ww)
     return out
 
@@ -930,6 +933,7 @@ def bootstrap_weekends():
                 "label": "GP du Qatar",
                 "date": f"{date.today().year}-04-12",
                 "time": None,
+                "cancelled": False,
                 "bonus_questions": [
                     {
                         "id": "b1",
@@ -961,11 +965,15 @@ bootstrap_weekends()
 def get_weekend(weekend_id):
     for w in load_weekends_list():
         if w.get("id") == weekend_id:
+            w = dict(w)
             w.setdefault("bonus_questions", [])
             w["bonus_questions"] = sanitize_bonus_questions_list(w.get("bonus_questions", []))
+            w["cancelled"] = bool(w.get("cancelled", False))
+
             for q in w["bonus_questions"]:
                 q["type_label"] = get_bonus_type_label(q.get("type"))
                 q["resolved_options"] = get_bonus_options_for_type(q.get("type"), q)
+
             return w
     return None
 
@@ -1070,6 +1078,71 @@ def delete_bonus_question_from_weekend(weekend_id: str, question_id: str):
     return changed
 
 
+def is_weekend_cancelled(weekend_or_id) -> bool:
+    if isinstance(weekend_or_id, dict):
+        return bool(weekend_or_id.get("cancelled", False))
+
+    w = get_weekend(str(weekend_or_id))
+    return bool(w and w.get("cancelled", False))
+
+
+def weekend_sort_key(w: dict):
+    season_year = get_season_year()
+    d = parse_weekend_date(w.get("date", ""), season_year)
+    return (d or date.max, (w.get("label") or "").lower())
+
+
+def get_sorted_weekends():
+    items = []
+    for w in load_weekends_list():
+        ww = dict(w)
+        ww["cancelled"] = bool(ww.get("cancelled", False))
+        ww["date_obj"] = parse_weekend_date(ww.get("date", ""), get_season_year())
+        items.append(ww)
+
+    items.sort(key=weekend_sort_key)
+    return items
+
+
+def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: str = None):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            if new_label is not None:
+                w["label"] = (new_label or "").strip() or w.get("label", weekend_id)
+
+            if new_date is not None:
+                new_date = (new_date or "").strip()
+                if not new_date:
+                    return False, "La date est obligatoire."
+
+                parsed = parse_weekend_date(new_date, get_season_year())
+                if not parsed:
+                    return False, "Date invalide. Format attendu : YYYY-MM-DD."
+
+                w["date"] = parsed.isoformat()
+
+            save_weekends_data(data)
+            return True, "GP mis à jour."
+
+    return False, "Week-end introuvable."
+
+
+def set_weekend_cancelled_flag(weekend_id: str, cancelled: bool):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            w["cancelled"] = bool(cancelled)
+            save_weekends_data(data)
+            return True, "Statut du GP mis à jour."
+
+    return False, "Week-end introuvable."
+
+
 # ------------------ Statuts GP ------------------
 def get_season_year():
     data = load_weekends_data()
@@ -1094,7 +1167,9 @@ def parse_weekend_date(raw_date: str, season_year: int):
         return None
 
 
-def weekend_status(weekend_date: date, open_days_before: int = 10):
+def weekend_status(weekend_date: date, open_days_before: int = 10, cancelled: bool = False):
+    if cancelled:
+        return "cancelled"
     if not weekend_date:
         return "closed"
     today = date.today()
@@ -1484,19 +1559,19 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
 def home():
     name, _ = current_player(request)
 
-    season_year = get_season_year()
-    weekends_raw = load_weekends_list()
-
+    weekends_raw = get_sorted_weekends()
     weekends = []
+
     for w in weekends_raw:
         w2 = dict(w)
-        w_date = parse_weekend_date(w.get("date", ""), season_year)
-        w2["date_obj"] = w_date
-        w2["status"] = weekend_status(w_date, open_days_before=10)
-        w2["closed_db"] = is_weekend_closed(w.get("id", "")) if engine else False
+        w2["status"] = weekend_status(
+            w2.get("date_obj"),
+            open_days_before=10,
+            cancelled=bool(w2.get("cancelled", False))
+        )
+        w2["closed_db"] = is_weekend_closed(w2.get("id", "")) if engine else False
         weekends.append(w2)
 
-    weekends.sort(key=lambda x: x["date_obj"] or date.max)
     return render_template(
         "index.html",
         name=name,
@@ -1713,6 +1788,9 @@ def pronos(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
+    if w.get("cancelled"):
+        return "Ce GP est annulé. Les pronostics sont indisponibles.", 403
+
     closed = is_weekend_closed(weekend_id) if engine else False
 
     if closed:
@@ -1896,7 +1974,7 @@ def admin_logout():
 @app.route("/admin")
 @require_admin
 def admin_home():
-    weekends = load_weekends_list()
+    weekends = get_sorted_weekends()
     enriched = []
 
     for w in weekends:
@@ -1914,6 +1992,7 @@ def admin_home():
             "closed": is_weekend_closed(wid) if engine else False,
             "public": is_weekend_closed(wid) if engine else False,
             "bonus_count": len(w.get("bonus_questions", []) or []),
+            "cancelled": bool(w.get("cancelled", False)),
         })
 
     championnat_count = len(get_latest_championnat_pronos_by_player())
@@ -2040,6 +2119,7 @@ def admin_weekend(weekend_id):
         count=count,
         closed=closed,
         public=public,
+        cancelled=bool(w.get("cancelled", False)),
         bonus_type_choices=BONUS_TYPE_CHOICES,
         all_teams=ALL_TEAMS,
         official_teams=OFFICIAL_TEAMS,
@@ -2066,6 +2146,98 @@ def admin_toggle_pronos(weekend_id):
     return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
 
+@app.route("/admin/calendar")
+@require_admin
+def admin_calendar():
+    items = []
+    for w in get_sorted_weekends():
+        wid = w.get("id")
+        closed = is_weekend_closed(wid) if engine else False
+        cancelled = bool(w.get("cancelled", False))
+        status = weekend_status(
+            w.get("date_obj"),
+            open_days_before=10,
+            cancelled=cancelled
+        )
+
+        items.append({
+            "id": wid,
+            "label": w.get("label", wid),
+            "date": w.get("date"),
+            "date_obj": w.get("date_obj"),
+            "closed": closed,
+            "public": closed,
+            "cancelled": cancelled,
+            "status": status,
+            "count": count_distinct_pronos_for_weekend(wid),
+            "can_edit_date": not closed,
+            "can_cancel": not closed and not cancelled,
+            "can_reactivate": not closed and cancelled,
+        })
+
+    name, _ = current_player(request)
+    return render_template(
+        "admin_calendar.html",
+        name=name,
+        weekends=items
+    )
+
+
+@app.route("/admin/calendar/<weekend_id>/update", methods=["POST"])
+@require_admin
+def admin_calendar_update(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    if is_weekend_closed(weekend_id):
+        flash("GP déjà clos : date non modifiable.")
+        return redirect(url_for("admin_calendar"))
+
+    new_date = (request.form.get("date") or "").strip()
+    new_label = (request.form.get("label") or "").strip()
+
+    ok, msg = update_weekend_calendar(
+        weekend_id=weekend_id,
+        new_date=new_date,
+        new_label=new_label
+    )
+    flash(msg)
+    return redirect(url_for("admin_calendar"))
+
+
+@app.route("/admin/calendar/<weekend_id>/cancel", methods=["POST"])
+@require_admin
+def admin_calendar_cancel(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    if is_weekend_closed(weekend_id):
+        flash("GP déjà clos : annulation impossible depuis l'admin calendrier.")
+        return redirect(url_for("admin_calendar"))
+
+    ok, msg = set_weekend_cancelled_flag(weekend_id, True)
+    flash("GP marqué comme annulé ✅" if ok else msg)
+    return redirect(url_for("admin_calendar"))
+
+
+@app.route("/admin/calendar/<weekend_id>/reactivate", methods=["POST"])
+@require_admin
+def admin_calendar_reactivate(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+
+    if is_weekend_closed(weekend_id):
+        flash("GP déjà clos : réactivation impossible.")
+        return redirect(url_for("admin_calendar"))
+
+    ok, msg = set_weekend_cancelled_flag(weekend_id, False)
+    flash("GP réactivé ✅" if ok else msg)
+    return redirect(url_for("admin_calendar"))
+
+
 # ------------------ ADMIN : results ------------------
 @app.route("/admin/w/<weekend_id>/results", methods=["GET", "POST"])
 @require_admin
@@ -2073,6 +2245,10 @@ def admin_results(weekend_id):
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
+
+    if w.get("cancelled"):
+        flash("GP annulé : saisie des résultats désactivée.")
+        return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
     results = load_results(weekend_id) or {}
     results.setdefault("bonus", {})
@@ -2134,6 +2310,10 @@ def admin_questions(weekend_id):
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
+
+    if w.get("cancelled"):
+        flash("GP annulé : gestion des questions bonus désactivée.")
+        return redirect(url_for("admin_weekend", weekend_id=weekend_id))
 
     if request.method == "POST":
         action = (request.form.get("action") or "add").strip().lower()
@@ -2223,6 +2403,9 @@ def public_pronos(weekend_id):
     if not engine:
         return "DB non configurée (DATABASE_URL manquant).", 500
 
+    if w.get("cancelled"):
+        return "Ce GP est annulé.", 403
+
     if not is_weekend_closed(weekend_id):
         return "Pronos pas encore visibles : le GP est encore ouvert.", 403
 
@@ -2262,7 +2445,7 @@ def public_pronos(weekend_id):
 def results_by_race():
     name, _ = current_player(request)
 
-    weekends = load_weekends_list()
+    weekends = get_sorted_weekends()
     gp_id = (request.args.get("gp") or "").strip()
 
     selected = get_weekend(gp_id) if gp_id else None
@@ -2276,6 +2459,19 @@ def results_by_race():
             results=None,
             rows=[],
             notice=None,
+            admin_enabled=admin_enabled(),
+            is_admin=is_admin()
+        )
+
+    if selected.get("cancelled"):
+        return render_template(
+            "results_by_race.html",
+            name=name,
+            weekends=weekends,
+            selected=selected,
+            results=None,
+            rows=[],
+            notice="Ce GP est annulé.",
             admin_enabled=admin_enabled(),
             is_admin=is_admin()
         )
@@ -2358,6 +2554,9 @@ def classement_weekend(weekend_id):
     w = get_weekend(weekend_id)
     if not w:
         return "Week-end inconnu", 404
+
+    if w.get("cancelled"):
+        return "Ce GP est annulé.", 403
 
     closed = is_weekend_closed(weekend_id) if engine else False
     pronos_by_player = get_latest_pronos_by_player_for_weekend(weekend_id)
@@ -2443,7 +2642,7 @@ def classement_weekend(weekend_id):
 def classement_general():
     name, _ = current_player(request)
 
-    weekends = load_weekends_list()
+    weekends = get_sorted_weekends()
     if not weekends:
         return render_template(
             "classement_general.html",
@@ -2455,18 +2654,15 @@ def classement_general():
             is_admin=is_admin()
         )
 
-    season_year = get_season_year()
-
-    def _w_sort_key(w):
-        d = parse_weekend_date(w.get("date", ""), season_year)
-        return d or date.max
-
-    weekends_sorted = sorted(weekends, key=_w_sort_key)
+    weekends_sorted = weekends
 
     totals = {}
     gp_scored = []
 
     for w in weekends_sorted:
+        if w.get("cancelled"):
+            continue
+
         wid = (w.get("id") or "").strip()
         if not wid:
             continue
