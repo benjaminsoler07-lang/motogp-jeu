@@ -30,9 +30,13 @@
             {% if w.status == 'past' %}gp-past{% endif %}
             {% if w.status == 'closed' %}gp-closed{% endif %}
             {% if w.status == 'open' %}gp-open{% endif %}
+            {% if w.status == 'cancelled' %}gp-cancelled{% endif %}
         ">
 
-          {% if name and w.status == 'open' %}
+          {% if w.status == 'cancelled' %}
+            <span>🚫 <s>{{ w.label }}</s></span>
+
+          {% elif name and w.status == 'open' %}
             <a href="{{ url_for('pronos', weekend_id=w.id) }}">
               {{ w.label }}
             </a>
