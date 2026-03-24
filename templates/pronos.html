@@ -118,13 +118,94 @@
       {% if w.bonus_questions and w.bonus_questions|length > 0 %}
         <h3>Questions bonus</h3>
         {% set mb = my.bonus if my.bonus is defined and my.bonus else {} %}
+
         {% for b in w.bonus_questions %}
-          <label>{{ b.label }}</label>
-          <select name="bonus_{{ b.id }}">
-            <option value="">--</option>
-            <option value="oui" {% if mb[b.id] == 'oui' %}selected{% endif %}>Oui</option>
-            <option value="non" {% if mb[b.id] == 'non' %}selected{% endif %}>Non</option>
-          </select>
+          {% set current = mb[b.id] if mb[b.id] is defined else '' %}
+
+          <div class="bonus-block">
+            <label for="bonus_{{ b.id }}">
+              {{ b.label }}
+              {% if b.type_label %}
+                <small>({{ b.type_label }})</small>
+              {% endif %}
+            </label>
+
+            {% if b.type == 'yes_no' %}
+              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                <option value="">--</option>
+                <option value="Oui" {% if current == 'Oui' %}selected{% endif %}>Oui</option>
+                <option value="Non" {% if current == 'Non' %}selected{% endif %}>Non</option>
+              </select>
+
+            {% elif b.type == 'rider' %}
+              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                <option value="">--</option>
+                {% for r in riders %}
+                  <option value="{{ r }}" {% if current == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+
+            {% elif b.type == 'team' %}
+              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                <option value="">--</option>
+                {% for team in all_teams %}
+                  <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+                {% endfor %}
+              </select>
+
+            {% elif b.type == 'official_team' %}
+              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                <option value="">--</option>
+                {% for team in official_teams %}
+                  <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+                {% endfor %}
+              </select>
+
+            {% elif b.type == 'satellite_team' %}
+              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                <option value="">--</option>
+                {% for team in satellite_teams %}
+                  <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+                {% endfor %}
+              </select>
+
+            {% elif b.type == 'range' %}
+              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                <option value="">--</option>
+                {% for opt in b.resolved_options %}
+                  <option value="{{ opt }}" {% if current == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+              </select>
+
+            {% elif b.type == 'number' %}
+              <input
+                type="number"
+                name="bonus_{{ b.id }}"
+                id="bonus_{{ b.id }}"
+                value="{{ current }}"
+                inputmode="numeric"
+                step="1"
+              >
+
+            {% elif b.type == 'text' %}
+              <input
+                type="text"
+                name="bonus_{{ b.id }}"
+                id="bonus_{{ b.id }}"
+                value="{{ current }}"
+                maxlength="120"
+                placeholder="Ta réponse"
+              >
+
+            {% else %}
+              <input
+                type="text"
+                name="bonus_{{ b.id }}"
+                id="bonus_{{ b.id }}"
+                value="{{ current }}"
+              >
+            {% endif %}
+          </div>
         {% endfor %}
       {% endif %}
 
