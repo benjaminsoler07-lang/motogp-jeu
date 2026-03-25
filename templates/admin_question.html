@@ -124,7 +124,7 @@
         <form method="post" onsubmit="return confirm('Supprimer cette question bonus ?');">
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="question_id" value="{{ b.id }}">
-          <button class="btn" type="submit">🗑️ Supprimer</button>
+          <button class="btn btn-warning" type="submit">🗑️ Supprimer</button>
         </form>
 
         {% if b.type == 'range' and b.options %}
