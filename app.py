@@ -11,9 +11,8 @@
 # + NOUVEAU : persistance des pronos basée sur le pseudo autorisé
 # + NOUVEAU : authentification joueur par pseudo + code secret
 # + NOUVEAU : gestion admin approfondie des pronos GP
-# + NOUVEAU : questions bonus dynamiques par GP
-# + NOUVEAU : gestion admin du calendrier MotoGP
-# + NOUVEAU : configuration week-ends persistante en PostgreSQL
+# + NOUVEAU : questions bonus dynamiques par GP (persistantes DB)
+# + NOUVEAU : gestion admin du calendrier MotoGP (persistante DB)
 
 import os
 import json
@@ -119,7 +118,7 @@ BONUS_TYPE_CHOICES = [
 ]
 
 
-# ------------------ Auth helpers ------------------
+# ------------------ Utils ------------------
 def admin_enabled():
     return bool(ADMIN_USER and ADMIN_PASS)
 
@@ -139,17 +138,6 @@ def require_admin(fn):
     return wrapper
 
 
-# ------------------ DB ------------------
-DATABASE_URL = os.environ.get("DATABASE_URL")
-engine = None
-
-if DATABASE_URL:
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-
-
-# ------------------ Utils ------------------
 def normalize_pseudo(pseudo: str) -> str:
     return " ".join((pseudo or "").strip().lower().split())
 
@@ -277,44 +265,6 @@ def is_bonus_answer_correct(question: dict, predicted, actual):
     return normalize_bonus_answer_by_type(qtype, predicted) == normalize_bonus_answer_by_type(qtype, actual)
 
 
-def get_season_year():
-    data = load_weekends_data()
-    y = data.get("season_year")
-    if isinstance(y, int):
-        return y
-    return date.today().year
-
-
-def parse_weekend_date(raw_date: str, season_year: int):
-    raw_date = (raw_date or "").strip()
-    if not raw_date:
-        return None
-    try:
-        return datetime.strptime(raw_date, "%Y-%m-%d").date()
-    except Exception:
-        pass
-    try:
-        mm, dd = raw_date.split("-")
-        return date(season_year, int(mm), int(dd))
-    except Exception:
-        return None
-
-
-def weekend_status(weekend_date: date, open_days_before: int = 10, cancelled: bool = False):
-    if cancelled:
-        return "cancelled"
-    if not weekend_date:
-        return "closed"
-    today = date.today()
-    if weekend_date < today:
-        return "past"
-    open_from = weekend_date - timedelta(days=open_days_before)
-    if today >= open_from:
-        return "open"
-    return "closed"
-
-
-# ------------------ JSON helpers ------------------
 def load_json(path, default):
     if not os.path.exists(path):
         return default
@@ -331,7 +281,17 @@ def save_json(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ------------------ Bonus question sanitizers ------------------
+# ------------------ DB (PostgreSQL) ------------------
+DATABASE_URL = os.environ.get("DATABASE_URL")
+engine = None
+
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+
+# ------------------ Weekends sanitize/helpers ------------------
 def sanitize_bonus_question(raw_question: dict, fallback_id: str = None):
     raw_question = raw_question or {}
     qid = (raw_question.get("id") or fallback_id or "").strip()
@@ -398,7 +358,98 @@ def sanitize_weekends_list(weekends):
     return out
 
 
-# ------------------ DB init ------------------
+def get_season_year():
+    if engine:
+        data = load_json(WEEKENDS_FILE, {"season_year": date.today().year})
+        y = data.get("season_year")
+        if isinstance(y, int):
+            return y
+        return date.today().year
+
+    data = load_json(WEEKENDS_FILE, {"season_year": date.today().year})
+    y = data.get("season_year")
+    if isinstance(y, int):
+        return y
+    return date.today().year
+
+
+def parse_weekend_date(raw_date: str, season_year: int):
+    raw_date = (raw_date or "").strip()
+    if not raw_date:
+        return None
+    try:
+        return datetime.strptime(raw_date, "%Y-%m-%d").date()
+    except Exception:
+        pass
+    try:
+        mm, dd = raw_date.split("-")
+        return date(season_year, int(mm), int(dd))
+    except Exception:
+        return None
+
+
+def weekend_status(weekend_date: date, open_days_before: int = 10, cancelled: bool = False):
+    if cancelled:
+        return "cancelled"
+    if not weekend_date:
+        return "closed"
+    today = date.today()
+    if weekend_date < today:
+        return "past"
+    open_from = weekend_date - timedelta(days=open_days_before)
+    if today >= open_from:
+        return "open"
+    return "closed"
+
+
+def weekend_sort_key(w: dict):
+    season_year = get_season_year()
+    d = parse_weekend_date(w.get("date", ""), season_year)
+    return (d or date.max, (w.get("label") or "").lower())
+
+
+def bootstrap_weekends():
+    if os.path.exists(WEEKENDS_FILE):
+        return
+
+    demo = {
+        "season_year": date.today().year,
+        "timezone": "Europe/Paris",
+        "weekends": [
+            {
+                "id": "qatar",
+                "label": "GP du Qatar",
+                "date": f"{date.today().year}-04-12",
+                "time": None,
+                "cancelled": False,
+                "bonus_questions": [
+                    {
+                        "id": "b1",
+                        "label": "Un pilote Ducati sur le podium du GP ?",
+                        "type": "yes_no",
+                        "options": [],
+                        "correct_answer": "",
+                        "order": 1
+                    },
+                    {
+                        "id": "b2",
+                        "label": "Combien de chutes pendant le GP ?",
+                        "type": "range",
+                        "options": ["0", "1-2", "3-4", "5-6", "7+"],
+                        "correct_answer": "",
+                        "order": 2
+                    },
+                ],
+            }
+        ],
+    }
+    os.makedirs(DATA_DIR, exist_ok=True)
+    save_json(WEEKENDS_FILE, demo)
+
+
+bootstrap_weekends()
+
+
 def db_init():
     if not engine:
         return
@@ -413,6 +464,23 @@ def db_init():
             config_json JSONB NULL,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        """))
+
+        conn.execute(text("""
+            ALTER TABLE weekends
+            ADD COLUMN IF NOT EXISTS pronos_public_at TIMESTAMPTZ NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE weekends
+            ADD COLUMN IF NOT EXISTS results_published_at TIMESTAMPTZ NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE weekends
+            ADD COLUMN IF NOT EXISTS config_json JSONB NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE weekends
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
         """))
 
         conn.execute(text("""
@@ -549,44 +617,7 @@ def db_init():
         """))
 
 
-# ------------------ Week-end config persistence ------------------
-def bootstrap_weekends():
-    if os.path.exists(WEEKENDS_FILE):
-        return
-
-    demo = {
-        "season_year": date.today().year,
-        "timezone": "Europe/Paris",
-        "weekends": [
-            {
-                "id": "qatar",
-                "label": "GP du Qatar",
-                "date": f"{date.today().year}-04-12",
-                "time": None,
-                "cancelled": False,
-                "bonus_questions": [
-                    {
-                        "id": "b1",
-                        "label": "Un pilote Ducati sur le podium du GP ?",
-                        "type": "yes_no",
-                        "options": [],
-                        "correct_answer": "",
-                        "order": 1
-                    },
-                    {
-                        "id": "b2",
-                        "label": "Combien de chutes pendant le GP ?",
-                        "type": "range",
-                        "options": ["0", "1-2", "3-4", "5-6", "7+"],
-                        "correct_answer": "",
-                        "order": 2
-                    },
-                ],
-            }
-        ],
-    }
-    os.makedirs(DATA_DIR, exist_ok=True)
-    save_json(WEEKENDS_FILE, demo)
+db_init()
 
 
 def seed_weekends_config_to_db_if_needed():
@@ -630,51 +661,10 @@ def seed_weekends_config_to_db_if_needed():
             })
 
 
-def get_weekend_config_from_db(weekend_id: str):
-    if not engine:
-        return None
-
-    with engine.begin() as conn:
-        row = conn.execute(text("""
-            SELECT config_json
-            FROM weekends
-            WHERE weekend_id=:w
-            LIMIT 1
-        """), {"w": weekend_id}).fetchone()
-
-    if not row or not row[0]:
-        return None
-
-    cfg = dict(row[0] or {})
-    cfg["id"] = cfg.get("id") or weekend_id
-    return cfg
+seed_weekends_config_to_db_if_needed()
 
 
-def save_weekend_config_to_db(weekend_id: str, cfg: dict):
-    if not engine:
-        return False
-
-    cfg = dict(cfg or {})
-    cfg["id"] = cfg.get("id") or weekend_id
-    cfg = sanitize_weekends_list([cfg])[0]
-
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO weekends (weekend_id, config_json, updated_at)
-            VALUES (:w, CAST(:cfg AS jsonb), NOW())
-            ON CONFLICT (weekend_id)
-            DO UPDATE SET
-                config_json = EXCLUDED.config_json,
-                updated_at = NOW()
-        """), {
-            "w": weekend_id,
-            "cfg": json.dumps(cfg, ensure_ascii=False)
-        })
-
-    return True
-
-
-def load_all_weekends_configs():
+def load_weekends_data():
     file_data = load_json(WEEKENDS_FILE, {"weekends": []})
     if isinstance(file_data, list):
         file_data = {"weekends": file_data}
@@ -708,40 +698,47 @@ def load_all_weekends_configs():
             merged["id"] = wid
             by_id[wid] = merged
 
-    return sanitize_weekends_list(list(by_id.values()))
-
-
-def load_weekends_data():
-    file_data = load_json(WEEKENDS_FILE, {"weekends": []})
-    if isinstance(file_data, list):
-        file_data = {"weekends": file_data}
-    if not isinstance(file_data, dict):
-        file_data = {"weekends": []}
-
     return {
         "season_year": file_data.get("season_year", date.today().year),
         "timezone": file_data.get("timezone", "Europe/Paris"),
-        "weekends": load_all_weekends_configs(),
+        "weekends": sanitize_weekends_list(list(by_id.values()))
     }
 
 
 def save_weekends_data(data: dict):
     data = dict(data or {})
-    data["weekends"] = sanitize_weekends_list(data.get("weekends", []))
+    weekends = sanitize_weekends_list(data.get("weekends", []))
 
-    # garde le fichier comme base/dev
-    save_json(WEEKENDS_FILE, {
-        "season_year": data.get("season_year", date.today().year),
-        "timezone": data.get("timezone", "Europe/Paris"),
-        "weekends": data["weekends"]
-    })
+    # garde le fichier comme base/fallback locale
+    file_payload = load_json(WEEKENDS_FILE, {"season_year": date.today().year, "timezone": "Europe/Paris", "weekends": []})
+    if isinstance(file_payload, list):
+        file_payload = {"weekends": file_payload}
+    if not isinstance(file_payload, dict):
+        file_payload = {"weekends": []}
+    file_payload["season_year"] = data.get("season_year", file_payload.get("season_year", date.today().year))
+    file_payload["timezone"] = data.get("timezone", file_payload.get("timezone", "Europe/Paris"))
+    file_payload["weekends"] = weekends
+    save_json(WEEKENDS_FILE, file_payload)
 
-    # persiste chaque GP en DB
     if engine:
-        for w in data["weekends"]:
-            wid = (w.get("id") or "").strip()
-            if wid:
-                save_weekend_config_to_db(wid, w)
+        with engine.begin() as conn:
+            for w in weekends:
+                wid = (w.get("id") or "").strip()
+                if not wid:
+                    continue
+                ww = dict(w)
+                ww["id"] = wid
+                conn.execute(text("""
+                    INSERT INTO weekends (weekend_id, config_json, updated_at)
+                    VALUES (:w, CAST(:cfg AS jsonb), NOW())
+                    ON CONFLICT (weekend_id)
+                    DO UPDATE SET
+                        config_json = EXCLUDED.config_json,
+                        updated_at = NOW()
+                """), {
+                    "w": wid,
+                    "cfg": json.dumps(ww, ensure_ascii=False)
+                })
 
 
 def load_weekends_list():
@@ -755,116 +752,11 @@ def get_weekend(weekend_id):
             w.setdefault("bonus_questions", [])
             w["bonus_questions"] = sanitize_bonus_questions_list(w.get("bonus_questions", []))
             w["cancelled"] = bool(w.get("cancelled", False))
-
             for q in w["bonus_questions"]:
                 q["type_label"] = get_bonus_type_label(q.get("type"))
                 q["resolved_options"] = get_bonus_options_for_type(q.get("type"), q)
-
             return w
     return None
-
-
-def update_weekend_bonus_questions(weekend_id: str, new_questions: list):
-    w = get_weekend(weekend_id)
-    if not w:
-        return False
-
-    w["bonus_questions"] = sanitize_bonus_questions_list(new_questions)
-    return save_weekend_config_to_db(weekend_id, w)
-
-
-def add_bonus_question_to_weekend(weekend_id: str, label: str, qtype: str, options_raw: str = ""):
-    w = get_weekend(weekend_id)
-    if not w:
-        return False
-
-    questions = sanitize_bonus_questions_list(w.get("bonus_questions", []))
-    next_order = max([q.get("order", 0) for q in questions] + [0]) + 1
-
-    qtype = (qtype or "").strip()
-    if qtype not in {x["value"] for x in BONUS_TYPE_CHOICES}:
-        qtype = "yes_no"
-
-    options = parse_range_options(options_raw) if qtype == "range" else []
-    if qtype == "range" and not options:
-        options = get_default_range_options()
-
-    qid = f"b-{uuid.uuid4().hex[:8]}"
-    questions.append({
-        "id": qid,
-        "label": (label or "").strip(),
-        "type": qtype,
-        "options": options,
-        "correct_answer": "",
-        "order": next_order,
-    })
-
-    w["bonus_questions"] = questions
-    return save_weekend_config_to_db(weekend_id, w)
-
-
-def update_bonus_question_in_weekend(weekend_id: str, question_id: str, label: str, qtype: str, options_raw: str = ""):
-    w = get_weekend(weekend_id)
-    if not w:
-        return False
-
-    questions = sanitize_bonus_questions_list(w.get("bonus_questions", []))
-    found = False
-
-    for q in questions:
-        if q.get("id") == question_id:
-            found = True
-            q["label"] = (label or "").strip()
-            q["type"] = (qtype or "").strip()
-            if q["type"] not in {x["value"] for x in BONUS_TYPE_CHOICES}:
-                q["type"] = "yes_no"
-
-            q["options"] = parse_range_options(options_raw) if q["type"] == "range" else []
-            if q["type"] == "range" and not q["options"]:
-                q["options"] = get_default_range_options()
-
-            correct = q.get("correct_answer")
-            ok, _ = validate_bonus_answer_for_question(q, correct)
-            if not ok:
-                q["correct_answer"] = ""
-            break
-
-    if not found:
-        return False
-
-    w["bonus_questions"] = questions
-    return save_weekend_config_to_db(weekend_id, w)
-
-
-def delete_bonus_question_from_weekend(weekend_id: str, question_id: str):
-    w = get_weekend(weekend_id)
-    if not w:
-        return False
-
-    before = len(w.get("bonus_questions", []))
-    w["bonus_questions"] = [
-        q for q in sanitize_bonus_questions_list(w.get("bonus_questions", []))
-        if q.get("id") != question_id
-    ]
-    after = len(w["bonus_questions"])
-
-    if after == before:
-        return False
-
-    return save_weekend_config_to_db(weekend_id, w)
-
-
-def is_weekend_cancelled(weekend_or_id) -> bool:
-    if isinstance(weekend_or_id, dict):
-        return bool(weekend_or_id.get("cancelled", False))
-    w = get_weekend(str(weekend_or_id))
-    return bool(w and w.get("cancelled", False))
-
-
-def weekend_sort_key(w: dict):
-    season_year = get_season_year()
-    d = parse_weekend_date(w.get("date", ""), season_year)
-    return (d or date.max, (w.get("label") or "").lower())
 
 
 def get_sorted_weekends():
@@ -874,48 +766,154 @@ def get_sorted_weekends():
         ww["cancelled"] = bool(ww.get("cancelled", False))
         ww["date_obj"] = parse_weekend_date(ww.get("date", ""), get_season_year())
         items.append(ww)
-
     items.sort(key=weekend_sort_key)
     return items
 
 
+def update_weekend_bonus_questions(weekend_id: str, new_questions: list):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    found = False
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            w["bonus_questions"] = sanitize_bonus_questions_list(new_questions)
+            found = True
+            break
+    if not found:
+        return False
+    save_weekends_data(data)
+    return True
+
+
+def add_bonus_question_to_weekend(weekend_id: str, label: str, qtype: str, options_raw: str = ""):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            questions = sanitize_bonus_questions_list(w.get("bonus_questions", []))
+            next_order = max([q.get("order", 0) for q in questions] + [0]) + 1
+
+            qtype = (qtype or "").strip()
+            if qtype not in {x["value"] for x in BONUS_TYPE_CHOICES}:
+                qtype = "yes_no"
+
+            options = parse_range_options(options_raw) if qtype == "range" else []
+            if qtype == "range" and not options:
+                options = get_default_range_options()
+
+            qid = f"b-{uuid.uuid4().hex[:8]}"
+            questions.append({
+                "id": qid,
+                "label": (label or "").strip(),
+                "type": qtype,
+                "options": options,
+                "correct_answer": "",
+                "order": next_order,
+            })
+            w["bonus_questions"] = questions
+            save_weekends_data(data)
+            return True
+    return False
+
+
+def update_bonus_question_in_weekend(weekend_id: str, question_id: str, label: str, qtype: str, options_raw: str = ""):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            questions = sanitize_bonus_questions_list(w.get("bonus_questions", []))
+            found = False
+            for q in questions:
+                if q.get("id") == question_id:
+                    found = True
+                    q["label"] = (label or "").strip()
+                    q["type"] = (qtype or "").strip()
+                    if q["type"] not in {x["value"] for x in BONUS_TYPE_CHOICES}:
+                        q["type"] = "yes_no"
+                    q["options"] = parse_range_options(options_raw) if q["type"] == "range" else []
+                    if q["type"] == "range" and not q["options"]:
+                        q["options"] = get_default_range_options()
+
+                    correct = q.get("correct_answer")
+                    ok, _ = validate_bonus_answer_for_question(q, correct)
+                    if not ok:
+                        q["correct_answer"] = ""
+                    break
+
+            if not found:
+                return False
+
+            w["bonus_questions"] = questions
+            save_weekends_data(data)
+            return True
+    return False
+
+
+def delete_bonus_question_from_weekend(weekend_id: str, question_id: str):
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
+    changed = False
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            before = len(w.get("bonus_questions", []))
+            w["bonus_questions"] = [
+                q for q in sanitize_bonus_questions_list(w.get("bonus_questions", []))
+                if q.get("id") != question_id
+            ]
+            after = len(w["bonus_questions"])
+            if after != before:
+                changed = True
+            break
+
+    if changed:
+        save_weekends_data(data)
+    return changed
+
+
+def is_weekend_cancelled(weekend_or_id) -> bool:
+    if isinstance(weekend_or_id, dict):
+        return bool(weekend_or_id.get("cancelled", False))
+    w = get_weekend(str(weekend_or_id))
+    return bool(w and w.get("cancelled", False))
+
+
 def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: str = None):
-    w = get_weekend(weekend_id)
-    if not w:
-        return False, "Week-end introuvable."
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
 
-    if new_label is not None:
-        w["label"] = (new_label or "").strip() or w.get("label", weekend_id)
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            if new_label is not None:
+                w["label"] = (new_label or "").strip() or w.get("label", weekend_id)
 
-    if new_date is not None:
-        new_date = (new_date or "").strip()
-        if not new_date:
-            return False, "La date est obligatoire."
+            if new_date is not None:
+                new_date = (new_date or "").strip()
+                if not new_date:
+                    return False, "La date est obligatoire."
 
-        parsed = parse_weekend_date(new_date, get_season_year())
-        if not parsed:
-            return False, "Date invalide. Format attendu : YYYY-MM-DD."
+                parsed = parse_weekend_date(new_date, get_season_year())
+                if not parsed:
+                    return False, "Date invalide. Format attendu : YYYY-MM-DD."
 
-        w["date"] = parsed.isoformat()
+                w["date"] = parsed.isoformat()
 
-    ok = save_weekend_config_to_db(weekend_id, w)
-    return (True, "GP mis à jour.") if ok else (False, "Erreur de sauvegarde.")
+            save_weekends_data(data)
+            return True, "GP mis à jour."
+
+    return False, "Week-end introuvable."
 
 
 def set_weekend_cancelled_flag(weekend_id: str, cancelled: bool):
-    w = get_weekend(weekend_id)
-    if not w:
-        return False, "Week-end introuvable."
+    data = load_weekends_data()
+    weekends = data.get("weekends", [])
 
-    w["cancelled"] = bool(cancelled)
-    ok = save_weekend_config_to_db(weekend_id, w)
-    return (True, "Statut du GP mis à jour.") if ok else (False, "Erreur de sauvegarde.")
+    for w in weekends:
+        if w.get("id") == weekend_id:
+            w["cancelled"] = bool(cancelled)
+            save_weekends_data(data)
+            return True, "Statut du GP mis à jour."
 
-
-# ------------------ Init order ------------------
-bootstrap_weekends()
-db_init()
-seed_weekends_config_to_db_if_needed()
+    return False, "Week-end introuvable."
 
 
 # ------------------ Participants helpers ------------------
@@ -1042,6 +1040,7 @@ def add_participant(pseudo: str, secret: str):
 
     if not pseudo or not pseudo_norm:
         return False, "Le pseudo est obligatoire."
+
     if not secret:
         return False, "Le code secret est obligatoire."
 
@@ -1160,7 +1159,11 @@ def get_current_participant(req):
 
 # ------------------ Championnat state ------------------
 def get_championnat_state():
-    default = {"is_open": True, "revealed": False, "locked_at": None}
+    default = {
+        "is_open": True,
+        "revealed": False,
+        "locked_at": None,
+    }
 
     if engine:
         with engine.begin() as conn:
@@ -1243,12 +1246,15 @@ def get_latest_championnat_pronos_by_player() -> list:
                 ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
             """)).fetchall()
 
-        return [{
-            "player_name": r[0] or "??",
-            "payload": dict(r[1] or {}),
-            "created_at": str(r[2]) if r[2] else None,
-            "updated_at": str(r[3]) if r[3] else None,
-        } for r in rows]
+        items = []
+        for r in rows:
+            items.append({
+                "player_name": r[0] or "??",
+                "payload": dict(r[1] or {}),
+                "created_at": str(r[2]) if r[2] else None,
+                "updated_at": str(r[3]) if r[3] else None,
+            })
+        return items
 
     all_preds = load_json(championnat_path(), {})
     tmp = []
@@ -1263,7 +1269,7 @@ def get_latest_championnat_pronos_by_player() -> list:
     return dedupe_pronos_by_playername(tmp)
 
 
-# ------------------ Cookie helpers ------------------
+# ------------------ Identification joueurs (cookies) ------------------
 def current_player(req):
     participant = get_current_participant(req)
     name = participant["pseudo"] if participant else (req.cookies.get("player_name") or "").strip()
@@ -1273,14 +1279,15 @@ def current_player(req):
     return name, pid
 
 
-# ------------------ Week-end open/close ------------------
+# ------------------ Week-end open/close DB state ------------------
 def is_weekend_closed(weekend_id: str) -> bool:
     if not engine:
         return False
     with engine.begin() as conn:
-        row = conn.execute(text("""
-            SELECT closed_at FROM weekends WHERE weekend_id=:w
-        """), {"w": weekend_id}).fetchone()
+        row = conn.execute(
+            text("SELECT closed_at FROM weekends WHERE weekend_id=:w"),
+            {"w": weekend_id}
+        ).fetchone()
     return bool(row and row[0])
 
 
@@ -1288,9 +1295,10 @@ def is_pronos_public(weekend_id: str) -> bool:
     if not engine:
         return False
     with engine.begin() as conn:
-        row = conn.execute(text("""
-            SELECT pronos_public_at FROM weekends WHERE weekend_id=:w
-        """), {"w": weekend_id}).fetchone()
+        row = conn.execute(
+            text("SELECT pronos_public_at FROM weekends WHERE weekend_id=:w"),
+            {"w": weekend_id}
+        ).fetchone()
     return bool(row and row[0])
 
 
@@ -1483,7 +1491,7 @@ def compute_points_breakdown(prono: dict, results: dict, w: dict):
     }
 
 
-# ------------------ Fallback paths ------------------
+# ------------------ Fichiers fallback ------------------
 def pronos_path(weekend_id):
     return os.path.join(PRONOS_DIR, f"{weekend_id}.json")
 
@@ -1496,7 +1504,6 @@ def championnat_path():
     return os.path.join(PRONOS_DIR, "championnat.json")
 
 
-# ------------------ Results persistence ------------------
 def load_results(weekend_id: str):
     if engine:
         with engine.begin() as conn:
@@ -1538,11 +1545,13 @@ def save_results(weekend_id: str, results: dict):
     save_json(results_path(weekend_id), results)
 
 
-# ------------------ Dedupe helpers ------------------
+# ------------------ Helpers anti-doublons ------------------
 def dedupe_pronos_by_playername(items):
     best = {}
     for it in items or []:
-        name = (it.get("player_name") or it.get("player") or "").strip() or "??"
+        name = (it.get("player_name") or it.get("player") or "").strip()
+        if not name:
+            name = "??"
         dt = (
             _parse_dt_maybe(it.get("updated_at"))
             or _parse_dt_maybe(it.get("_updated_at"))
@@ -1626,10 +1635,8 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
 def home():
     name, _ = current_player(request)
 
-    weekends_raw = get_sorted_weekends()
     weekends = []
-
-    for w in weekends_raw:
+    for w in get_sorted_weekends():
         w2 = dict(w)
         w2["status"] = weekend_status(
             w2.get("date_obj"),
@@ -1822,7 +1829,10 @@ def championnat_public():
         return "Les pronostics championnat ne sont pas encore divulgués.", 403
 
     pronos_list = get_latest_championnat_pronos_by_player()
-    pronos_list.sort(key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min, reverse=True)
+    pronos_list.sort(
+        key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min,
+        reverse=True
+    )
 
     name, _ = current_player(request)
     return render_template(
@@ -2084,7 +2094,11 @@ def admin_participants():
 
     participants = get_all_participants(include_inactive=True)
     name, _ = current_player(request)
-    return render_template("admin_participants.html", name=name, participants=participants)
+    return render_template(
+        "admin_participants.html",
+        name=name,
+        participants=participants
+    )
 
 
 @app.route("/admin/participants/<int:participant_id>/toggle", methods=["POST"])
@@ -2212,7 +2226,11 @@ def admin_calendar():
         wid = w.get("id")
         closed = is_weekend_closed(wid) if engine else False
         cancelled = bool(w.get("cancelled", False))
-        status = weekend_status(w.get("date_obj"), open_days_before=10, cancelled=cancelled)
+        status = weekend_status(
+            w.get("date_obj"),
+            open_days_before=10,
+            cancelled=cancelled
+        )
 
         items.append({
             "id": wid,
@@ -2230,7 +2248,11 @@ def admin_calendar():
         })
 
     name, _ = current_player(request)
-    return render_template("admin_calendar.html", name=name, weekends=items)
+    return render_template(
+        "admin_calendar.html",
+        name=name,
+        weekends=items
+    )
 
 
 @app.route("/admin/calendar/<weekend_id>/update", methods=["POST"])
@@ -2324,14 +2346,15 @@ def admin_results(weekend_id):
         }
         save_results(weekend_id, results)
 
-        # garde aussi la bonne réponse dans la config DB du GP
-        w2 = get_weekend(weekend_id)
-        if w2:
-            questions = sanitize_bonus_questions_list(w2.get("bonus_questions", []))
-            for q in questions:
-                q["correct_answer"] = bonus_results.get(q["id"], "")
-            w2["bonus_questions"] = questions
-            save_weekend_config_to_db(weekend_id, w2)
+        data = load_weekends_data()
+        for ww in data.get("weekends", []):
+            if ww.get("id") == weekend_id:
+                questions = sanitize_bonus_questions_list(ww.get("bonus_questions", []))
+                for q in questions:
+                    q["correct_answer"] = bonus_results.get(q["id"], "")
+                ww["bonus_questions"] = questions
+                break
+        save_weekends_data(data)
 
         flash("Résultats officiels enregistrés ✅")
         return redirect(url_for("admin_results", weekend_id=weekend_id))
@@ -2409,15 +2432,26 @@ def admin_questions(weekend_id):
         return redirect(url_for("admin_questions", weekend_id=weekend_id))
 
     name, _ = current_player(request)
-    return render_template(
-        "admin_questions.html",
-        name=name,
-        w=w,
-        bonus_type_choices=BONUS_TYPE_CHOICES,
-        all_teams=ALL_TEAMS,
-        official_teams=OFFICIAL_TEAMS,
-        satellite_teams=SATELLITE_TEAMS
-    )
+    try:
+        return render_template(
+            "admin_questions.html",
+            name=name,
+            w=w,
+            bonus_type_choices=BONUS_TYPE_CHOICES,
+            all_teams=ALL_TEAMS,
+            official_teams=OFFICIAL_TEAMS,
+            satellite_teams=SATELLITE_TEAMS
+        )
+    except Exception:
+        return render_template(
+            "admin_question.html",
+            name=name,
+            w=w,
+            bonus_type_choices=BONUS_TYPE_CHOICES,
+            all_teams=ALL_TEAMS,
+            official_teams=OFFICIAL_TEAMS,
+            satellite_teams=SATELLITE_TEAMS
+        )
 
 
 @app.route("/w/<weekend_id>/public/pronos")
@@ -2449,7 +2483,10 @@ def public_pronos(weekend_id):
         "p": dict(r[1] or {}),
     } for r in rows]
 
-    pronos_list.sort(key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min, reverse=True)
+    pronos_list.sort(
+        key=lambda x: _parse_dt_maybe(x.get("updated_at")) or datetime.min,
+        reverse=True
+    )
 
     name, _ = current_player(request)
     return render_template(
@@ -2468,6 +2505,7 @@ def results_by_race():
 
     weekends = get_sorted_weekends()
     gp_id = (request.args.get("gp") or "").strip()
+
     selected = get_weekend(gp_id) if gp_id else None
 
     if not selected:
@@ -2688,6 +2726,7 @@ def classement_general():
             continue
 
         gp_scored.append({"id": wid, "label": w.get("label", wid)})
+
         pronos_by_player = get_latest_pronos_by_player_for_weekend(wid)
 
         for player_name, p in pronos_by_player.items():
