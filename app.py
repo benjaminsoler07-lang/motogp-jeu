@@ -13,6 +13,7 @@
 # + NOUVEAU : gestion admin approfondie des pronos GP
 # + NOUVEAU : questions bonus dynamiques par GP (persistantes DB)
 # + NOUVEAU : gestion admin du calendrier MotoGP (persistante DB)
+# + NOUVEAU : suppression admin définitive d’un joueur + ses données liées
 
 import os
 import json
@@ -1150,6 +1151,86 @@ def toggle_participant(participant_id: int):
     return True, f"Statut mis à jour pour {found.get('pseudo', '??')}."
 
 
+def delete_participant(participant_id: int):
+    if engine:
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT id, pseudo, pseudo_normalized
+                FROM participants
+                WHERE id=:pid
+                LIMIT 1
+            """), {"pid": participant_id}).fetchone()
+
+            if not row:
+                return False, "Joueur introuvable."
+
+            pseudo = row[1]
+            pseudo_norm = row[2] or normalize_pseudo(pseudo)
+
+            conn.execute(text("""
+                DELETE FROM pronos
+                WHERE participant_id=:pid
+                   OR COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+            """), {"pid": participant_id, "pn": pseudo_norm})
+
+            conn.execute(text("""
+                DELETE FROM championnat_pronos
+                WHERE participant_id=:pid
+                   OR COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+            """), {"pid": participant_id, "pn": pseudo_norm})
+
+            conn.execute(text("""
+                DELETE FROM participants
+                WHERE id=:pid
+            """), {"pid": participant_id})
+
+        return True, f"Joueur supprimé définitivement : {pseudo}"
+
+    items = load_participants_fallback()
+    found = None
+    kept = []
+
+    for p in items:
+        if int(p.get("id", 0)) == int(participant_id):
+            found = p
+        else:
+            kept.append(p)
+
+    if not found:
+        return False, "Joueur introuvable."
+
+    pseudo = found.get("pseudo", "")
+    pseudo_norm = found.get("pseudo_normalized") or normalize_pseudo(pseudo)
+
+    for weekend in load_weekends_list():
+        wid = (weekend.get("id") or "").strip()
+        if not wid:
+            continue
+
+        all_pronos = load_json(pronos_path(wid), {})
+        if isinstance(all_pronos, dict):
+            to_delete = []
+            for k, v in all_pronos.items():
+                if normalize_pseudo(v.get("player_name")) == pseudo_norm:
+                    to_delete.append(k)
+            for k in to_delete:
+                all_pronos.pop(k, None)
+            save_json(pronos_path(wid), all_pronos)
+
+    all_preds = load_json(championnat_path(), {})
+    if isinstance(all_preds, dict):
+        to_delete = []
+        for k, v in all_preds.items():
+            if normalize_pseudo(v.get("player_name")) == pseudo_norm:
+                to_delete.append(k)
+        for k in to_delete:
+            all_preds.pop(k, None)
+        save_json(championnat_path(), all_preds)
+
+    save_participants_fallback(kept)
+    return True, f"Joueur supprimé définitivement : {pseudo}"
+
+
 def get_current_participant(req):
     raw_name = (req.cookies.get("player_name") or "").strip()
     if not raw_name:
@@ -2114,6 +2195,14 @@ def admin_toggle_participant(participant_id):
 def admin_reset_participant_secret(participant_id):
     new_secret = (request.form.get("new_secret") or request.form.get("secret") or "").strip()
     ok, msg = reset_participant_secret(participant_id, new_secret)
+    flash(msg)
+    return redirect(url_for("admin_participants"))
+
+
+@app.route("/admin/participants/<int:participant_id>/delete", methods=["POST"])
+@require_admin
+def admin_delete_participant(participant_id):
+    ok, msg = delete_participant(participant_id)
     flash(msg)
     return redirect(url_for("admin_participants"))
 
