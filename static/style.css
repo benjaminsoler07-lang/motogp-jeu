@@ -365,6 +365,20 @@ form{ margin: 0; }
 .btn-warning:hover{ opacity: 0.92; }
 .btn-warning:focus{ box-shadow: 0 0 0 3px rgba(255,77,77,0.22); }
 
+/* Bouton suppression définitive */
+.btn-danger{
+  background: #8b1e1e;
+  color: white;
+}
+
+.btn-danger:hover{
+  opacity: 0.95;
+}
+
+.btn-danger:focus{
+  box-shadow: 0 0 0 3px rgba(139,30,30,0.28);
+}
+
 .btn-disabled{
   opacity: 0.55;
   pointer-events: none;
