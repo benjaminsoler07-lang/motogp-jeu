@@ -10,6 +10,7 @@
     Ajoute ici les pseudos autorisés à se connecter et à enregistrer des pronostics.
     Chaque joueur doit avoir son propre code secret.
     Un joueur désactivé ne pourra plus se connecter, mais ses anciens pronos resteront visibles.
+    Un joueur supprimé sera effacé définitivement avec tous ses pronostics liés.
   </p>
 </div>
 
@@ -112,7 +113,7 @@
           </div>
         </div>
 
-        <div class="admin-actions">
+        <div class="admin-actions" style="display:flex; flex-direction:column; gap:8px;">
           <form method="post" action="{{ url_for('admin_toggle_participant', participant_id=p.id) }}">
             {% if p.active %}
               <button class="btn btn-small btn-warning" type="submit">
@@ -123,6 +124,16 @@
                 ✅ Réactiver
               </button>
             {% endif %}
+          </form>
+
+          <form
+            method="post"
+            action="{{ url_for('admin_delete_participant', participant_id=p.id) }}"
+            onsubmit="return confirm('Supprimer définitivement {{ p.pseudo }} et toutes ses données liées ? Cette action est irréversible.');"
+          >
+            <button class="btn btn-small btn-danger" type="submit">
+              🗑️ Supprimer
+            </button>
           </form>
         </div>
 
