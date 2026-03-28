@@ -14,18 +14,21 @@
 # + NOUVEAU : questions bonus dynamiques par GP (persistantes DB)
 # + NOUVEAU : gestion admin du calendrier MotoGP (persistante DB)
 # + NOUVEAU : suppression admin définitive d’un joueur + ses données liées
+# + NOUVEAU : historique automatique des sauvegardes pronos (pronos_history)
+# + NOUVEAU : journal admin simple des sauvegardes par GP
 
 import os
 import json
 import uuid
 import re
 import unicodedata
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from functools import wraps
 from threading import Lock
 
 from flask import (
-    Flask, render_template, request, redirect, url_for,
+    Flask, render_template, render_template_string,
+    request, redirect, url_for,
     make_response, flash, session
 )
 from sqlalchemy import create_engine, text
@@ -151,6 +154,18 @@ def _parse_dt_maybe(s):
         return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
     except Exception:
         return None
+
+
+def format_dt_fr(dt_value):
+    dt = _parse_dt_maybe(dt_value) if not isinstance(dt_value, datetime) else dt_value
+    if not dt:
+        return ""
+    try:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone().strftime("%d/%m/%Y à %H:%M:%S")
+    except Exception:
+        return str(dt_value)
 
 
 def normalize(x):
@@ -560,6 +575,51 @@ def db_init():
         """))
 
         conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS pronos_history (
+            id SERIAL PRIMARY KEY,
+            weekend_id TEXT NOT NULL,
+            user_key TEXT NULL,
+            player_name TEXT NOT NULL,
+            player_norm TEXT NULL,
+            participant_id INTEGER NULL,
+            payload_json JSONB NOT NULL,
+            source TEXT NOT NULL DEFAULT 'save',
+            user_agent TEXT NULL,
+            saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+
+        conn.execute(text("""
+            ALTER TABLE pronos_history
+            ADD COLUMN IF NOT EXISTS player_norm TEXT NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE pronos_history
+            ADD COLUMN IF NOT EXISTS participant_id INTEGER NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE pronos_history
+            ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'save';
+        """))
+        conn.execute(text("""
+            ALTER TABLE pronos_history
+            ADD COLUMN IF NOT EXISTS user_agent TEXT NULL;
+        """))
+
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_history_weekend_saved_at
+            ON pronos_history(weekend_id, saved_at DESC);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_history_weekend_player_norm
+            ON pronos_history(weekend_id, player_norm, saved_at DESC);
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pronos_history_participant_id
+            ON pronos_history(participant_id);
+        """))
+
+        conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_pronos (
             id SERIAL PRIMARY KEY,
             user_key TEXT NOT NULL,
@@ -620,6 +680,12 @@ def db_init():
 
         conn.execute(text("""
             UPDATE championnat_pronos
+            SET player_norm = LOWER(BTRIM(player_name))
+            WHERE player_norm IS NULL
+        """))
+
+        conn.execute(text("""
+            UPDATE pronos_history
             SET player_norm = LOWER(BTRIM(player_name))
             WHERE player_norm IS NULL
         """))
@@ -1194,6 +1260,12 @@ def delete_participant(participant_id: int):
             pseudo_norm = row[2] or normalize_pseudo(pseudo)
 
             conn.execute(text("""
+                DELETE FROM pronos_history
+                WHERE participant_id=:pid
+                   OR COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+            """), {"pid": participant_id, "pn": pseudo_norm})
+
+            conn.execute(text("""
                 DELETE FROM pronos
                 WHERE participant_id=:pid
                    OR COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
@@ -1433,7 +1505,7 @@ def set_weekend_open(weekend_id: str):
 def set_weekend_closed_and_public(weekend_id: str):
     if not engine:
         return
-    ensure_db_bootstrap()
+    ensure_db_bootSTRAP()
     with engine.begin() as conn:
         conn.execute(text("""
             INSERT INTO weekends (weekend_id, closed_at, pronos_public_at, updated_at)
@@ -1659,6 +1731,63 @@ def save_results(weekend_id: str, results: dict):
                     updated_at = NOW()
             """), {"w": weekend_id, "p": json.dumps(results, ensure_ascii=False)})
     save_json(results_path(weekend_id), results)
+
+
+# ------------------ Historique pronos ------------------
+def save_prono_history(conn, weekend_id: str, user_key: str, player_name: str, player_norm: str,
+                       participant_id, payload: dict, user_agent: str = "", source: str = "save"):
+    conn.execute(text("""
+        INSERT INTO pronos_history (
+            weekend_id, user_key, player_name, player_norm, participant_id,
+            payload_json, source, user_agent, saved_at
+        )
+        VALUES (
+            :w, :u, :n, :pn, :pidb,
+            CAST(:p AS jsonb), :src, :ua, NOW()
+        )
+    """), {
+        "w": weekend_id,
+        "u": user_key,
+        "n": player_name,
+        "pn": player_norm,
+        "pidb": participant_id,
+        "p": json.dumps(payload, ensure_ascii=False),
+        "src": source or "save",
+        "ua": (user_agent or "")[:1000]
+    })
+
+
+def get_prono_history_for_weekend(weekend_id: str, limit: int = 200):
+    if not engine:
+        return []
+
+    ensure_db_bootstrap()
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT id, weekend_id, player_name, user_key, participant_id,
+                   payload_json, source, user_agent, saved_at
+            FROM pronos_history
+            WHERE weekend_id=:w
+            ORDER BY saved_at DESC, id DESC
+            LIMIT :lim
+        """), {"w": weekend_id, "lim": int(limit)}).fetchall()
+
+    out = []
+    for r in rows:
+        payload = dict(r[5] or {})
+        out.append({
+            "id": r[0],
+            "weekend_id": r[1],
+            "player_name": r[2],
+            "user_key": r[3],
+            "participant_id": r[4],
+            "payload": payload,
+            "source": r[6],
+            "user_agent": r[7] or "",
+            "saved_at": str(r[8]) if r[8] else None,
+            "saved_at_fr": format_dt_fr(r[8]),
+        })
+    return out
 
 
 # ------------------ Helpers anti-doublons ------------------
@@ -2008,6 +2137,8 @@ def pronos(weekend_id):
             my = dict(row[0] or {})
             my["_created_at"] = str(row[1]) if row[1] else None
             my["_updated_at"] = str(row[2]) if row[2] else None
+            my["_last_saved_at"] = str(row[2]) if row[2] else None
+            my["_last_saved_at_fr"] = format_dt_fr(row[2]) if row[2] else ""
     else:
         all_pronos = load_json(pronos_path(weekend_id), {})
         best = None
@@ -2060,52 +2191,78 @@ def pronos(weekend_id):
         }
 
         if engine:
-            with engine.begin() as conn:
-                existing = conn.execute(text("""
-                    SELECT id
-                    FROM pronos
-                    WHERE weekend_id=:w
-                      AND COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
-                    ORDER BY updated_at DESC
-                    LIMIT 1
-                """), {"w": weekend_id, "pn": player_norm}).fetchone()
+            ua = request.headers.get("User-Agent", "")
+            try:
+                with engine.begin() as conn:
+                    save_prono_history(
+                        conn=conn,
+                        weekend_id=weekend_id,
+                        user_key=pid,
+                        player_name=name,
+                        player_norm=player_norm,
+                        participant_id=participant["id"],
+                        payload=payload,
+                        user_agent=ua,
+                        source="save"
+                    )
 
-                if existing:
-                    conn.execute(text("""
-                        UPDATE pronos
-                        SET user_key=:u,
-                            player_name=:n,
-                            player_norm=:pn,
-                            participant_id=:pidb,
-                            payload_json=CAST(:p AS jsonb),
-                            updated_at=NOW()
-                        WHERE id=:id
-                    """), {
-                        "u": pid,
-                        "n": name,
-                        "pn": player_norm,
-                        "pidb": participant["id"],
-                        "p": json.dumps(payload, ensure_ascii=False),
-                        "id": existing[0]
-                    })
-                else:
-                    conn.execute(text("""
-                        INSERT INTO pronos (
-                            weekend_id, user_key, player_name, player_norm, participant_id,
-                            payload_json, created_at, updated_at
-                        )
-                        VALUES (
-                            :w, :u, :n, :pn, :pidb,
-                            CAST(:p AS jsonb), NOW(), NOW()
-                        )
-                    """), {
-                        "w": weekend_id,
-                        "u": pid,
-                        "n": name,
-                        "pn": player_norm,
-                        "pidb": participant["id"],
-                        "p": json.dumps(payload, ensure_ascii=False)
-                    })
+                    existing = conn.execute(text("""
+                        SELECT id
+                        FROM pronos
+                        WHERE weekend_id=:w
+                          AND COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                        ORDER BY updated_at DESC
+                        LIMIT 1
+                    """), {"w": weekend_id, "pn": player_norm}).fetchone()
+
+                    if existing:
+                        conn.execute(text("""
+                            UPDATE pronos
+                            SET user_key=:u,
+                                player_name=:n,
+                                player_norm=:pn,
+                                participant_id=:pidb,
+                                payload_json=CAST(:p AS jsonb),
+                                updated_at=NOW()
+                            WHERE id=:id
+                        """), {
+                            "u": pid,
+                            "n": name,
+                            "pn": player_norm,
+                            "pidb": participant["id"],
+                            "p": json.dumps(payload, ensure_ascii=False),
+                            "id": existing[0]
+                        })
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO pronos (
+                                weekend_id, user_key, player_name, player_norm, participant_id,
+                                payload_json, created_at, updated_at
+                            )
+                            VALUES (
+                                :w, :u, :n, :pn, :pidb,
+                                CAST(:p AS jsonb), NOW(), NOW()
+                            )
+                        """), {
+                            "w": weekend_id,
+                            "u": pid,
+                            "n": name,
+                            "pn": player_norm,
+                            "pidb": participant["id"],
+                            "p": json.dumps(payload, ensure_ascii=False)
+                        })
+
+                app.logger.info(
+                    "PRONO_SAVE weekend_id=%s player_name=%s participant_id=%s user_key=%s",
+                    weekend_id, name, participant["id"], pid
+                )
+            except Exception:
+                app.logger.exception(
+                    "PRONO_SAVE_ERROR weekend_id=%s player_name=%s participant_id=%s user_key=%s",
+                    weekend_id, name, participant["id"], pid
+                )
+                flash("Erreur lors de l'enregistrement du pronostic.")
+                return redirect(url_for("pronos", weekend_id=weekend_id))
         else:
             all_pronos = load_json(pronos_path(weekend_id), {})
             payload["updated_at"] = datetime.utcnow().isoformat()
@@ -2328,6 +2485,78 @@ def admin_weekend(weekend_id):
         official_teams=OFFICIAL_TEAMS,
         satellite_teams=SATELLITE_TEAMS
     )
+
+
+@app.route("/admin/w/<weekend_id>/history")
+@require_admin
+def admin_weekend_history(weekend_id):
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+    if not engine:
+        return "DB non configurée (DATABASE_URL manquant).", 500
+
+    rows = get_prono_history_for_weekend(weekend_id, limit=300)
+
+    html = """
+    <!doctype html>
+    <html lang="fr">
+    <head>
+      <meta charset="utf-8">
+      <title>Historique pronos — {{ w.label }}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #0f172a; color: #e5e7eb; }
+        a { color: #93c5fd; }
+        table { width: 100%; border-collapse: collapse; background: #111827; }
+        th, td { border: 1px solid #374151; padding: 8px; vertical-align: top; text-align: left; }
+        th { background: #1f2937; }
+        code, pre { white-space: pre-wrap; word-break: break-word; }
+        .wrap { max-width: 1400px; margin: 0 auto; }
+        .top { margin-bottom: 16px; }
+        .small { font-size: 12px; opacity: 0.85; }
+      </style>
+    </head>
+    <body>
+      <div class="wrap">
+        <div class="top">
+          <h1>Historique des sauvegardes — {{ w.label }}</h1>
+          <p><a href="{{ url_for('admin_weekend', weekend_id=w.id) }}">← Retour au week-end admin</a></p>
+          <p class="small">Dernières sauvegardes historisées. Chaque ligne = une validation de formulaire.</p>
+        </div>
+
+        {% if rows %}
+        <table>
+          <thead>
+            <tr>
+              <th>Heure</th>
+              <th>Joueur</th>
+              <th>Source</th>
+              <th>User key</th>
+              <th>User-Agent</th>
+              <th>Prono</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.saved_at_fr or r.saved_at }}</td>
+              <td>{{ r.player_name }}</td>
+              <td>{{ r.source }}</td>
+              <td><code>{{ r.user_key }}</code></td>
+              <td class="small">{{ r.user_agent }}</td>
+              <td><pre>{{ r.payload | tojson(indent=2) }}</pre></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <p>Aucun historique trouvé pour ce GP.</p>
+        {% endif %}
+      </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html, w=w, rows=rows)
 
 
 @app.route("/admin/w/<weekend_id>/toggle_pronos", methods=["POST"])
