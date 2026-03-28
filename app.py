@@ -22,6 +22,7 @@ import re
 import unicodedata
 from datetime import datetime, date, timedelta
 from functools import wraps
+from threading import Lock
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -285,11 +286,17 @@ def save_json(path, data):
 # ------------------ DB (PostgreSQL) ------------------
 DATABASE_URL = os.environ.get("DATABASE_URL")
 engine = None
+_DB_BOOTSTRAPPED = False
+_DB_BOOTSTRAP_LOCK = Lock()
 
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=300
+    )
 
 
 # ------------------ Weekends sanitize/helpers ------------------
@@ -618,9 +625,6 @@ def db_init():
         """))
 
 
-db_init()
-
-
 def seed_weekends_config_to_db_if_needed():
     if not engine:
         return
@@ -662,7 +666,23 @@ def seed_weekends_config_to_db_if_needed():
             })
 
 
-seed_weekends_config_to_db_if_needed()
+def ensure_db_bootstrap():
+    global _DB_BOOTSTRAPPED
+
+    if _DB_BOOTSTRAPPED:
+        return
+
+    with _DB_BOOTSTRAP_LOCK:
+        if _DB_BOOTSTRAPPED:
+            return
+
+        if not engine:
+            _DB_BOOTSTRAPPED = True
+            return
+
+        db_init()
+        seed_weekends_config_to_db_if_needed()
+        _DB_BOOTSTRAPPED = True
 
 
 def load_weekends_data():
@@ -680,7 +700,7 @@ def load_weekends_data():
             by_id[wid] = dict(w)
 
     if engine:
-        seed_weekends_config_to_db_if_needed()
+        ensure_db_bootstrap()
 
         with engine.begin() as conn:
             rows = conn.execute(text("""
@@ -710,7 +730,6 @@ def save_weekends_data(data: dict):
     data = dict(data or {})
     weekends = sanitize_weekends_list(data.get("weekends", []))
 
-    # garde le fichier comme base/fallback locale
     file_payload = load_json(WEEKENDS_FILE, {"season_year": date.today().year, "timezone": "Europe/Paris", "weekends": []})
     if isinstance(file_payload, list):
         file_payload = {"weekends": file_payload}
@@ -722,6 +741,7 @@ def save_weekends_data(data: dict):
     save_json(WEEKENDS_FILE, file_payload)
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             for w in weekends:
                 wid = (w.get("id") or "").strip()
@@ -933,6 +953,7 @@ def save_participants_fallback(items):
 
 def get_all_participants(include_inactive=True):
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             if include_inactive:
                 rows = conn.execute(text("""
@@ -984,6 +1005,7 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
         return None
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             if active_only:
                 row = conn.execute(text("""
@@ -1052,6 +1074,7 @@ def add_participant(pseudo: str, secret: str):
     secret_hash = generate_password_hash(secret)
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO participants (pseudo, pseudo_normalized, secret_hash, active, created_at)
@@ -1080,6 +1103,7 @@ def reset_participant_secret(participant_id: int, new_secret: str):
     secret_hash = generate_password_hash(new_secret)
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             row = conn.execute(text("""
                 SELECT id, pseudo
@@ -1116,6 +1140,7 @@ def reset_participant_secret(participant_id: int, new_secret: str):
 
 def toggle_participant(participant_id: int):
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             row = conn.execute(text("""
                 SELECT id, pseudo, active
@@ -1153,6 +1178,7 @@ def toggle_participant(participant_id: int):
 
 def delete_participant(participant_id: int):
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             row = conn.execute(text("""
                 SELECT id, pseudo, pseudo_normalized
@@ -1247,6 +1273,7 @@ def get_championnat_state():
     }
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             row = conn.execute(text("""
                 SELECT is_open, revealed, locked_at
@@ -1274,6 +1301,7 @@ def save_championnat_state(state: dict):
     }
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO championnat_state (id, is_open, revealed, locked_at, updated_at)
@@ -1319,6 +1347,7 @@ def hide_championnat():
 
 def get_latest_championnat_pronos_by_player() -> list:
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             rows = conn.execute(text("""
                 SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
@@ -1364,6 +1393,7 @@ def current_player(req):
 def is_weekend_closed(weekend_id: str) -> bool:
     if not engine:
         return False
+    ensure_db_bootstrap()
     with engine.begin() as conn:
         row = conn.execute(
             text("SELECT closed_at FROM weekends WHERE weekend_id=:w"),
@@ -1375,6 +1405,7 @@ def is_weekend_closed(weekend_id: str) -> bool:
 def is_pronos_public(weekend_id: str) -> bool:
     if not engine:
         return False
+    ensure_db_bootstrap()
     with engine.begin() as conn:
         row = conn.execute(
             text("SELECT pronos_public_at FROM weekends WHERE weekend_id=:w"),
@@ -1386,6 +1417,7 @@ def is_pronos_public(weekend_id: str) -> bool:
 def set_weekend_open(weekend_id: str):
     if not engine:
         return
+    ensure_db_bootstrap()
     with engine.begin() as conn:
         conn.execute(text("""
             INSERT INTO weekends (weekend_id, closed_at, pronos_public_at, updated_at)
@@ -1401,6 +1433,7 @@ def set_weekend_open(weekend_id: str):
 def set_weekend_closed_and_public(weekend_id: str):
     if not engine:
         return
+    ensure_db_bootstrap()
     with engine.begin() as conn:
         conn.execute(text("""
             INSERT INTO weekends (weekend_id, closed_at, pronos_public_at, updated_at)
@@ -1587,6 +1620,7 @@ def championnat_path():
 
 def load_results(weekend_id: str):
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             row = conn.execute(text("""
                 SELECT payload_json
@@ -1614,6 +1648,7 @@ def load_results(weekend_id: str):
 def save_results(weekend_id: str, results: dict):
     results = results or {}
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO results (weekend_id, payload_json, updated_at)
@@ -1656,6 +1691,7 @@ def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
     out = {}
 
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             rows = conn.execute(text("""
                 SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
@@ -1686,6 +1722,7 @@ def get_latest_pronos_by_player_for_weekend(weekend_id: str) -> dict:
 
 def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
     if engine:
+        ensure_db_bootstrap()
         with engine.begin() as conn:
             row = conn.execute(text("""
                 SELECT COUNT(*) FROM (
@@ -1709,6 +1746,11 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
             })
         return len(dedupe_pronos_by_playername(tmp))
     return 0
+
+
+@app.before_request
+def _bootstrap_once_before_request():
+    ensure_db_bootstrap()
 
 
 # ================== PUBLIC ROUTES ==================
@@ -2906,6 +2948,7 @@ def healthz():
 def health():
     if engine:
         try:
+            ensure_db_bootstrap()
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
         except Exception as e:
