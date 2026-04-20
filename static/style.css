@@ -857,31 +857,39 @@ details.card[open] summary::after{
 ============================ */
 .section-main-title{
   text-align: center;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
+  font-size: 1.85rem;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
 
 .prono-section{
-  margin-bottom: 26px;
-  padding: 18px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 30px;
+  padding: 22px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.18);
 }
 
 .prono-section h3{
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: 22px;
   text-align: center;
-  font-size: 1.6rem;
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 
 .prono-subsection{
-  margin-bottom: 18px;
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(0,0,0,0.10);
-  border-left: 6px solid rgba(255,255,255,0.20);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+  margin-bottom: 20px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(0,0,0,0.26);
+  border: 2px solid rgba(255,255,255,0.14);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.22);
 }
 
 .prono-subsection:last-child{
@@ -889,78 +897,129 @@ details.card[open] summary::after{
 }
 
 .prono-subsection h4{
-  margin: 0 0 12px 0;
-  font-size: 1.15rem;
+  margin: 0 0 14px 0;
+  font-size: 1.2rem;
+  font-weight: 900;
   text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .prono-subsection.pole{
-  background: rgba(255,214,10,0.10);
-  border-left-color: #ffd60a;
+  background: linear-gradient(180deg, rgba(255,214,10,0.24) 0%, rgba(255,214,10,0.12) 100%);
+  border: 2px solid rgba(255,214,10,0.9);
+  box-shadow: 0 10px 28px rgba(255,214,10,0.16);
+}
+
+.prono-subsection.pole h4{
+  color: #ffe168;
 }
 
 .prono-subsection.q1{
-  background: rgba(52,152,219,0.12);
-  border-left-color: #3498db;
+  background: linear-gradient(180deg, rgba(52,152,219,0.24) 0%, rgba(52,152,219,0.12) 100%);
+  border: 2px solid rgba(52,152,219,0.85);
+  box-shadow: 0 10px 28px rgba(52,152,219,0.14);
+}
+
+.prono-subsection.q1 h4{
+  color: #8fd3ff;
 }
 
 .prono-subsection.sprint{
-  background: rgba(46,204,113,0.10);
-  border-left-color: #2ecc71;
+  background: linear-gradient(180deg, rgba(46,204,113,0.22) 0%, rgba(46,204,113,0.11) 100%);
+  border: 2px solid rgba(46,204,113,0.85);
+  box-shadow: 0 10px 28px rgba(46,204,113,0.14);
+}
+
+.prono-subsection.sprint h4{
+  color: #7dffb2;
 }
 
 .prono-subsection.gp{
-  background: rgba(231,76,60,0.10);
-  border-left-color: #e74c3c;
+  background: linear-gradient(180deg, rgba(231,76,60,0.24) 0%, rgba(231,76,60,0.11) 100%);
+  border: 2px solid rgba(231,76,60,0.88);
+  box-shadow: 0 10px 28px rgba(231,76,60,0.14);
+}
+
+.prono-subsection.gp h4{
+  color: #ff9b90;
 }
 
 .prono-subsection label{
   display: block;
-  margin-top: 10px;
-  margin-bottom: 6px;
-  font-weight: 600;
+  margin-top: 12px;
+  margin-bottom: 7px;
+  font-weight: 700;
   text-align: left;
 }
 
 .prono-subsection select,
 .prono-subsection input{
   width: 100%;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.prono-subsection select:focus,
+.prono-subsection input:focus{
+  border-color: rgba(255,255,255,0.34);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.10);
 }
 
 .bonus-section{
-  margin-top: 26px;
-  padding-top: 14px;
-  border-top: 2px dashed rgba(255,255,255,0.12);
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 2px dashed rgba(255,255,255,0.18);
 }
 
 .bonus-section h3{
   text-align: center;
   margin-top: 0;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  font-size: 1.45rem;
+  font-weight: 900;
 }
 
 .bonus-block{
   margin-bottom: 14px;
-  padding: 14px;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
 }
 
 @media (max-width: 700px){
-  .prono-section{
-    padding: 14px;
+  .section-main-title{
+    margin-bottom: 18px;
+    font-size: 1.45rem;
   }
 
-  .prono-subsection{
-    padding: 12px;
+  .prono-section{
+    margin-bottom: 22px;
+    padding: 16px;
+    border-radius: 16px;
   }
 
   .prono-section h3{
+    margin-bottom: 18px;
     font-size: 1.35rem;
+  }
+
+  .prono-subsection{
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 16px;
   }
 
   .prono-subsection h4{
     font-size: 1.05rem;
+  }
+
+  .bonus-section h3{
+    font-size: 1.2rem;
+  }
+
+  .bonus-block{
+    padding: 14px;
   }
 }
