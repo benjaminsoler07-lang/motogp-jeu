@@ -852,3 +852,115 @@ details.card[open] summary::after{
     align-items: stretch;
   }
 }
+/* ============================
+   PRONOS - SEPARATIONS VISUELLES
+============================ */
+.section-main-title{
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.prono-section{
+  margin-bottom: 26px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.prono-section h3{
+  margin-top: 0;
+  margin-bottom: 16px;
+  text-align: center;
+  font-size: 1.6rem;
+}
+
+.prono-subsection{
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.10);
+  border-left: 6px solid rgba(255,255,255,0.20);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+}
+
+.prono-subsection:last-child{
+  margin-bottom: 0;
+}
+
+.prono-subsection h4{
+  margin: 0 0 12px 0;
+  font-size: 1.15rem;
+  text-align: left;
+}
+
+.prono-subsection.pole{
+  background: rgba(255,214,10,0.10);
+  border-left-color: #ffd60a;
+}
+
+.prono-subsection.q1{
+  background: rgba(52,152,219,0.12);
+  border-left-color: #3498db;
+}
+
+.prono-subsection.sprint{
+  background: rgba(46,204,113,0.10);
+  border-left-color: #2ecc71;
+}
+
+.prono-subsection.gp{
+  background: rgba(231,76,60,0.10);
+  border-left-color: #e74c3c;
+}
+
+.prono-subsection label{
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.prono-subsection select,
+.prono-subsection input{
+  width: 100%;
+}
+
+.bonus-section{
+  margin-top: 26px;
+  padding-top: 14px;
+  border-top: 2px dashed rgba(255,255,255,0.12);
+}
+
+.bonus-section h3{
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.bonus-block{
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+@media (max-width: 700px){
+  .prono-section{
+    padding: 14px;
+  }
+
+  .prono-subsection{
+    padding: 12px;
+  }
+
+  .prono-section h3{
+    font-size: 1.35rem;
+  }
+
+  .prono-subsection h4{
+    font-size: 1.05rem;
+  }
+}
