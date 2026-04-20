@@ -382,13 +382,6 @@ def sanitize_weekends_list(weekends):
 
 
 def get_season_year():
-    if engine:
-        data = load_json(WEEKENDS_FILE, {"season_year": date.today().year})
-        y = data.get("season_year")
-        if isinstance(y, int):
-            return y
-        return date.today().year
-
     data = load_json(WEEKENDS_FILE, {"season_year": date.today().year})
     y = data.get("season_year")
     if isinstance(y, int):
@@ -732,7 +725,7 @@ def seed_weekends_config_to_db_if_needed():
             })
 
 
-ensure_db_bootstrap():
+def ensure_db_bootstrap():
     global _DB_BOOTSTRAPPED
 
     if _DB_BOOTSTRAPPED:
@@ -796,11 +789,15 @@ def save_weekends_data(data: dict):
     data = dict(data or {})
     weekends = sanitize_weekends_list(data.get("weekends", []))
 
-    file_payload = load_json(WEEKENDS_FILE, {"season_year": date.today().year, "timezone": "Europe/Paris", "weekends": []})
+    file_payload = load_json(
+        WEEKENDS_FILE,
+        {"season_year": date.today().year, "timezone": "Europe/Paris", "weekends": []}
+    )
     if isinstance(file_payload, list):
         file_payload = {"weekends": file_payload}
     if not isinstance(file_payload, dict):
         file_payload = {"weekends": []}
+
     file_payload["season_year"] = data.get("season_year", file_payload.get("season_year", date.today().year))
     file_payload["timezone"] = data.get("timezone", file_payload.get("timezone", "Europe/Paris"))
     file_payload["weekends"] = weekends
@@ -1505,7 +1502,7 @@ def set_weekend_open(weekend_id: str):
 def set_weekend_closed_and_public(weekend_id: str):
     if not engine:
         return
-    ensure_db_bootSTRAP()
+    ensure_db_bootstrap()
     with engine.begin() as conn:
         conn.execute(text("""
             INSERT INTO weekends (weekend_id, closed_at, pronos_public_at, updated_at)
@@ -1875,6 +1872,7 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
             })
         return len(dedupe_pronos_by_playername(tmp))
     return 0
+
 
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
@@ -3162,9 +3160,7 @@ def classement_general():
 # ------------------ Health checks ------------------
 @app.route("/healthz")
 def healthz():
-    resp = make_response("OK", 200)
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+    return "OK", 200
 
 
 @app.route("/health")
@@ -3176,10 +3172,7 @@ def health():
                 conn.execute(text("SELECT 1"))
         except Exception as e:
             return f"DB ERROR: {e}", 500
-
-    resp = make_response("OK", 200)
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+    return "OK", 200
 
 
 if __name__ == "__main__":
