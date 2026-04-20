@@ -2,6 +2,110 @@
 {% block title %}Pronostics — {{ w.label }}{% endblock %}
 {% block content %}
 
+  <style>
+    .section-main-title {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+
+    .prono-section {
+      margin-bottom: 26px;
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .prono-section h3 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      text-align: center;
+      font-size: 1.6rem;
+    }
+
+    .prono-subsection {
+      margin-bottom: 18px;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.10);
+      border-left: 6px solid rgba(255,255,255,0.20);
+    }
+
+    .prono-subsection:last-child {
+      margin-bottom: 0;
+    }
+
+    .prono-subsection h4 {
+      margin: 0 0 12px 0;
+      font-size: 1.15rem;
+    }
+
+    .prono-subsection.pole {
+      background: rgba(255, 215, 0, 0.08);
+      border-left-color: #f1c40f;
+    }
+
+    .prono-subsection.q1 {
+      background: rgba(52, 152, 219, 0.10);
+      border-left-color: #3498db;
+    }
+
+    .prono-subsection.sprint {
+      background: rgba(46, 204, 113, 0.10);
+      border-left-color: #2ecc71;
+    }
+
+    .prono-subsection.gp {
+      background: rgba(231, 76, 60, 0.10);
+      border-left-color: #e74c3c;
+    }
+
+    .prono-subsection label {
+      display: block;
+      margin-top: 10px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .prono-subsection select,
+    .prono-subsection input {
+      width: 100%;
+    }
+
+    .bonus-section {
+      margin-top: 26px;
+      padding-top: 10px;
+      border-top: 2px dashed rgba(255,255,255,0.12);
+    }
+
+    .bonus-section h3 {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .bonus-block {
+      margin-bottom: 14px;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    @media (max-width: 768px) {
+      .prono-section {
+        padding: 14px;
+      }
+
+      .prono-subsection {
+        padding: 12px;
+      }
+
+      .prono-section h3 {
+        font-size: 1.35rem;
+      }
+    }
+  </style>
+
   <h2>{{ w.label }}</h2>
 
   <div class="card">
@@ -67,146 +171,169 @@
     <p>Fais tes pronostics ! <small>(modifiables à volonté)</small></p>
 
     <form method="post" class="card">
-      <h3>Qualifications</h3>
+      <div class="prono-section">
+        <h3 class="section-main-title">🏁 Qualifications</h3>
 
-      <label>Pôle position :</label>
-      <select name="pole">
-        <option value="">--</option>
-        {% for r in riders %}
-          <option value="{{ r }}" {% if my.pole == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
+        <div class="prono-subsection pole">
+          <h4>🥇 Pôle position</h4>
+          <label for="pole">Pilote :</label>
+          <select name="pole" id="pole">
+            <option value="">--</option>
+            {% for r in riders %}
+              <option value="{{ r }}" {% if my.pole == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
 
-      <label>Sortie Q1 - Pilote 1 :</label>
-      <select name="q1_1">
-        <option value="">--</option>
-        {% for r in riders %}
-          <option value="{{ r }}" {% if my.q1_1 == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
+        <div class="prono-subsection q1">
+          <h4>🚦 Sorties de Q1</h4>
 
-      <label>Sortie Q1 - Pilote 2 :</label>
-      <select name="q1_2">
-        <option value="">--</option>
-        {% for r in riders %}
-          <option value="{{ r }}" {% if my.q1_2 == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
+          <label for="q1_1">Pilote 1 :</label>
+          <select name="q1_1" id="q1_1">
+            <option value="">--</option>
+            {% for r in riders %}
+              <option value="{{ r }}" {% if my.q1_1 == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
 
-      <h3>Sprint</h3>
-      {% for i in range(1,4) %}
-        <label>Position {{ i }} :</label>
-        <select name="sprint_p{{ i }}">
-          <option value="">--</option>
-          {% for r in riders %}
-            <option value="{{ r }}" {% if my["sprint_p" ~ i] == r %}selected{% endif %}>{{ r }}</option>
+          <label for="q1_2">Pilote 2 :</label>
+          <select name="q1_2" id="q1_2">
+            <option value="">--</option>
+            {% for r in riders %}
+              <option value="{{ r }}" {% if my.q1_2 == r %}selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="prono-section">
+        <h3 class="section-main-title">⚡ Sprint</h3>
+
+        <div class="prono-subsection sprint">
+          <h4>Podium Sprint</h4>
+          {% for i in range(1,4) %}
+            <label for="sprint_p{{ i }}">Position {{ i }} :</label>
+            <select name="sprint_p{{ i }}" id="sprint_p{{ i }}">
+              <option value="">--</option>
+              {% for r in riders %}
+                <option value="{{ r }}" {% if my["sprint_p" ~ i] == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
           {% endfor %}
-        </select>
-      {% endfor %}
+        </div>
+      </div>
 
-      <h3>Grand Prix</h3>
-      {% for i in range(1,4) %}
-        <label>Position {{ i }} :</label>
-        <select name="gp_p{{ i }}">
-          <option value="">--</option>
-          {% for r in riders %}
-            <option value="{{ r }}" {% if my["gp_p" ~ i] == r %}selected{% endif %}>{{ r }}</option>
+      <div class="prono-section">
+        <h3 class="section-main-title">🏆 Grand Prix</h3>
+
+        <div class="prono-subsection gp">
+          <h4>Podium Grand Prix</h4>
+          {% for i in range(1,4) %}
+            <label for="gp_p{{ i }}">Position {{ i }} :</label>
+            <select name="gp_p{{ i }}" id="gp_p{{ i }}">
+              <option value="">--</option>
+              {% for r in riders %}
+                <option value="{{ r }}" {% if my["gp_p" ~ i] == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
           {% endfor %}
-        </select>
-      {% endfor %}
+        </div>
+      </div>
 
       {% if w.bonus_questions and w.bonus_questions|length > 0 %}
-        <h3>Questions bonus</h3>
-        {% set mb = my.bonus if my.bonus is defined and my.bonus else {} %}
+        <div class="bonus-section">
+          <h3>🎯 Questions bonus</h3>
+          {% set mb = my.bonus if my.bonus is defined and my.bonus else {} %}
 
-        {% for b in w.bonus_questions %}
-          {% set current = mb[b.id] if mb[b.id] is defined else '' %}
+          {% for b in w.bonus_questions %}
+            {% set current = mb[b.id] if mb[b.id] is defined else '' %}
 
-          <div class="bonus-block">
-            <label for="bonus_{{ b.id }}">
-              {{ b.label }}
-              {% if b.type_label %}
-                <small>({{ b.type_label }})</small>
+            <div class="bonus-block">
+              <label for="bonus_{{ b.id }}">
+                {{ b.label }}
+                {% if b.type_label %}
+                  <small>({{ b.type_label }})</small>
+                {% endif %}
+              </label>
+
+              {% if b.type == 'yes_no' %}
+                <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                  <option value="">--</option>
+                  <option value="Oui" {% if current == 'Oui' %}selected{% endif %}>Oui</option>
+                  <option value="Non" {% if current == 'Non' %}selected{% endif %}>Non</option>
+                </select>
+
+              {% elif b.type == 'rider' %}
+                <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                  <option value="">--</option>
+                  {% for r in riders %}
+                    <option value="{{ r }}" {% if current == r %}selected{% endif %}>{{ r }}</option>
+                  {% endfor %}
+                </select>
+
+              {% elif b.type == 'team' %}
+                <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                  <option value="">--</option>
+                  {% for team in all_teams %}
+                    <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+                  {% endfor %}
+                </select>
+
+              {% elif b.type == 'official_team' %}
+                <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                  <option value="">--</option>
+                  {% for team in official_teams %}
+                    <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+                  {% endfor %}
+                </select>
+
+              {% elif b.type == 'satellite_team' %}
+                <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                  <option value="">--</option>
+                  {% for team in satellite_teams %}
+                    <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
+                  {% endfor %}
+                </select>
+
+              {% elif b.type == 'range' %}
+                <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
+                  <option value="">--</option>
+                  {% for opt in b.resolved_options %}
+                    <option value="{{ opt }}" {% if current == opt %}selected{% endif %}>{{ opt }}</option>
+                  {% endfor %}
+                </select>
+
+              {% elif b.type == 'number' %}
+                <input
+                  type="number"
+                  name="bonus_{{ b.id }}"
+                  id="bonus_{{ b.id }}"
+                  value="{{ current }}"
+                  inputmode="numeric"
+                  step="1"
+                >
+
+              {% elif b.type == 'text' %}
+                <input
+                  type="text"
+                  name="bonus_{{ b.id }}"
+                  id="bonus_{{ b.id }}"
+                  value="{{ current }}"
+                  maxlength="120"
+                  placeholder="Ta réponse"
+                >
+
+              {% else %}
+                <input
+                  type="text"
+                  name="bonus_{{ b.id }}"
+                  id="bonus_{{ b.id }}"
+                  value="{{ current }}"
+                >
               {% endif %}
-            </label>
-
-            {% if b.type == 'yes_no' %}
-              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                <option value="">--</option>
-                <option value="Oui" {% if current == 'Oui' %}selected{% endif %}>Oui</option>
-                <option value="Non" {% if current == 'Non' %}selected{% endif %}>Non</option>
-              </select>
-
-            {% elif b.type == 'rider' %}
-              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                <option value="">--</option>
-                {% for r in riders %}
-                  <option value="{{ r }}" {% if current == r %}selected{% endif %}>{{ r }}</option>
-                {% endfor %}
-              </select>
-
-            {% elif b.type == 'team' %}
-              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                <option value="">--</option>
-                {% for team in all_teams %}
-                  <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
-                {% endfor %}
-              </select>
-
-            {% elif b.type == 'official_team' %}
-              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                <option value="">--</option>
-                {% for team in official_teams %}
-                  <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
-                {% endfor %}
-              </select>
-
-            {% elif b.type == 'satellite_team' %}
-              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                <option value="">--</option>
-                {% for team in satellite_teams %}
-                  <option value="{{ team }}" {% if current == team %}selected{% endif %}>{{ team }}</option>
-                {% endfor %}
-              </select>
-
-            {% elif b.type == 'range' %}
-              <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                <option value="">--</option>
-                {% for opt in b.resolved_options %}
-                  <option value="{{ opt }}" {% if current == opt %}selected{% endif %}>{{ opt }}</option>
-                {% endfor %}
-              </select>
-
-            {% elif b.type == 'number' %}
-              <input
-                type="number"
-                name="bonus_{{ b.id }}"
-                id="bonus_{{ b.id }}"
-                value="{{ current }}"
-                inputmode="numeric"
-                step="1"
-              >
-
-            {% elif b.type == 'text' %}
-              <input
-                type="text"
-                name="bonus_{{ b.id }}"
-                id="bonus_{{ b.id }}"
-                value="{{ current }}"
-                maxlength="120"
-                placeholder="Ta réponse"
-              >
-
-            {% else %}
-              <input
-                type="text"
-                name="bonus_{{ b.id }}"
-                id="bonus_{{ b.id }}"
-                value="{{ current }}"
-              >
-            {% endif %}
-          </div>
-        {% endfor %}
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
 
       <div class="sticky-save">
