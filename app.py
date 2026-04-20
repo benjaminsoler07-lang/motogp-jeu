@@ -732,7 +732,7 @@ def seed_weekends_config_to_db_if_needed():
             })
 
 
-def ensure_db_bootstrap():
+ensure_db_bootstrap():
     global _DB_BOOTSTRAPPED
 
     if _DB_BOOTSTRAPPED:
