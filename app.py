@@ -104,7 +104,6 @@ OFFICIAL_TEAMS = [
 SATELLITE_TEAMS = [
     "Gresini Racing MotoGP",
     "LCR Honda Castrol",
-    "LCR Honda Idemitsu",
     "Pertamina Enduro VR46 Racing Team",
     "Prima Pramac Yamaha MotoGP",
     "Red Bull KTM Tech3",
