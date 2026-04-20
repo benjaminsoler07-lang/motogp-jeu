@@ -1876,12 +1876,6 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
         return len(dedupe_pronos_by_playername(tmp))
     return 0
 
-
-@app.before_request
-def _bootstrap_once_before_request():
-    ensure_db_bootstrap()
-
-
 # ================== PUBLIC ROUTES ==================
 @app.route("/")
 def home():
