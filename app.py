@@ -3173,6 +3173,7 @@ def health():
             return f"DB ERROR: {e}", 500
     return "OK", 200
 
+print("APP FLASK DEMARREE", flush=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
