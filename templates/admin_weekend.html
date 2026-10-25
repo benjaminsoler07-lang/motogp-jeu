@@ -58,6 +58,7 @@
 <div class="card admin-actions" style="display:flex; flex-wrap:wrap; gap:12px; justify-content:center;">
 
   {% if not cancelled %}
+    <a class="btn btn-small" href="{{ url_for('admin_schedule', weekend_id=w.id) }}">⏱️ Horaires / clôture</a>
     <a class="btn btn-small" href="{{ url_for('admin_questions', weekend_id=w.id) }}">
       ❓ Questions bonus
     </a>
