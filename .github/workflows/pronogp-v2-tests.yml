@@ -20,3 +20,32 @@ jobs:
         env:
           DATABASE_URL: ''
         run: python -m unittest discover -s tests -v
+
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pronogp
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pronogp
+      SECRET_KEY: github-integration-secret
+      ADMIN_USER: github_admin
+      ADMIN_PASS: github_admin_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: PostgreSQL migration and new features
+        run: python -m unittest discover -s tests -p 'test_v2_database.py' -v
