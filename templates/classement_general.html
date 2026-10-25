@@ -118,7 +118,7 @@
         {% if second %}
           <div class="podium-card podium-2">
             <div class="podium-rank">🥈 2e</div>
-            <div class="podium-name">{{ second.player }}</div>
+            <div class="avatar-v2 avatar-lg"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(second.player|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ second.player[:1]|upper }}</span></div><div class="podium-name">{{ second.player }}</div>
             <div class="podium-points"><strong>{{ second.total }}</strong> pts</div>
 
             <div class="podium-breakdown">
@@ -141,7 +141,7 @@
         {% if first %}
           <div class="podium-card podium-1">
             <div class="podium-rank">🥇 1er</div>
-            <div class="podium-name">{{ first.player }}</div>
+            <div class="avatar-v2 avatar-lg"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(first.player|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ first.player[:1]|upper }}</span></div><div class="podium-name">{{ first.player }}</div>
             <div class="podium-points"><strong>{{ first.total }}</strong> pts</div>
 
             <div class="podium-breakdown">
@@ -164,7 +164,7 @@
         {% if third %}
           <div class="podium-card podium-3">
             <div class="podium-rank">🥉 3e</div>
-            <div class="podium-name">{{ third.player }}</div>
+            <div class="avatar-v2 avatar-lg"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(third.player|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ third.player[:1]|upper }}</span></div><div class="podium-name">{{ third.player }}</div>
             <div class="podium-points"><strong>{{ third.total }}</strong> pts</div>
 
             <div class="podium-breakdown">
@@ -205,7 +205,7 @@
           {% for r in rows %}
             <tr class="{% if loop.index==1 %}row-gold{% elif loop.index==2 %}row-silver{% elif loop.index==3 %}row-bronze{% endif %}">
               <td><strong>{{ loop.index }}</strong></td>
-              <td class="player-col" style="text-align:left;"><strong>{{ r.player }}</strong></td>
+              <td class="player-col" style="text-align:left;"><span class="avatar-v2 avatar-sm"><img src="{{ url_for('player_avatar',participant_id=v2_avatar_ids.get(r.player|lower|trim,0)) }}" alt="" onerror="this.style.display='none'"><span>{{ r.player[:1]|upper }}</span></span><strong>{{ r.player }}</strong></td>
               <td class="total-col"><strong>{{ r.total }}</strong></td>
               <td>{{ r.q }}</td>
               <td>{{ r.s }}</td>
