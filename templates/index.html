@@ -6,7 +6,7 @@
   <h1>Une saison. Des Grands Prix. Ton podium.</h1>
   <p>Les plus belles courses, tes pronostics et les points de la saison {{ season_year }}.</p>
   {% if name %}<p>👋 Salut <strong>{{ name }}</strong></p>
-    <a href="{{ url_for('player_dashboard') }}" class="btn">🏁 Mon espace joueur</a>
+    <a href="{{ url_for('player_dashboard',season=season_year) }}" class="btn">🏁 Mon espace joueur</a>
   {% else %}
     <p>Connecte-toi pour pronostiquer et consulter ton espace personnel.</p>
     <a href="{{ url_for('login') }}" class="btn">🔑 Se connecter</a>
@@ -19,8 +19,8 @@
   </nav>
   <h2>🏆 Saison {{ season_year }}</h2>
   <p>Retrouve tes pronostics du championnat et les Grands Prix programmés.</p>
-  {% if name %}<a class="btn btn-small" href="{{ url_for('championnat') }}">🏆 Prono championnat du monde</a>{% endif %}
-  <a class="btn btn-small" href="{{ url_for('classement_general') }}">Classement général</a>
+  {% if name %}<a class="btn btn-small" href="{{ url_for('championnat',season=season_year) }}">🏆 Prono championnat du monde</a>{% endif %}
+  <a class="btn btn-small" href="{{ url_for('classement_general',season=season_year) }}">Classement général</a>
 </section>
 <h2>🗓️ Calendrier MotoGP</h2>
 <div class="v2-event-grid">
