@@ -9,7 +9,7 @@
 
   <body>
     <header class="checkerbar">
-      <h1 class="header-title">Prono MotoGP 2026</h1>
+      <h1 class="header-title">PRONOGP · MOTOGP</h1>
 
       <div class="header-auth">
         {% if name %}
@@ -31,8 +31,11 @@
 
       <nav class="header-nav">
         <a class="btn" href="{{ url_for('home') }}">Accueil</a>
+        {% if name %}<a class="btn" href="{{ url_for('player_dashboard') }}">Mon espace</a>
+        <a class="btn" href="{{ url_for('profile') }}">Mon profil</a>{% endif %}
         <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
-        <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par course</a>
+        <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par GP</a>
+        <a class="btn" href="{{ url_for('championnat') }}">Championnat</a>
       </nav>
     </header>
 
