@@ -447,9 +447,33 @@ def weekend_status(weekend_date: date, open_days_before: int = 10, cancelled: bo
     return "closed"
 
 
+def weekend_season(w: dict) -> int:
+    try:
+        year = int((w or {}).get("season_year") or get_season_year())
+        return year if 2020 <= year <= 2100 else get_season_year()
+    except (ValueError, TypeError):
+        return get_season_year()
+
+
+def selected_season_year() -> int:
+    try:
+        year = int(request.values.get("season") or get_season_year())
+        return year if 2020 <= year <= 2100 else get_season_year()
+    except (ValueError, TypeError):
+        return get_season_year()
+
+
+def is_season_archived(year: int) -> bool:
+    if not engine:
+        return False
+    ensure_db_bootstrap()
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT archived FROM seasons WHERE year=:y"), {"y": year}).fetchone()
+    return bool(row and row[0])
+
+
 def weekend_sort_key(w: dict):
-    season_year = get_season_year()
-    d = parse_weekend_date(w.get("date", ""), season_year)
+    d = parse_weekend_date(w.get("date", ""), weekend_season(w))
     return (d or date.max, (w.get("label") or "").lower())
 
 
@@ -642,6 +666,16 @@ def db_init():
         """))
 
         conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS seasons (
+            year INTEGER PRIMARY KEY,
+            archived BOOLEAN NOT NULL DEFAULT FALSE
+        );
+        """))
+        conn.execute(text("""
+            INSERT INTO seasons (year, archived) VALUES (2026, FALSE)
+            ON CONFLICT (year) DO NOTHING
+        """))
+        conn.execute(text("""
         CREATE TABLE IF NOT EXISTS player_photos (
             participant_id INTEGER PRIMARY KEY REFERENCES participants(id) ON DELETE CASCADE,
             photo_data BYTEA NOT NULL,
@@ -678,6 +712,13 @@ def db_init():
             ON championnat_pronos(participant_id);
         """))
 
+        conn.execute(text("""
+        ALTER TABLE championnat_pronos
+            ADD COLUMN IF NOT EXISTS season_year INTEGER NOT NULL DEFAULT 2026;
+        """))
+        conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS idx_championnat_pronos_season_year ON championnat_pronos(season_year);
+        """))
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_state (
             id INTEGER PRIMARY KEY,
@@ -900,7 +941,7 @@ def get_sorted_weekends():
     for w in load_weekends_list():
         ww = dict(w)
         ww["cancelled"] = bool(ww.get("cancelled", False))
-        ww["date_obj"] = parse_weekend_date(ww.get("date", ""), get_season_year())
+        ww["date_obj"] = parse_weekend_date(ww.get("date", ""), weekend_season(ww))
         items.append(ww)
     items.sort(key=weekend_sort_key)
     return items
@@ -1027,7 +1068,7 @@ def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: st
                 if not new_date:
                     return False, "La date est obligatoire."
 
-                parsed = parse_weekend_date(new_date, get_season_year())
+                parsed = parse_weekend_date(new_date, weekend_season(w))
                 if not parsed:
                     return False, "Date invalide. Format attendu : YYYY-MM-DD."
 
@@ -1515,7 +1556,10 @@ def current_player(req):
 
 # ------------------ Week-end open/close DB state ------------------
 def is_weekend_closed(weekend_id: str) -> bool:
-    deadline = deadline_from_weekend(get_weekend(weekend_id))
+    weekend = get_weekend(weekend_id)
+    if weekend and is_season_archived(weekend_season(weekend)):
+        return True
+    deadline = deadline_from_weekend(weekend)
     if deadline is not None and datetime.now(timezone.utc) >= deadline:
         return True
     if not engine:
@@ -1946,7 +1990,11 @@ def home():
     name, _ = current_player(request)
 
     weekends = []
+    season_year = selected_season_year()
+    years = sorted(set([get_season_year()] + [weekend_season(w) for w in get_sorted_weekends()]))
     for w in get_sorted_weekends():
+        if weekend_season(w) != season_year:
+            continue
         w2 = dict(w)
         w2["status"] = weekend_status(
             w2.get("date_obj"),
@@ -1961,7 +2009,8 @@ def home():
         name=name,
         weekends=weekends,
         race_center=race_center(weekends),
-        season_year=get_season_year(),
+        season_year=season_year,
+        years=years,
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -2210,6 +2259,9 @@ def pronos(weekend_id):
             my = dict(best)
 
     if request.method == "POST":
+        if is_season_archived(weekend_season(w)):
+            flash("Cette saison est archivée : pronostics non modifiables.")
+            return redirect(url_for("pronos", weekend_id=weekend_id))
         if closed:
             flash("Pronos clos : modification impossible.")
             return redirect(url_for("pronos", weekend_id=weekend_id))
@@ -3005,7 +3057,7 @@ def public_pronos(weekend_id):
 def results_by_race():
     name, _ = current_player(request)
 
-    weekends = get_sorted_weekends()
+    weekends = [w for w in get_sorted_weekends() if weekend_season(w) == selected_season_year()]
     gp_id = (request.args.get("gp") or "").strip()
 
     selected = get_weekend(gp_id) if gp_id else None
@@ -3169,7 +3221,7 @@ def classement_weekend(weekend_id):
 def classement_general():
     name, _ = current_player(request)
 
-    weekends = get_sorted_weekends()
+    weekends = [w for w in get_sorted_weekends() if weekend_season(w) == selected_season_year()]
     if not weekends:
         return render_template(
             "classement_general.html",
@@ -3282,6 +3334,10 @@ register_v2(app, {
     "load_bonus_reviews": load_bonus_reviews,
     "compute_points_breakdown": compute_points_breakdown,
     "is_weekend_closed": is_weekend_closed,
+    "is_season_archived": is_season_archived,
+    "weekend_season": weekend_season,
+    "selected_season_year": selected_season_year,
+    "get_season_year": get_season_year,
 })
 
 print("APP FLASK DEMARREE", flush=True)
