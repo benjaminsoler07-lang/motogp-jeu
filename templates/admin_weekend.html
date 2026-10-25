@@ -64,6 +64,7 @@
     <a class="btn btn-small" href="{{ url_for('admin_results', weekend_id=w.id) }}">
       🏁 Entrer résultats
     </a>
+    <a class="btn btn-small" href="{{ url_for('admin_bonus_reviews', weekend_id=w.id) }}">⚖️ Vérifier bonus</a>
   {% else %}
     <span class="btn btn-small btn-disabled">❓ Questions bonus</span>
     <span class="btn btn-small btn-disabled">🏁 Entrer résultats</span>
