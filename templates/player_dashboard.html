@@ -17,7 +17,7 @@
   <article><small>DERNIER RÉSULTAT</small><strong class="v2-event-name">{{ last_result.name if last_result else 'À venir' }}</strong><span>{% if last_result %}+{{ last_result.points }} points{% else %}Pas de résultat publié{% endif %}</span></article>
 </div>
 {% if next_gp %}{% with rc=next_gp %}{% include "_race_center.html" %}{% endwith %}{% endif %}
-<h2>🏁 Fais ton prono</h2>
+<h2>🏁 Fais ton prono · Saison {{ season_year }}</h2>
 <div class="v2-event-grid">
 {% for w in weekends %}
   <div class="v2-event">
