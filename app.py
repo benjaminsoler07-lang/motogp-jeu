@@ -20,6 +20,8 @@
 import os
 import json
 import uuid
+import secrets
+import hmac
 import re
 import unicodedata
 from datetime import datetime, date, timedelta, timezone
@@ -279,6 +281,33 @@ def is_bonus_answer_correct(question: dict, predicted, actual):
         return False
 
     return normalize_bonus_answer_by_type(qtype, predicted) == normalize_bonus_answer_by_type(qtype, actual)
+
+
+def load_bonus_reviews(weekend_id: str) -> dict:
+    """Lit une seule fois les corrections du GP pour éviter les requêtes par joueur."""
+    if not engine:
+        return {}
+    ensure_db_bootstrap()
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT player_norm, question_id, decision, prediction_snapshot,
+                   official_snapshot, reviewed_by, reviewed_at
+            FROM bonus_reviews WHERE weekend_id=:wid
+        """), {"wid": weekend_id}).mappings().all()
+    return {(r["player_norm"], r["question_id"]): dict(r) for r in rows}
+
+
+def evaluated_bonus_answer(question, predicted, actual, player_name=None, reviews=None):
+    """Correction humaine prioritaire, uniquement si les deux réponses n'ont pas changé."""
+    automatic = is_bonus_answer_correct(question, predicted, actual)
+    key = (normalize_pseudo(player_name), str(question.get("id") or ""))
+    review = (reviews or {}).get(key)
+    if review is not None and (
+        str(review["prediction_snapshot"]) == str(predicted or "")
+        and str(review["official_snapshot"]) == str(actual or "")
+    ):
+        return bool(review["decision"]), True
+    return automatic, False
 
 
 def load_json(path, default):
@@ -661,6 +690,21 @@ def db_init():
             weekend_id TEXT PRIMARY KEY,
             payload_json JSONB NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+
+        # Migration additive : l'historique des pronostics et résultats est préservé.
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS bonus_reviews (
+            weekend_id TEXT NOT NULL,
+            player_norm TEXT NOT NULL,
+            question_id TEXT NOT NULL,
+            decision BOOLEAN NOT NULL,
+            prediction_snapshot TEXT NOT NULL,
+            official_snapshot TEXT NOT NULL,
+            reviewed_by TEXT NOT NULL,
+            reviewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (weekend_id, player_norm, question_id)
         );
         """))
 
@@ -1256,6 +1300,9 @@ def delete_participant(participant_id: int):
             pseudo_norm = row[2] or normalize_pseudo(pseudo)
 
             conn.execute(text("""
+                DELETE FROM bonus_reviews WHERE player_norm=:pn
+            """), {"pn": pseudo_norm})
+            conn.execute(text("""
                 DELETE FROM pronos_history
                 WHERE participant_id=:pid
                    OR COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
@@ -1604,7 +1651,7 @@ def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
     }
 
 
-def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list):
+def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list, *, player_name=None, reviews=None):
     pred_bonus = pred_bonus or {}
     real_bonus = real_bonus or {}
     items = []
@@ -1617,7 +1664,8 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
 
         pred = pred_bonus.get(bid)
         real = real_bonus.get(bid)
-        ok = is_bonus_answer_correct(b, pred, real)
+        ok, manually_reviewed = evaluated_bonus_answer(
+            b, pred, real, player_name=player_name, reviews=reviews)
         pts = BONUS_POINTS_PER_QUESTION if ok else 0.0
         total += pts
 
@@ -1629,13 +1677,14 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
             "pred": pred,
             "real": real,
             "ok": ok,
+            "manual": manually_reviewed,
             "pts": pts
         })
 
     return {"items": items, "total": round(total, 2)}
 
 
-def compute_points_breakdown(prono: dict, results: dict, w: dict):
+def compute_points_breakdown(prono: dict, results: dict, w: dict, *, player_name=None, reviews=None):
     prono = prono or {}
     results = results or {}
     w = w or {}
@@ -1660,7 +1709,8 @@ def compute_points_breakdown(prono: dict, results: dict, w: dict):
         well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
     )
 
-    bonus = bonus_detail(prono.get("bonus", {}), results.get("bonus", {}), bq)
+    bonus = bonus_detail(prono.get("bonus", {}), results.get("bonus", {}), bq,
+                         player_name=player_name, reviews=reviews)
 
     total = round(qual["total"] + sprint["total"] + gp["total"] + bonus["total"], 2)
 
@@ -2724,6 +2774,88 @@ def admin_results(weekend_id):
     )
 
 
+@app.route("/admin/w/<weekend_id>/bonus-reviews", methods=["GET", "POST"])
+@require_admin
+def admin_bonus_reviews(weekend_id):
+    """Validation ponctuelle, réversible et horodatée sans toucher au prono brut."""
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+    if not engine:
+        return "Base PostgreSQL requise pour la validation manuelle.", 503
+    results = load_results(weekend_id) or {}
+    questions = w.get("bonus_questions", []) or []
+    pronos_by_player = get_latest_pronos_by_player_for_weekend(weekend_id)
+    token = session.get("bonus_review_csrf")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["bonus_review_csrf"] = token
+
+    if request.method == "POST":
+        if not hmac.compare_digest(
+            str(request.form.get("csrf_token") or ""), str(token)):
+            return "Formulaire expiré ou non autorisé", 403
+        pname = str(request.form.get("player") or "")
+        qid = str(request.form.get("question") or "")
+        decision = str(request.form.get("decision") or "")
+        question = next((b for b in questions if b.get("id") == qid), None)
+        player_name = next(
+            (p for p in pronos_by_player if normalize_pseudo(p) == normalize_pseudo(pname)),
+            None)
+        if not question or player_name is None or decision not in ("auto", "valid", "invalid"):
+            return "Correction invalide", 400
+        predicted = (pronos_by_player[player_name].get("bonus") or {}).get(qid)
+        official = (results.get("bonus") or {}).get(qid)
+        if decision != "auto" and not official:
+            flash("Saisir et enregistrer d'abord la bonne réponse officielle.")
+            return redirect(url_for("admin_bonus_reviews", weekend_id=weekend_id))
+        key = {"wid": weekend_id, "player": normalize_pseudo(player_name), "qid": qid}
+        with engine.begin() as conn:
+            if decision == "auto":
+                conn.execute(text("""
+                    DELETE FROM bonus_reviews
+                    WHERE weekend_id=:wid AND player_norm=:player AND question_id=:qid
+                """), key)
+            else:
+                conn.execute(text("""
+                    INSERT INTO bonus_reviews (
+                        weekend_id, player_norm, question_id, decision,
+                        prediction_snapshot, official_snapshot, reviewed_by
+                    ) VALUES (
+                        :wid, :player, :qid, :decision, :prediction, :official, :admin
+                    )
+                    ON CONFLICT (weekend_id, player_norm, question_id)
+                    DO UPDATE SET decision=EXCLUDED.decision,
+                        prediction_snapshot=EXCLUDED.prediction_snapshot,
+                        official_snapshot=EXCLUDED.official_snapshot,
+                        reviewed_by=EXCLUDED.reviewed_by, reviewed_at=NOW()
+                """), {**key, "decision": decision == "valid",
+                       "prediction": str(predicted or ""),
+                       "official": str(official or ""), "admin": ADMIN_USER})
+        flash("Validation mise à jour ; les classements sont recalculés automatiquement.")
+        return redirect(url_for("admin_bonus_reviews", weekend_id=weekend_id))
+
+    reviews = load_bonus_reviews(weekend_id)
+    entries = []
+    for b in questions:
+        real = (results.get("bonus") or {}).get(b.get("id"))
+        answers = []
+        for player_name, prediction in sorted(pronos_by_player.items()):
+            pred = (prediction.get("bonus") or {}).get(b.get("id"))
+            valid, manual = evaluated_bonus_answer(
+                b, pred, real, player_name=player_name, reviews=reviews)
+            review = reviews.get((normalize_pseudo(player_name), b.get("id")))
+            stale = review is not None and not manual
+            answers.append({"player": player_name, "pred": pred, "valid": valid,
+                            "automatic": is_bonus_answer_correct(b, pred, real),
+                            "manual": manual, "stale": stale,
+                            "decision": ("valid" if valid else "invalid") if manual else "auto"})
+        entries.append({"question": b, "official": real, "answers": answers})
+    return render_template("admin_bonus_reviews.html",
+        w=w, entries=entries, csrf_token=token,
+        name=current_player(request)[0])
+
+
 @app.route("/admin/w/<weekend_id>/questions", methods=["GET", "POST"])
 @require_admin
 def admin_questions(weekend_id):
@@ -2930,10 +3062,12 @@ def results_by_race():
                 })
             pronos_list = dedupe_pronos_by_playername(tmp)
 
+    reviews = load_bonus_reviews(gp_id)
     rows = []
     for item in pronos_list:
         p = item["payload"] or {}
-        breakdown = compute_points_breakdown(p, results, selected)
+        breakdown = compute_points_breakdown(
+            p, results, selected, player_name=item["player_name"], reviews=reviews)
         rows.append({
             "player": item["player_name"],
             "created_at": item.get("created_at"),
@@ -2983,51 +3117,18 @@ def classement_weekend(weekend_id):
             is_admin=is_admin()
         )
 
+    reviews = load_bonus_reviews(weekend_id)
     rows = []
     for player_name, p in pronos_by_player.items():
-        q_score = qualif_points(
-            p.get("pole"),
-            results.get("pole"),
-            [p.get("q1_1"), p.get("q1_2")],
-            results.get("q1", []),
-        )
-
-        s_score = podium_points(
-            [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
-            results.get("sprint", []),
-            well_placed=1.0,
-            mis_placed=0.5,
-            bonus_exact=3.0,
-            bonus_all=1.5
-        )
-
-        g_score = podium_points(
-            [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
-            results.get("gp", []),
-            well_placed=2.0,
-            mis_placed=1.0,
-            bonus_exact=6.0,
-            bonus_all=3.0
-        )
-
-        bonus_score = 0.0
-        for b in w.get("bonus_questions", []):
-            bid = b.get("id")
-            if not bid:
-                continue
-            pred = (p.get("bonus", {}) or {}).get(bid)
-            real = (results.get("bonus", {}) or {}).get(bid)
-            if is_bonus_answer_correct(b, pred, real):
-                bonus_score += BONUS_POINTS_PER_QUESTION
-
-        total = round(q_score + s_score + g_score + bonus_score, 2)
+        pts = compute_points_breakdown(
+            p, results, w, player_name=player_name, reviews=reviews)
         rows.append({
-            "player": player_name or p.get("player_name", "??"),
-            "q": round(q_score, 2),
-            "s": round(s_score, 2),
-            "gp": round(g_score, 2),
-            "bonus": round(bonus_score, 2),
-            "total": round(total, 2)
+            "player": player_name,
+            "q": pts["qualif"]["total"],
+            "s": pts["sprint"]["total"],
+            "gp": pts["gp"]["total"],
+            "bonus": pts["bonus"]["total"],
+            "total": pts["total"]
         })
 
     rows.sort(key=lambda r: r["total"], reverse=True)
@@ -3079,44 +3180,16 @@ def classement_general():
         gp_scored.append({"id": wid, "label": w.get("label", wid)})
 
         pronos_by_player = get_latest_pronos_by_player_for_weekend(wid)
+        reviews = load_bonus_reviews(wid)
 
         for player_name, p in pronos_by_player.items():
-            q_score = qualif_points(
-                p.get("pole"),
-                results.get("pole"),
-                [p.get("q1_1"), p.get("q1_2")],
-                results.get("q1", []),
-            )
-
-            s_score = podium_points(
-                [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
-                results.get("sprint", []),
-                well_placed=1.0,
-                mis_placed=0.5,
-                bonus_exact=3.0,
-                bonus_all=1.5
-            )
-
-            g_score = podium_points(
-                [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
-                results.get("gp", []),
-                well_placed=2.0,
-                mis_placed=1.0,
-                bonus_exact=6.0,
-                bonus_all=3.0
-            )
-
-            bonus_score = 0.0
-            for b in (w.get("bonus_questions", []) or []):
-                bid = b.get("id")
-                if not bid:
-                    continue
-                pred = (p.get("bonus", {}) or {}).get(bid)
-                real = (results.get("bonus", {}) or {}).get(bid)
-                if is_bonus_answer_correct(b, pred, real):
-                    bonus_score += BONUS_POINTS_PER_QUESTION
-
-            total_gp = round(q_score + s_score + g_score + bonus_score, 2)
+            pts = compute_points_breakdown(
+                p, results, w, player_name=player_name, reviews=reviews)
+            q_score = pts["qualif"]["total"]
+            s_score = pts["sprint"]["total"]
+            g_score = pts["gp"]["total"]
+            bonus_score = pts["bonus"]["total"]
+            total_gp = pts["total"]
 
             cur = totals.get(player_name)
             if not cur:
