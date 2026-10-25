@@ -1,0 +1,22 @@
+<section class="v2-racecenter">
+  <div class="v2-eyebrow">🏁 RACE CENTER</div>
+  <h2>{{ rc.name }}</h2>
+  {% if rc.deadline_iso %}
+    <div class="v2-counter"><span>🔒 Clôture des pronostics</span>
+      <strong data-countdown="{{ rc.deadline_iso }}">Calcul…</strong>
+    </div>
+  {% else %}
+    <div class="v2-counter">Clôture par l'administrateur</div>
+  {% endif %}
+  {% if rc.session_iso %}
+    <div class="v2-counter"><span>Prochaine séance : {{ rc.session_label }}</span>
+      <strong data-countdown="{{ rc.session_iso }}">Calcul…</strong>
+    </div>
+  {% endif %}
+  <div class="v2-race-links">
+    <a href="{{ url_for('pronos', weekend_id=rc.id) }}">Fais ton prono</a>
+    <a href="{{ url_for('public_pronos', weekend_id=rc.id) }}">Pronos publics</a>
+    <a href="{{ url_for('classement_weekend', weekend_id=rc.id) }}">Classement</a>
+  </div>
+</section>
+<script defer src="{{ url_for('static',filename='v2-countdown.js') }}"></script>
