@@ -1423,10 +1423,15 @@ def delete_participant(participant_id: int):
 
 
 def get_current_participant(req):
-    raw_name = (req.cookies.get("player_name") or "").strip()
-    if not raw_name:
+    """Le cookie pseudo historique ne constitue jamais une authentification."""
+    player_norm = session.get("authenticated_player")
+    player_id = session.get("authenticated_player_id")
+    if not player_norm or player_id is None:
         return None
-    return get_participant_by_input(raw_name, active_only=True)
+    participant = get_participant_by_input(player_norm, active_only=True)
+    if not participant or str(participant["id"]) != str(player_id):
+        return None
+    return participant
 
 
 # ------------------ Championnat state ------------------
@@ -1554,7 +1559,7 @@ def get_latest_championnat_pronos_by_player() -> list:
 # ------------------ Identification joueurs (cookies) ------------------
 def current_player(req):
     participant = get_current_participant(req)
-    name = participant["pseudo"] if participant else (req.cookies.get("player_name") or "").strip()
+    name = participant["pseudo"] if participant else ""
     pid = req.cookies.get("player_id")
     if not pid:
         pid = str(uuid.uuid4())
@@ -2043,7 +2048,10 @@ def login():
             return redirect(url_for("login"))
 
         _, pid = current_player(request)
-        resp = make_response(redirect(url_for("home")))
+        session["authenticated_player"] = participant["pseudo_normalized"]
+        session["authenticated_player_id"] = participant["id"]
+        session.permanent = True
+        resp = make_response(redirect(url_for("player_dashboard")))
         resp.set_cookie("player_name", participant["pseudo"], max_age=60 * 60 * 24 * 365)
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
@@ -2060,6 +2068,8 @@ def login():
 
 @app.route("/logout")
 def logout():
+    session.pop("authenticated_player", None)
+    session.pop("authenticated_player_id", None)
     resp = make_response(redirect(url_for("home")))
     resp.delete_cookie("player_name")
     resp.delete_cookie("player_id")
