@@ -35,7 +35,7 @@
         <a class="btn" href="{{ url_for('profile') }}">Mon profil</a>{% endif %}
         <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
         <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par GP</a>
-        <a class="btn" href="{{ url_for('championnat') }}">Championnat</a>
+        <a class="btn" href="{{ url_for('championnat',season=request.args.get('season') or 2026) }}">Championnat</a>
       </nav>
     </header>
 
