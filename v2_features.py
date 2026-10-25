@@ -94,6 +94,19 @@ def race_center(weekends):
 
 def register_v2(app, api):
     engine = api["engine"]
+
+    @app.context_processor
+    def inject_v2_avatars():
+        try:
+            players = api["get_all_participants"](include_inactive=True)
+            return {"v2_avatar_ids": {
+                api["normalize_pseudo"](p["pseudo"]): p["id"]
+                for p in players if p.get("id") and p.get("pseudo")
+            }}
+        except Exception:
+            app.logger.exception("Unable to load V2 avatar identifiers")
+            return {"v2_avatar_ids": {}}
+
     def connected():
         return api["get_current_participant"](request)
 
