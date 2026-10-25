@@ -1,8 +1,13 @@
 {% extends 'base.html' %}
-{% block title %}Pronostics — {{ w.label }}{% endblock %}
+{% block title %}Pronostics — {{ w.label }}<script defer src="{{ url_for('static',filename='v2-rider-search.js') }}"></script>
+{% endblock %}
 {% block content %}
 
   <h2>{{ w.label }}</h2>
+  {% if w.deadline_utc %}
+  <p class="notice">🔒 Clôture des pronostics : <strong data-countdown="{{ w.deadline_utc }}">Calcul…</strong></p>
+  <script defer src="{{ url_for('static', filename='v2-countdown.js') }}"></script>
+  {% endif %}
 
   <div class="card">
     <p><strong>Joueur :</strong> {{ name }}</p>
