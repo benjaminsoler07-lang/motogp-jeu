@@ -1585,7 +1585,7 @@ def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
 
 def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
     score = 0.0
-    if normalize(pole_pred) == normalize(pole_real):
+    if pole_pred and pole_real and normalize(pole_pred) == normalize(pole_real):
         score += 2.0
     real_set = {normalize(x) for x in (q1_actual or [])}
     for p in (q1_preds or []):
@@ -1629,7 +1629,7 @@ def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
 
 
 def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
-    pole_ok = normalize(pole_pred) == normalize(pole_real)
+    pole_ok = bool(pole_pred and pole_real and normalize(pole_pred) == normalize(pole_real))
     pole_pts = 2.0 if pole_ok else 0.0
 
     real_set = {normalize(x) for x in (q1_actual or [])}
