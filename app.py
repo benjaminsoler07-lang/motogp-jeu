@@ -35,6 +35,7 @@ from flask import (
 )
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
+from v2_features import register_v2, race_center, deadline_from_weekend
 
 
 app = Flask(__name__)
@@ -638,6 +639,14 @@ def db_init():
         conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_pronos_history_participant_id
             ON pronos_history(participant_id);
+        """))
+
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS player_photos (
+            participant_id INTEGER PRIMARY KEY REFERENCES participants(id) ON DELETE CASCADE,
+            photo_data BYTEA NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         """))
 
         conn.execute(text("""
@@ -1506,6 +1515,9 @@ def current_player(req):
 
 # ------------------ Week-end open/close DB state ------------------
 def is_weekend_closed(weekend_id: str) -> bool:
+    deadline = deadline_from_weekend(get_weekend(weekend_id))
+    if deadline is not None and datetime.now(timezone.utc) >= deadline:
+        return True
     if not engine:
         return False
     ensure_db_bootstrap()
@@ -1518,6 +1530,11 @@ def is_weekend_closed(weekend_id: str) -> bool:
 
 
 def is_pronos_public(weekend_id: str) -> bool:
+    weekend = get_weekend(weekend_id)
+    deadline = deadline_from_weekend(weekend)
+    if deadline is not None and datetime.now(timezone.utc) >= deadline:
+        if bool((weekend or {}).get("auto_publish", False)):
+            return True
     if not engine:
         return False
     ensure_db_bootstrap()
@@ -1936,13 +1953,15 @@ def home():
             open_days_before=10,
             cancelled=bool(w2.get("cancelled", False))
         )
-        w2["closed_db"] = is_weekend_closed(w2.get("id", "")) if engine else False
+        w2["closed_db"] = is_weekend_closed(w2.get("id", ""))
         weekends.append(w2)
 
     return render_template(
         "index.html",
         name=name,
         weekends=weekends,
+        race_center=race_center(weekends),
+        season_year=get_season_year(),
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -2158,7 +2177,7 @@ def pronos(weekend_id):
 
     closed = is_weekend_closed(weekend_id) if engine else False
 
-    if closed:
+    if closed and is_pronos_public(weekend_id):
         if not engine:
             return "Mode public indisponible sans DB (DATABASE_URL manquant).", 500
         return redirect(url_for("public_pronos", weekend_id=weekend_id))
@@ -2948,8 +2967,8 @@ def public_pronos(weekend_id):
     if w.get("cancelled"):
         return "Ce GP est annulé.", 403
 
-    if not is_weekend_closed(weekend_id):
-        return "Pronos pas encore visibles : le GP est encore ouvert.", 403
+    if not is_pronos_public(weekend_id):
+        return "Les pronostics de ce GP ne sont pas encore rendus publics.", 403
 
     with engine.begin() as conn:
         rows = conn.execute(text("""
@@ -3245,6 +3264,24 @@ def health():
         except Exception as e:
             return f"DB ERROR: {e}", 500
     return "OK", 200
+
+register_v2(app, {
+    "engine": engine,
+    "get_current_participant": get_current_participant,
+    "current_player": current_player,
+    "get_weekend": get_weekend,
+    "get_sorted_weekends": get_sorted_weekends,
+    "load_weekends_data": load_weekends_data,
+    "save_weekends_data": save_weekends_data,
+    "ensure_db_bootstrap": ensure_db_bootstrap,
+    "is_admin": is_admin,
+    "normalize_pseudo": normalize_pseudo,
+    "get_latest_pronos_by_player_for_weekend": get_latest_pronos_by_player_for_weekend,
+    "load_results": load_results,
+    "load_bonus_reviews": load_bonus_reviews,
+    "compute_points_breakdown": compute_points_breakdown,
+    "is_weekend_closed": is_weekend_closed,
+})
 
 print("APP FLASK DEMARREE", flush=True)
 
