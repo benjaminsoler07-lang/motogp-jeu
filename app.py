@@ -36,6 +36,7 @@ from flask import (
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from v2_features import register_v2, race_center, deadline_from_weekend
+from v2_notifications import register_notifications
 
 
 app = Flask(__name__)
@@ -674,6 +675,33 @@ def db_init():
         conn.execute(text("""
             INSERT INTO seasons (year, archived) VALUES (2026, FALSE)
             ON CONFLICT (year) DO NOTHING
+        """))
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            endpoint TEXT PRIMARY KEY,
+            participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS push_messages (
+            id BIGSERIAL PRIMARY KEY,
+            participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+            category TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            dedupe_key TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            sent_at TIMESTAMPTZ NULL,
+            read_at TIMESTAMPTZ NULL
+        );
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_push_messages_user
+            ON push_messages (participant_id, created_at DESC);
         """))
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS player_photos (
@@ -3364,6 +3392,20 @@ register_v2(app, {
     "weekend_season": weekend_season,
     "selected_season_year": selected_season_year,
     "get_season_year": get_season_year,
+})
+
+register_notifications(app, {
+    "engine": engine,
+    "get_current_participant": get_current_participant,
+    "get_all_participants": get_all_participants,
+    "get_sorted_weekends": get_sorted_weekends,
+    "get_weekend": get_weekend,
+    "current_player": current_player,
+    "is_admin": is_admin,
+    "is_season_archived": is_season_archived,
+    "weekend_season": weekend_season,
+    "normalize_pseudo": normalize_pseudo,
+    "deadline_from_weekend": deadline_from_weekend,
 })
 
 print("APP FLASK DEMARREE", flush=True)
