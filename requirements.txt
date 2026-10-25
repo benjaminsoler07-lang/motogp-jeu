@@ -13,3 +13,6 @@ psycopg2-binary==2.9.10
 certifi>=2026.10.19
 
 Pillow>=11.3,<13
+
+pywebpush>=2.0,<3
+PyJWT[crypto]>=2.8,<3
