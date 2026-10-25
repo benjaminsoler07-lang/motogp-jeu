@@ -193,6 +193,12 @@
 </form>
 
 <div class="card" style="text-align:left;">
+  <h3>⚖️ Contrôle des questions bonus</h3>
+  <p>Comparer les réponses aux résultats officiels et corriger manuellement les fautes de frappe si nécessaire.</p>
+  <a class="btn" href="{{ url_for('admin_bonus_reviews', weekend_id=w.id) }}">Vérifier les réponses des joueurs</a>
+</div>
+
+<div class="card" style="text-align:left;">
   <p style="margin:0 0 8px;"><strong>Navigation</strong></p>
   <p style="margin:0;">
     <a href="{{ url_for('admin_weekend', weekend_id=w.id) }}">⬅ Retour week-end</a>
