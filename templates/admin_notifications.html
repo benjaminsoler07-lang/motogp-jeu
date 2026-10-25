@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Admin — Notifications{% endblock %}
+{% block content %}
+{% include '_admin_nav.html' %}
+<h2>🔔 Envoyer une notification</h2>
+<p>Le message sera immédiatement présent dans la boîte de réception de ses destinataires. Une notification push sera envoyée lors du prochain traitement planifié si le joueur l'a autorisée.</p>
+{% if not push_configured %}<p class="notice">Le push téléphonique attend les clés VAPID. La boîte de réception fonctionne déjà.</p>{% endif %}
+<form method="post" class="card" style="text-align:left;max-width:800px;margin:auto">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="title">Titre</label>
+<input id="title" name="title" maxlength="100" required placeholder="Clôture imminente">
+<label for="body">Message</label>
+<textarea id="body" name="body" maxlength="500" rows="4" required style="width:100%"></textarea>
+<label for="target">Page à ouvrir</label>
+<select id="target" name="target">
+<option value="notifications">Mes notifications</option>
+<option value="home">Accueil</option>
+<option value="my">Espace personnel</option>
+<option value="ranking">Classement général</option>
+<option value="results">Résultats par GP</option>
+<option value="gp">Page d'un Grand Prix</option>
+</select>
+<label for="gp">Grand Prix (uniquement si la destination est « Page d'un Grand Prix »)</label>
+<select id="gp" name="gp">{% for w in gps %}<option value="{{ w.id }}">{{ w.label }}</option>{% endfor %}</select>
+<label for="recipients">Destinataires</label>
+<select id="recipients" name="recipients" onchange="document.querySelector('#selected-players').hidden=this.value!=='selected'">
+<option value="all">Tous les joueurs actifs</option>
+<option value="selected">Sélectionner des joueurs</option>
+</select>
+<div id="selected-players" hidden style="margin:16px 0;max-height:220px;overflow:auto">
+{% for p in players %}
+<label style="display:block;padding:4px"><input type="checkbox" name="player_ids" value="{{ p.id }}" style="width:auto;margin-right:8px">{{ p.pseudo }}</label>
+{% endfor %}
+</div>
+<p><button class="btn" type="submit">💾 Enregistrer le message</button></p>
+</form>
+{% endblock %}
