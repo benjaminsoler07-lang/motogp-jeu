@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Admin — Vérification des questions bonus{% endblock %}
 {% block content %}
+{% include '_admin_nav.html' %}
 <h2>⚖️ Vérification des réponses bonus — {{ w.label }}</h2>
 <p class="muted">La correction automatique reste active. Une décision manuelle remplace le score uniquement pour la réponse concernée et peut être annulée.</p>
 <p><a class="btn btn-small" href="{{ url_for('admin_results', weekend_id=w.id) }}">← Résultats officiels</a>
