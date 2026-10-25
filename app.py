@@ -3268,6 +3268,7 @@ def health():
 register_v2(app, {
     "engine": engine,
     "get_current_participant": get_current_participant,
+    "get_all_participants": get_all_participants,
     "current_player": current_player,
     "get_weekend": get_weekend,
     "get_sorted_weekends": get_sorted_weekends,
