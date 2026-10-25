@@ -2,7 +2,7 @@
 {% block title %}Pronostic Championnat — MotoGP{% endblock %}
 {% block content %}
 
-<h2>Pronostic Championnat du Monde</h2>
+<h2>Pronostic Championnat du Monde {{ season_year }}</h2>
 
 <div class="card">
   <p><strong>Joueur :</strong> {{ name }}</p>
@@ -25,11 +25,11 @@
 
 {% if championnat_state.revealed %}
   <p>
-    <a class="btn" href="{{ url_for('championnat_public') }}">👁️ Voir les pronos divulgués</a>
+    <a class="btn" href="{{ url_for('championnat_public',season=season_year) }}">👁️ Voir les pronos divulgués</a>
   </p>
 {% endif %}
 
-<form method="post" class="card">
+<form method="post" action="{{ url_for('championnat',season=season_year) }}" class="card">
   <fieldset {% if not championnat_state.is_open %}disabled{% endif %} style="border:0; padding:0; margin:0;">
 
     <h3>Podium final</h3>
