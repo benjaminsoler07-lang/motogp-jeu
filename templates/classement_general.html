@@ -98,7 +98,7 @@
     }
   </style>
 
-  <h2>🏆 Classement général — Saison</h2>
+  <h2>🏆 Classement général — Saison {{ request.args.get('season') or '2026' }}</h2>
 
   {% if notice %}
     <p class="notice">{{ notice }}</p>
