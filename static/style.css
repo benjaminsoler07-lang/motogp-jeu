@@ -1088,3 +1088,24 @@ details.card[open] summary::after{
     padding: 14px;
   }
 }
+
+/* PronoGP V2 — Navigation admin inspirée de PronoSki */
+.v2-admin-tabs{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;
+  margin:0 auto 22px;padding:10px;
+  max-width:1000px;border:1px solid rgba(255,255,255,.20);
+  border-radius:14px;background:rgba(0,0,0,.12);
+}
+.v2-admin-tabs a{
+  text-decoration:none;font-weight:700;font-size:14px;
+  border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.06);padding:11px 14px;border-radius:10px;
+  transition:background .15s ease;
+}
+.v2-admin-tabs a:is(:focus-visible,:hover),.v2-admin-tabs a.active{
+  background:#ffd60a;color:#11385b;border-color:#ffd60a;
+}
+@media (max-width:600px) {
+  .v2-admin-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
+  .v2-admin-tabs a{padding:10px 6px;}
+}
