@@ -1,0 +1,33 @@
+name: PronoGP - rappels push gratuits
+on:
+  schedule:
+    - cron: '13 * * * *'
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: pronogp-push-dispatch
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Authentification OIDC et déclenchement du job de notification
+        env:
+          PRONOGP_BASE_URL: ${{ vars.PRONOGP_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${PRONOGP_BASE_URL}" ]; then
+            echo "Configurer la variable GitHub Actions PRONOGP_BASE_URL (URL publique HTTPS)"; exit 1
+          fi
+          case "$PRONOGP_BASE_URL" in https://*) ;; *) echo "URL HTTPS requise"; exit 1;; esac
+          RESPONSE="$(curl -fsS --max-time 15 \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=motogp-push-dispatch")"
+          TOKEN="$(python3 -c 'import json,sys;print(json.load(sys.stdin)["value"])' <<< "$RESPONSE")"
+          curl -fsS --max-time 105 --retry 1 --retry-delay 3 \
+            -X POST --header "Authorization: Bearer ${TOKEN}" \
+            "${PRONOGP_BASE_URL%/}/internal/github-dispatch"
