@@ -14,6 +14,9 @@
 </div>
 {% if race_center %}{% with rc=race_center %}{% include "_race_center.html" %}{% endwith %}{% endif %}
 <section class="card">
+  <nav class="v2-season-picker" aria-label="Choix de la saison">
+  {% for year in years %}<a class="btn btn-small" href="{{ url_for('home', season=year) }}" {% if year == season_year %}aria-current="page"{% endif %}>{{ year }}</a>{% endfor %}
+  </nav>
   <h2>🏆 Saison {{ season_year }}</h2>
   <p>Retrouve tes pronostics du championnat et les Grands Prix programmés.</p>
   {% if name %}<a class="btn btn-small" href="{{ url_for('championnat') }}">🏆 Prono championnat du monde</a>{% endif %}
