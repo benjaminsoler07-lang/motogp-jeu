@@ -1,0 +1,6 @@
+<nav class="v2-admin-tabs" aria-label="Rubriques de l'administration">
+  <a href="{{ url_for('admin_home') }}" class="{{ 'active' if request.endpoint == 'admin_home' else '' }}">🏠 Vue d'ensemble</a>
+  <a href="{{ url_for('admin_calendar') }}" class="{{ 'active' if request.endpoint in ('admin_calendar', 'admin_calendar_update', 'admin_calendar_cancel', 'admin_calendar_reactivate') else '' }}">🗓️ Calendrier</a>
+  <a href="{{ url_for('admin_participants') }}" class="{{ 'active' if request.endpoint == 'admin_participants' else '' }}">👥 Joueurs</a>
+  <a href="{{ url_for('admin_championnat') }}" class="{{ 'active' if request.endpoint == 'admin_championnat' else '' }}">🏆 Championnat</a>
+</nav>
