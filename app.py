@@ -1430,6 +1430,10 @@ def get_current_participant(req):
 
 
 # ------------------ Championnat state ------------------
+def championnat_state_row_id():
+    return 1 if selected_season_year() == 2026 else selected_season_year()
+
+
 def get_championnat_state():
     default = {
         "is_open": True,
@@ -1443,8 +1447,8 @@ def get_championnat_state():
             row = conn.execute(text("""
                 SELECT is_open, revealed, locked_at
                 FROM championnat_state
-                WHERE id=1
-            """)).fetchone()
+                WHERE id=:sid
+            """), {"sid": championnat_state_row_id()}).fetchone()
 
         if row:
             return {
@@ -1454,7 +1458,9 @@ def get_championnat_state():
             }
         return default
 
-    path = os.path.join(DATA_DIR, "championnat_state.json")
+    path = os.path.join(DATA_DIR, f"championnat_state_{selected_season_year()}.json")
+    if selected_season_year() == 2026 and not os.path.exists(path):
+        path = os.path.join(DATA_DIR, "championnat_state.json")
     return load_json(path, default)
 
 
@@ -1470,16 +1476,16 @@ def save_championnat_state(state: dict):
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO championnat_state (id, is_open, revealed, locked_at, updated_at)
-                VALUES (1, :is_open, :revealed, :locked_at, NOW())
+                VALUES (:sid, :is_open, :revealed, :locked_at, NOW())
                 ON CONFLICT (id)
                 DO UPDATE SET
                     is_open = EXCLUDED.is_open,
                     revealed = EXCLUDED.revealed,
                     locked_at = EXCLUDED.locked_at,
                     updated_at = NOW()
-            """), state)
+            """), {**state, "sid": championnat_state_row_id()})
     else:
-        path = os.path.join(DATA_DIR, "championnat_state.json")
+        path = os.path.join(DATA_DIR, f"championnat_state_{selected_season_year()}.json")
         save_json(path, state)
 
 
@@ -1518,8 +1524,9 @@ def get_latest_championnat_pronos_by_player() -> list:
                 SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
                     player_name, payload_json, created_at, updated_at
                 FROM championnat_pronos
+                WHERE season_year=:season
                 ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
-            """)).fetchall()
+            """), {"season": selected_season_year()}).fetchall()
 
         items = []
         for r in rows:
@@ -1794,7 +1801,8 @@ def results_path(weekend_id):
 
 
 def championnat_path():
-    return os.path.join(PRONOS_DIR, "championnat.json")
+    year = selected_season_year()
+    return os.path.join(PRONOS_DIR, "championnat.json" if year == 2026 else f"championnat_{year}.json")
 
 
 def load_results(weekend_id: str):
@@ -2078,9 +2086,10 @@ def championnat():
                 SELECT payload_json, created_at, updated_at
                 FROM championnat_pronos
                 WHERE COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                  AND season_year=:season
                 ORDER BY updated_at DESC
                 LIMIT 1
-            """), {"pn": player_norm}).fetchone()
+            """), {"pn": player_norm, "season": selected_season_year()}).fetchone()
         if row:
             my = dict(row[0] or {})
             my["_created_at"] = str(row[1]) if row[1] else None
@@ -2096,16 +2105,19 @@ def championnat():
             my = dict(best)
 
     if request.method == "POST":
+        if is_season_archived(selected_season_year()):
+            flash("Cette saison est archivée.")
+            return redirect(url_for("championnat", season=selected_season_year()))
         if not state.get("is_open", True):
             flash("Les pronostics championnat du monde sont fermés.")
-            return redirect(url_for("championnat"))
+            return redirect(url_for("championnat", season=selected_season_year()))
 
         form = request.form
         picks = [form.get("wc_p1"), form.get("wc_p2"), form.get("wc_p3")]
         v = [x for x in picks if x]
         if len(set(v)) != len(v):
             flash("Doublon détecté : tu ne peux pas mettre le même pilote 2 fois.")
-            return redirect(url_for("championnat"))
+            return redirect(url_for("championnat", season=selected_season_year()))
 
         payload = {
             "player_name": name,
@@ -2120,9 +2132,10 @@ def championnat():
                     SELECT id
                     FROM championnat_pronos
                     WHERE COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                      AND season_year=:season
                     ORDER BY updated_at DESC
                     LIMIT 1
-                """), {"pn": player_norm}).fetchone()
+                """), {"pn": player_norm, "season": selected_season_year()}).fetchone()
 
                 if existing:
                     conn.execute(text("""
@@ -2145,11 +2158,11 @@ def championnat():
                 else:
                     conn.execute(text("""
                         INSERT INTO championnat_pronos (
-                            user_key, player_name, player_norm, participant_id,
+                            user_key, player_name, player_norm, participant_id, season_year,
                             payload_json, created_at, updated_at
                         )
                         VALUES (
-                            :u, :n, :pn, :pidb,
+                            :u, :n, :pn, :pidb, :season,
                             CAST(:p AS jsonb), NOW(), NOW()
                         )
                     """), {
@@ -2157,7 +2170,8 @@ def championnat():
                         "n": name,
                         "pn": player_norm,
                         "pidb": participant["id"],
-                        "p": json.dumps(payload, ensure_ascii=False)
+                        "p": json.dumps(payload, ensure_ascii=False),
+                        "season": selected_season_year()
                     })
         else:
             all_preds = load_json(championnat_path(), {})
@@ -2167,7 +2181,7 @@ def championnat():
             save_json(championnat_path(), all_preds)
 
         flash("Pronostic championnat enregistré ✅")
-        resp = make_response(redirect(url_for("championnat")))
+        resp = make_response(redirect(url_for("championnat", season=selected_season_year())))
         resp.set_cookie("player_name", name, max_age=60 * 60 * 24 * 365)
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
@@ -2178,6 +2192,7 @@ def championnat():
         my=my,
         name=name,
         championnat_state=state,
+        season_year=selected_season_year(),
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -2530,6 +2545,7 @@ def admin_championnat():
         "admin_championnat.html",
         name=name,
         championnat_state=state,
+        season_year=selected_season_year(),
         count=count,
         pronos=pronos_list
     )
@@ -2540,7 +2556,7 @@ def admin_championnat():
 def admin_open_championnat():
     open_championnat()
     flash("🟢 Pronostics championnat OUVERTS")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/championnat/close", methods=["POST"])
@@ -2548,7 +2564,7 @@ def admin_open_championnat():
 def admin_close_championnat():
     close_championnat()
     flash("🔒 Pronostics championnat FERMÉS")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/championnat/reveal", methods=["POST"])
@@ -2557,11 +2573,11 @@ def admin_reveal_championnat():
     state = get_championnat_state()
     if state.get("is_open", True):
         flash("Ferme d’abord les pronostics avant de les divulguer.")
-        return redirect(url_for("admin_championnat"))
+        return redirect(url_for("admin_championnat", season=selected_season_year()))
 
     reveal_championnat()
     flash("👁️ Pronostics championnat divulgués")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/championnat/hide", methods=["POST"])
@@ -2569,7 +2585,7 @@ def admin_reveal_championnat():
 def admin_hide_championnat():
     hide_championnat()
     flash("🙈 Pronostics championnat masqués")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/w/<weekend_id>")
