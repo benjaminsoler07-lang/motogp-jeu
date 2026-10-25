@@ -124,6 +124,69 @@ def register_v2(app, api):
             str(request.form.get("csrf") or ""), str(csrf_value())):
             abort(403)
 
+    @app.route("/admin/seasons", methods=["GET", "POST"])
+    def admin_seasons():
+        admin_only()
+        if not engine:
+            abort(503)
+        api["ensure_db_bootstrap"]()
+        if request.method == "POST":
+            check_csrf()
+            action = request.form.get("action")
+            try:
+                year = int(request.form.get("year") or "")
+                if not (2026 <= year <= 2100):
+                    raise ValueError("Année invalide.")
+                if action == "add":
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO seasons(year, archived) VALUES (:y, FALSE)
+                            ON CONFLICT (year) DO NOTHING
+                        """), {"y": year})
+                    flash("Saison créée.")
+                elif action == "archive":
+                    with engine.begin() as conn:
+                        conn.execute(text("UPDATE seasons SET archived=:a WHERE year=:y"),
+                                     {"a": request.form.get("archived") == "1", "y": year})
+                    flash("Statut de la saison mis à jour.")
+                elif action == "gp":
+                    label = str(request.form.get("label") or "").strip()
+                    date_raw = str(request.form.get("date") or "").strip()
+                    if len(label) < 3 or len(label) > 120:
+                        raise ValueError("Nom de GP invalide.")
+                    parsed = datetime.strptime(date_raw, "%Y-%m-%d")
+                    if parsed.year != year:
+                        raise ValueError("La date doit appartenir à la saison sélectionnée.")
+                    slug = re.sub(r"[^a-z0-9]+", "-", label.casefold().encode("ascii","ignore").decode()).strip("-")
+                    wid = str(year) + "-" + slug
+                    if not slug:
+                        raise ValueError("Nom de GP invalide.")
+                    with engine.begin() as conn:
+                        season = conn.execute(text("SELECT archived FROM seasons WHERE year=:y"), {"y":year}).fetchone()
+                    if season is None or season[0]:
+                        raise ValueError("Créer ou rouvrir la saison avant d'ajouter ce GP.")
+                    data = api["load_weekends_data"]()
+                    if any(row.get("id")==wid for row in data["weekends"]):
+                        raise ValueError("Ce GP existe déjà.")
+                    data["weekends"].append({"id":wid,"label":label,
+                        "date":date_raw,"season_year":year,"bonus_questions":[],
+                        "cancelled":False})
+                    api["save_weekends_data"](data)
+                    flash("Grand Prix ajouté.")
+                else:
+                    abort(400)
+            except (ValueError, TypeError) as exc:
+                flash(str(exc))
+            return redirect(url_for("admin_seasons"))
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT year, archived FROM seasons ORDER BY year DESC")).mappings().all()
+        counts = {}
+        for w in api["get_sorted_weekends"]():
+            y = api["weekend_season"](w)
+            counts[y] = counts.get(y,0)+1
+        return render_template("admin_seasons.html", name=api["current_player"](request)[0],
+                               seasons=rows, counts=counts, csrf=csrf_value())
+
     @app.route("/admin/w/<weekend_id>/schedule", methods=["GET", "POST"])
     def admin_schedule(weekend_id):
         admin_only()
@@ -238,7 +301,9 @@ def register_v2(app, api):
         person = connected()
         if not person:
             return redirect(url_for("login"))
-        weekends = api["get_sorted_weekends"]()
+        year = api["selected_season_year"]()
+        weekends = [w for w in api["get_sorted_weekends"]()
+                    if api["weekend_season"](w) == year]
         myname = api["normalize_pseudo"](person["pseudo"])
         all_totals = {}
         gp_count = 0
@@ -271,4 +336,4 @@ def register_v2(app, api):
             name=person["pseudo"], person=person,
             weekends=weekends, points=all_totals.get(myname,0), rank=rank,
             gp_count=gp_count, last_result=last_result,
-            next_gp=race_center(weekends))
+            season_year=year, next_gp=race_center(weekends))
