@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Admin — Vérification des questions bonus{% endblock %}
+{% block content %}
+<h2>⚖️ Vérification des réponses bonus — {{ w.label }}</h2>
+<p class="muted">La correction automatique reste active. Une décision manuelle remplace le score uniquement pour la réponse concernée et peut être annulée.</p>
+<p><a class="btn btn-small" href="{{ url_for('admin_results', weekend_id=w.id) }}">← Résultats officiels</a>
+<a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">Gestion du GP</a></p>
+{% if not entries %}
+  <div class="card"><p>Ce GP ne contient aucune question bonus.</p></div>
+{% endif %}
+{% for group in entries %}
+<section class="card" style="text-align:left; margin:16px auto;">
+  <h3>{{ loop.index }}. {{ group.question.label }}</h3>
+  <p>Réponse officielle : <strong>{{ group.official or "Non renseignée" }}</strong></p>
+  {% if not group.official %}
+    <p class="notice">Saisir d'abord la réponse officielle pour activer les validations manuelles.</p>
+  {% endif %}
+  <div style="overflow-x:auto;">
+    <table class="classement" style="width:100%;">
+      <thead><tr>
+        <th>Joueur</th><th>Réponse du joueur</th>
+        <th>Auto</th><th>Score retenu</th><th>Correction</th>
+      </tr></thead>
+      <tbody>
+      {% for item in group.answers %}
+        <tr>
+          <td><strong>{{ item.player }}</strong></td>
+          <td>{{ item.pred or '—' }}</td>
+          <td>{{ '✅' if item.automatic else '❌' }}</td>
+          <td>
+            <strong>{{ '0,5 pt' if item.valid else '0 pt' }}</strong>
+            {% if item.manual %}<small>✍️ Manuel</small>{% elif item.stale %}<small>⚠️ Ancienne correction ignorée : réponse modifiée</small>{% else %}<small>Automatique</small>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('admin_bonus_reviews', weekend_id=w.id) }}"
+                  style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="player" value="{{ item.player }}">
+              <input type="hidden" name="question" value="{{ group.question.id }}">
+              <label class="sr-only" for="review_{{ loop.index0 }}_{{ group.question.id }}">Évaluation de {{ item.player }}</label>
+              <select name="decision" id="review_{{ loop.index0 }}_{{ group.question.id }}">
+                <option value="auto" {% if item.decision == 'auto' %}selected{% endif %}>Automatique</option>
+                <option value="valid" {% if item.decision == 'valid' %}selected{% endif %}>✅ Valider</option>
+                <option value="invalid" {% if item.decision == 'invalid' %}selected{% endif %}>❌ Refuser</option>
+              </select>
+              <button type="submit" class="btn btn-small">Enregistrer</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5">Aucun pronostic enregistré.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endfor %}
+<p class="muted">Les anciennes réponses restent inchangées. Si un pronostic ou une réponse officielle est modifié, la validation manuelle correspondante est automatiquement suspendue. Retour à « Automatique » pour supprimer la décision manuelle.</p>
+{% endblock %}
