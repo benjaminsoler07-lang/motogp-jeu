@@ -27,6 +27,11 @@ class V2PagesTests(unittest.TestCase):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[:400])
 
+    def test_login_page_hides_private_menu_for_guest(self):
+        html = self.client.get("/login").get_data(as_text=True)
+        self.assertNotIn('class="header-nav"', html)
+        self.assertIn("Connexion", html)
+
     def test_admin_can_browse_with_admin_session_only(self):
         with self.client.session_transaction() as state:
             state["is_admin"] = True
