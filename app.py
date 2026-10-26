@@ -37,6 +37,7 @@ from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
 from v2_features import register_v2, race_center, deadline_from_weekend
 from v2_notifications import register_notifications
+from v2_bulk_import import register_bulk_import
 
 
 app = Flask(__name__)
@@ -3807,6 +3808,18 @@ register_v2(app, {
     "get_season_year": get_season_year,
     "get_riders_for_season": get_riders_for_season,
     "get_teams_for_season": get_teams_for_season,
+})
+
+register_bulk_import(app, {
+    "engine": engine,
+    "is_admin": is_admin,
+    "current_player": current_player,
+    "selected_season_year": selected_season_year,
+    "weekend_season": weekend_season,
+    "get_sorted_weekends": get_sorted_weekends,
+    "is_season_archived": is_season_archived,
+    "weekend_config_revision": weekend_config_revision,
+    "update_weekend_configs_bulk": update_weekend_configs_bulk,
 })
 
 register_notifications(app, {
