@@ -119,6 +119,30 @@ class DatabaseV2Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_paris_local("2026-03-29T02:30")
 
+    def test_season_riders_are_isolated(self):
+        from app import get_riders_for_season, RIDERS
+        with self.client.session_transaction() as st:
+            st["is_admin"] = True
+        self.client.post("/admin/seasons", data={
+            "csrf":self.csrf, "action":"add", "year":"2045"
+        })
+        copied = get_riders_for_season(2045)
+        self.assertEqual(set(copied), set(RIDERS))
+        resp = self.client.post("/admin/riders", data={
+            "csrf":self.csrf, "season":"2045",
+            "action":"add", "rider":"#99 Integration Pilot"
+        })
+        self.assertEqual(resp.status_code,302)
+        self.assertIn("#99 Integration Pilot", get_riders_for_season(2045))
+        self.assertNotIn("#99 Integration Pilot", get_riders_for_season(2026))
+        target=RIDERS[0]
+        self.client.post("/admin/riders", data={
+            "csrf":self.csrf, "season":"2045", "action":"toggle", "rider":target
+        })
+        self.assertNotIn(target, get_riders_for_season(2045))
+        self.assertIn(target, get_riders_for_season(2045, active_only=False))
+        self.assertIn(target, get_riders_for_season(2026))
+
     def test_new_season_created_and_archived(self):
         with self.client.session_transaction() as st: st["is_admin"]=True
         r=self.client.post("/admin/seasons",data={"csrf":self.csrf,"action":"add","year":"2027"})
