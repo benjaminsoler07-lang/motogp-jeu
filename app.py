@@ -31,7 +31,7 @@ from threading import Lock
 from flask import (
     Flask, render_template, render_template_string,
     request, redirect, url_for,
-    make_response, flash, session
+    make_response, flash, session, abort
 )
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1339,6 +1339,23 @@ def verify_participant_secret(participant: dict, secret_input: str) -> bool:
         return False
 
 
+def valid_new_participant_secret(secret: str):
+    """Minimum for NEW secrets; previously created shorter secrets still work for login."""
+    if len(secret) < 8 or len(secret) > 100 or not secret.strip():
+        return False, "Le nouveau mot de passe doit contenir entre 8 et 100 caractères."
+    return True, ""
+
+
+def participant_secret_marker(participant: dict) -> str:
+    """Signed-session version: HMAC of hash, not the password or password hash itself."""
+    stored = (participant or {}).get("secret_hash") or ""
+    if not stored:
+        return ""
+    return hmac.new(
+        app.secret_key.encode("utf-8"), stored.encode("utf-8"), "sha256"
+    ).hexdigest()
+
+
 def add_participant(pseudo: str, secret: str):
     pseudo = (pseudo or "").strip()
     secret = (secret or "").strip()
@@ -1347,8 +1364,9 @@ def add_participant(pseudo: str, secret: str):
     if not pseudo or not pseudo_norm:
         return False, "Le pseudo est obligatoire."
 
-    if not secret:
-        return False, "Le code secret est obligatoire."
+    valid, reason = valid_new_participant_secret(secret)
+    if not valid:
+        return False, reason
 
     existing = get_participant_by_input(pseudo, active_only=False)
     if existing:
@@ -1379,9 +1397,11 @@ def add_participant(pseudo: str, secret: str):
 
 
 def reset_participant_secret(participant_id: int, new_secret: str):
+    """Admin-only caller: no old password needed. Never return or log plaintext."""
     new_secret = (new_secret or "").strip()
-    if not new_secret:
-        return False, "Le nouveau code secret est obligatoire."
+    valid, reason = valid_new_participant_secret(new_secret)
+    if not valid:
+        return False, reason
 
     secret_hash = generate_password_hash(new_secret)
 
@@ -1419,6 +1439,48 @@ def reset_participant_secret(participant_id: int, new_secret: str):
 
     save_participants_fallback(items)
     return True, f"Code secret mis à jour pour {found.get('pseudo', '??')}."
+
+
+def change_participant_secret(participant: dict, current_secret: str, new_secret: str):
+    """Require the old secret; atomic compare-and-update prevents racing an admin reset."""
+    if not verify_participant_secret(participant, current_secret):
+        return False, "Mot de passe actuel incorrect."
+
+    new_secret = (new_secret or "").strip()
+    valid, reason = valid_new_participant_secret(new_secret)
+    if not valid:
+        return False, reason
+    if check_password_hash(participant["secret_hash"], new_secret):
+        return False, "Choisis un mot de passe différent de l'actuel."
+
+    new_hash = generate_password_hash(new_secret)
+    if engine:
+        ensure_db_bootstrap()
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                UPDATE participants SET secret_hash=:new_hash
+                WHERE id=:pid AND secret_hash=:old_hash AND active=TRUE
+            """), {
+                "new_hash": new_hash, "old_hash": participant["secret_hash"],
+                "pid": participant["id"]
+            })
+        if result.rowcount != 1:
+            return False, "Le mot de passe a changé entre-temps. Reconnecte-toi."
+    else:
+        items = load_participants_fallback()
+        matched = False
+        for row in items:
+            if (str(row.get("id")) == str(participant["id"])
+                    and row.get("secret_hash") == participant["secret_hash"]
+                    and row.get("active", True)):
+                row["secret_hash"] = new_hash
+                matched = True
+                break
+        if not matched:
+            return False, "Le mot de passe a changé entre-temps. Reconnecte-toi."
+        save_participants_fallback(items)
+
+    return True, "Mot de passe modifié. Les autres appareils devront se reconnecter."
 
 
 def toggle_participant(participant_id: int):
@@ -1556,7 +1618,15 @@ def get_current_participant(req):
     if not player_norm or player_id is None:
         return None
     participant = get_participant_by_input(player_norm, active_only=True)
-    if not participant or str(participant["id"]) != str(player_id):
+    expected_marker = participant_secret_marker(participant)
+    if (not participant or str(participant["id"]) != str(player_id)
+            or not expected_marker
+            or not hmac.compare_digest(
+                str(session.get("authenticated_secret_marker") or ""), expected_marker
+            )):
+        session.pop("authenticated_player", None)
+        session.pop("authenticated_player_id", None)
+        session.pop("authenticated_secret_marker", None)
         return None
     return participant
 
@@ -2211,6 +2281,7 @@ def login():
         _, pid = current_player(request)
         session["authenticated_player"] = participant["pseudo_normalized"]
         session["authenticated_player_id"] = participant["id"]
+        session["authenticated_secret_marker"] = participant_secret_marker(participant)
         session.permanent = True
         resp = make_response(redirect(url_for("profile")))
         resp.set_cookie("player_name", participant["pseudo"], max_age=60 * 60 * 24 * 365)
@@ -2231,6 +2302,7 @@ def login():
 def logout():
     session.pop("authenticated_player", None)
     session.pop("authenticated_player_id", None)
+    session.pop("authenticated_secret_marker", None)
     resp = make_response(redirect(url_for("home")))
     resp.delete_cookie("player_name")
     resp.delete_cookie("player_id")
@@ -2661,10 +2733,19 @@ def admin_home():
     )
 
 
+def check_participant_admin_csrf():
+    token = session.get("v2_csrf")
+    if not token or not hmac.compare_digest(
+        str(request.form.get("csrf") or ""), str(token)
+    ):
+        abort(403)
+
+
 @app.route("/admin/participants", methods=["GET", "POST"])
 @require_admin
 def admin_participants():
     if request.method == "POST":
+        check_participant_admin_csrf()
         pseudo = (request.form.get("pseudo") or "").strip()
         secret = (request.form.get("secret") or "").strip()
         ok, msg = add_participant(pseudo, secret)
@@ -2672,17 +2753,20 @@ def admin_participants():
         return redirect(url_for("admin_participants"))
 
     participants = get_all_participants(include_inactive=True)
+    if not session.get("v2_csrf"):
+        session["v2_csrf"] = secrets.token_urlsafe(32)
     name, _ = current_player(request)
     return render_template(
         "admin_participants.html",
         name=name,
-        participants=participants
+        participants=participants, csrf=session["v2_csrf"]
     )
 
 
 @app.route("/admin/participants/<int:participant_id>/toggle", methods=["POST"])
 @require_admin
 def admin_toggle_participant(participant_id):
+    check_participant_admin_csrf()
     ok, msg = toggle_participant(participant_id)
     flash(msg)
     return redirect(url_for("admin_participants"))
@@ -2691,15 +2775,21 @@ def admin_toggle_participant(participant_id):
 @app.route("/admin/participants/<int:participant_id>/reset_secret", methods=["POST"])
 @require_admin
 def admin_reset_participant_secret(participant_id):
-    new_secret = (request.form.get("new_secret") or request.form.get("secret") or "").strip()
-    ok, msg = reset_participant_secret(participant_id, new_secret)
-    flash(msg)
+    check_participant_admin_csrf()
+    new_secret = request.form.get("new_secret") or ""
+    confirmation = request.form.get("new_secret_confirm") or ""
+    if new_secret != confirmation:
+        flash("Les deux nouveaux mots de passe ne correspondent pas.")
+    else:
+        ok, msg = reset_participant_secret(participant_id, new_secret)
+        flash(msg)
     return redirect(url_for("admin_participants"))
 
 
 @app.route("/admin/participants/<int:participant_id>/delete", methods=["POST"])
 @require_admin
 def admin_delete_participant(participant_id):
+    check_participant_admin_csrf()
     ok, msg = delete_participant(participant_id)
     flash(msg)
     return redirect(url_for("admin_participants"))
@@ -3528,6 +3618,9 @@ def health():
 register_v2(app, {
     "engine": engine,
     "get_current_participant": get_current_participant,
+    "get_participant_by_input": get_participant_by_input,
+    "change_participant_secret": change_participant_secret,
+    "participant_secret_marker": participant_secret_marker,
     "get_all_participants": get_all_participants,
     "current_player": current_player,
     "get_weekend": get_weekend,
