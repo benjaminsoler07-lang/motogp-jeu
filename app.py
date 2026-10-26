@@ -2212,7 +2212,7 @@ def login():
         session["authenticated_player"] = participant["pseudo_normalized"]
         session["authenticated_player_id"] = participant["id"]
         session.permanent = True
-        resp = make_response(redirect(url_for("player_dashboard")))
+        resp = make_response(redirect(url_for("profile")))
         resp.set_cookie("player_name", participant["pseudo"], max_age=60 * 60 * 24 * 365)
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
