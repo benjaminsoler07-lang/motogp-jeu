@@ -12,7 +12,7 @@
     Les GP sont ensuite automatiquement reclassés dans l’ordre chronologique.
   </p>
   <p class="admin-tip">
-    Les GP <strong>clos</strong> sont grisés et ne sont plus modifiables depuis cette page.
+    La date et le nom d’un GP peuvent être corrigés après clôture. Pour modifier l'heure de fermeture, utilise la fiche du GP. Les saisons archivées restent verrouillées.
   </p>
 </div>
 
@@ -59,6 +59,7 @@
 
       {% if w.can_edit_date %}
         <form method="post" action="{{ url_for('admin_calendar_update', weekend_id=w.id) }}" class="calendar-form">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
           <div class="field">
             <label for="label_{{ w.id }}">Nom du GP</label>
             <input
@@ -114,14 +115,14 @@
         {% endif %}
       {% else %}
         <div class="calendar-actions">
-          <span class="btn btn-small btn-disabled">🔒 GP clos : modification désactivée</span>
+          <span class="btn btn-small btn-disabled">🔒 Saison archivée : modification désactivée</span>
           <a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">
             ⚙️ Ouvrir la fiche GP
           </a>
         </div>
 
         <div class="calendar-note">
-          Ce GP est déjà clos, son calendrier n’est plus modifiable ici.
+          Cette saison est archivée. Réouvre-la depuis l'onglet Saisons pour modifier ce calendrier.
         </div>
       {% endif %}
     </li>
