@@ -354,6 +354,7 @@ def register_v2(app, api):
                 # L'import API garde, lui, une protection renforcée.
                 ok, message = api["update_weekend_config_fields"](weekend_id, {
                     "deadline_utc": deadline.isoformat() if deadline else "",
+                    "deadline_source": "manual",
                     "sessions": sessions,
                     "auto_publish": bool(request.form.get("auto_publish"))
                 })
@@ -468,6 +469,10 @@ def register_v2(app, api):
                                 "Refus de rouvrir une clôture passée via l'API."
                             )
                         changes["deadline_utc"] = new_deadline.isoformat()
+                        changes["deadline_source"] = (
+                            "motogp_q1" if selected_session["label"] == "Q1"
+                            and offset == 0 else "manual"
+                        )
                     elif mode != "keep":
                         raise ValueError("Mode de clôture inconnu.")
 
