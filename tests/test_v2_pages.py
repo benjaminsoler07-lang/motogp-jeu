@@ -21,11 +21,16 @@ class V2PagesTests(unittest.TestCase):
                 self.assertEqual(urlsplit(response.headers["Location"]).path, "/login")
 
     def test_login_and_technical_pages_remain_available(self):
-        for url in ("/login", "/admin/login", "/healthz",
+        for url in ("/login", "/healthz",
                     "/manifest.webmanifest", "/service-worker.js"):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[:400])
+        # L'administration doit rester accessible sans session, mais renvoie
+        # 500 dans le job CI qui ne configure volontairement aucun admin.
+        from app import admin_enabled
+        self.assertEqual(self.client.get("/admin/login").status_code,
+                         200 if admin_enabled() else 500)
 
     def test_login_page_hides_private_menu_for_guest(self):
         html = self.client.get("/login").get_data(as_text=True)
