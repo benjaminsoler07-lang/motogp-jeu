@@ -133,8 +133,8 @@ def admin_enabled():
 
 
 def is_root_admin():
-    """Session principale authentifiée par ADMIN_USER / ADMIN_PASS."""
-    return admin_enabled() and session.get("is_admin") is True
+    """Session principale préexistante (cookie Flask signé par le serveur)."""
+    return session.get("is_admin") is True
 
 
 def is_admin():
