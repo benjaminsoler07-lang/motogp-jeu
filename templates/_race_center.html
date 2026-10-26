@@ -15,7 +15,7 @@
   {% endif %}
   <div class="v2-race-links">
     <a href="{{ url_for('pronos', weekend_id=rc.id) }}">Fais ton prono</a>
-    <a href="{{ url_for('public_pronos', weekend_id=rc.id) }}">Pronos publics</a>
+    {% if rc.public %}<a href="{{ url_for('public_pronos', weekend_id=rc.id) }}">Pronos publics</a>{% else %}<span style="opacity:.75">Pronos publics après clôture</span>{% endif %}
     <a href="{{ url_for('classement_weekend', weekend_id=rc.id) }}">Classement</a>
   </div>
 </section>
