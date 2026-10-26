@@ -37,9 +37,12 @@ def parse_paris_local(raw):
         return None
     dt = datetime.strptime(raw, "%Y-%m-%dT%H:%M")
     aware = dt.replace(tzinfo=PARIS)
-    # DST: les heures inexistantes sont rejetées, les heures ambigües utilisent fold=0.
+    # Les heures absentes ou ambigües lors du changement d'heure sont interdites.
     if aware.astimezone(UTC).astimezone(PARIS).replace(tzinfo=None) != dt:
         raise ValueError("Horaire inexistant lors du changement d'heure.")
+    alternate = dt.replace(tzinfo=PARIS, fold=1)
+    if aware.utcoffset() != alternate.utcoffset():
+        raise ValueError("Horaire ambigu lors du changement d'heure : choisir un autre horaire.")
     return aware.astimezone(UTC)
 
 
@@ -78,6 +81,18 @@ def race_center(weekends):
             upcoming.append((deadline, weekend, next_session))
         elif next_session:
             upcoming.append((next_session[0], weekend, next_session))
+        else:
+            # GP anciens sans séances configurées : on conserve un Race Center,
+            # sans inventer d'heure de session ou de clôture.
+            date_text = str(weekend.get("date") or "")
+            try:
+                from datetime import date, time
+                day = date.fromisoformat(date_text)
+                event_day = datetime.combine(day, time(12, 0), tzinfo=PARIS).astimezone(UTC)
+                if event_day >= now:
+                    upcoming.append((event_day, weekend, None))
+            except ValueError:
+                pass
     if not upcoming:
         return None
     upcoming.sort(key=lambda value: value[0])
