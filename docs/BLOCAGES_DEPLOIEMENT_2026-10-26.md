@@ -34,3 +34,13 @@ Docs : https://supabase.com/docs/guides/database/postgres/row-level-security
 4. Fusionner la PR #1 uniquement après les tests ; déclencher manuellement Render ; contrôler `/health`, authentification et résultats.
 
 **Il est interdit de déclarer la V2 « en ligne » sans confirmation du déploiement Render live.**
+
+## MISE À JOUR — interventions réalisées le 26/10/2026
+
+- **Copie interne créée** dans le schéma privé `pronogp_safety_20261026` pour les 8 tables de départ : les comptages ont été comparés, tous identiques (13 participants, 186 pronostics, 349 historiques, 18 résultats, 22 weekends, 11 pronos championnat, 1 état, 0 ancien abonnement push). Cette copie reste dans **le même projet Supabase**, elle n'est **pas** une sauvegarde hors site ni un dump restauré.
+- **Permissions de l'API révoquées** sur ces huit tables pour les rôles `anon` et `authenticated` : contrôle en base confirmé, accès de `postgres` intact. Le nouvel audit Supabase Security Advisor est revenu sans erreur.
+- **Conflit de schéma V2 corrigé** : la V2 crée `web_push_subscriptions` plutôt que réutiliser l'ancienne table `push_subscriptions` dont la structure est incompatible.
+- **Durcissement futur** : les 7 tables V2 ajoutées révoquent les permissions API `anon` et `authenticated` au démarrage Flask.
+- L'ancienne application Render répond toujours à `/healthz` HTTP 200 ; des appels publics à l'accueil et à la page des résultats répondent HTTP 200 dans les journaux.
+
+**Toujours requis avant mise en ligne :** une sauvegarde **externe** complète `pg_dump` suivie d'un essai de restauration indépendant. Le schéma privé n'est pas un substitut à ce contrôle.
