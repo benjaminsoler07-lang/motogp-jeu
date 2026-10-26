@@ -617,6 +617,11 @@ class DatabaseV2Tests(unittest.TestCase):
             ("riders", "rider", rider, get_riders_for_season),
             ("teams", "team", team, get_teams_for_season),
         )
+        with engine.connect() as conn:
+            historical_before = conn.execute(
+                text("SELECT COUNT(*) FROM pronos_history")
+            ).scalar()
+
         for category, field, value, getter in cases:
             uri = f"/admin/{category}?season={year}"
             base = {"csrf": csrf, "season": str(year), field: value}
@@ -656,27 +661,36 @@ class DatabaseV2Tests(unittest.TestCase):
                 }).status_code, 302)
                 self.assertNotIn(value, getter(year))
 
-                # Retrait limité à la saison. Un ancien prono est stocké
-                # indépendamment du catalogue et n'est pas effacé.
+                # Retrait persistant mais NON destructif : la ligne catalogue
+                # garde removed=TRUE, les pronos/historiques ne bougent pas.
+                ensure_db_bootstrap()  # la réinjection des pilotes par défaut ne réactive rien
+                self.assertNotIn(value, getter(year))
                 with engine.connect() as connection:
-                    row = connection.execute(text(
-                        "SELECT count(*) FROM pronos_history"
+                    history_count = connection.execute(text(
+                        "SELECT COUNT(*) FROM pronos_history"
                     )).scalar()
-                self.assertGreaterEqual(row, 0)
-
-                if category == "riders":
-                    with engine.connect() as connection:
-                        present = connection.execute(text("""
-                            SELECT COUNT(*) FROM season_riders
+                    if category == "riders":
+                        entry = connection.execute(text("""
+                            SELECT active, removed FROM season_riders
                             WHERE season_year=:year AND rider=:name
-                        """), {"year": year, "name": value}).scalar()
-                else:
-                    with engine.connect() as connection:
-                        present = connection.execute(text("""
-                            SELECT COUNT(*) FROM season_teams
+                        """), {"year":year,"name":value}).one()
+                    else:
+                        entry = connection.execute(text("""
+                            SELECT active, removed FROM season_teams
                             WHERE season_year=:year AND team=:name
-                        """), {"year": year, "name": value}).scalar()
-                self.assertEqual(present, 0)
+                        """), {"year":year,"name":value}).one()
+                self.assertEqual(history_count,historical_before)
+                self.assertEqual(tuple(entry),(False,True))
+
+                # Réajouter une entrée retirée la remet explicitement dans les choix.
+                self.assertEqual(admin.post(uri,data={
+                    **base,"action":"add"
+                }).status_code,302)
+                self.assertIn(value,getter(year))
+                self.assertEqual(admin.post(uri,data={
+                    **base,"action":"remove"
+                }).status_code,302)
+                self.assertNotIn(value,getter(year))
 
     def test_photo_persists_in_database(self):
         picture=Image.new("RGB",(100,100),"blue")
