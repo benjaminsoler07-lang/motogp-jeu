@@ -103,7 +103,7 @@
             {% for r in rows %}
               <tr class="{% if loop.index==1 %}row-gold{% elif loop.index==2 %}row-silver{% elif loop.index==3 %}row-bronze{% endif %}">
                 <td><strong>{{ loop.index }}</strong></td>
-                <td style="text-align:left;"><strong>{{ r.player }}</strong></td>
+                <td style="text-align:left;"><span class="avatar-v2 avatar-sm"><img src="{{ url_for('player_avatar',participant_id=v2_avatar_ids.get(r.player|lower|trim,0)) }}" alt="" onerror="this.style.display='none'"><span>{{ r.player[:1]|upper }}</span></span><strong>{{ r.player }}</strong></td>
                 <td>{{ r.pts.qualif.total }}</td>
                 <td>{{ r.pts.sprint.total }}</td>
                 <td>{{ r.pts.gp.total }}</td>

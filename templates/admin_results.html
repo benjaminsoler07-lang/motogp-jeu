@@ -2,6 +2,7 @@
 {% block title %}Admin — Résultats{% endblock %}
 
 {% block content %}
+{% include '_admin_nav.html' %}
 
 <h2>🏁 Admin — Entrer les résultats</h2>
 
@@ -191,6 +192,12 @@
 
   <button class="btn" type="submit">💾 Enregistrer les résultats</button>
 </form>
+
+<div class="card" style="text-align:left;">
+  <h3>⚖️ Contrôle des questions bonus</h3>
+  <p>Comparer les réponses aux résultats officiels et corriger manuellement les fautes de frappe si nécessaire.</p>
+  <a class="btn" href="{{ url_for('admin_bonus_reviews', weekend_id=w.id) }}">Vérifier les réponses des joueurs</a>
+</div>
 
 <div class="card" style="text-align:left;">
   <p style="margin:0 0 8px;"><strong>Navigation</strong></p>

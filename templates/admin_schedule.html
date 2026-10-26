@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Programme et clôture — {{ w.label }}{% endblock %}
+{% block content %}
+{% include "_admin_nav.html" %}
+<section class="card" style="text-align:left">
+<h2>⏱️ Horaires et clôture — {{ w.label }}</h2>
+<p>Les heures indiquées sont celles de <strong>Paris</strong>. La fermeture est contrôlée par le serveur, même lorsque personne ne visite le site.</p>
+<form method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="deadline">Fermeture des pronostics (heure de Paris)</label>
+<input id="deadline" type="datetime-local" name="deadline" value="{{ deadline }}">
+<small>Vide : le système conserve le mode actuel de fermeture manuelle.</small>
+<div style="margin:20px 0">
+<label for="sessions"><strong>Programme du week-end</strong> — une séance par ligne</label>
+<textarea id="sessions" name="sessions" rows="8" style="width:100%;min-height:160px" placeholder="Q1|2026-10-25T10:30&#10;Q2|2026-10-25T11:15&#10;Sprint|2026-10-25T15:00&#10;Course|2026-10-26T14:00">{{ sessions_text }}</textarea>
+<small>Format : Nom de séance|AAAA-MM-JJTHH:MM. Jusqu'à 20 séances. Ordre chronologique automatique.</small>
+</div>
+<label style="display:flex;gap:10px;align-items:center">
+<input type="checkbox" name="auto_publish" value="1" {% if w.auto_publish is not defined or w.auto_publish %}checked{% endif %} style="width:auto">
+<strong>Rendre automatiquement publics les pronostics dès la clôture</strong>
+</label>
+<p>La publication automatique ne dévoile jamais les pronostics avant l'heure configurée. Si cette option est désactivée, les pronostics restent privés jusqu'à publication manuelle.</p>
+<button class="btn" type="submit">💾 Enregistrer les horaires</button>
+</form>
+</section>
+<p><a class="btn btn-small" href="{{ url_for('admin_weekend', weekend_id=w.id) }}">← Retour à ce GP</a></p>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Mes notifications — PronoGP{% endblock %}
+{% block content %}
+<h2>🔔 Mes notifications</h2>
+<section class="card" style="text-align:left">
+<h3>Historique des messages</h3>
+{% for m in messages %}
+<article style="padding:14px 0;border-bottom:1px solid rgba(255,255,255,.18)">
+<h4 style="margin:0 0 5px">{{ '🔵 ' if not m.read_at else '' }}{{ m.title }}</h4>
+<p>{{ m.body }}</p>
+<small>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }} — {{ 'Lu' if m.read_at else 'Non lu' }}</small>
+<p><a href="{{ m.destination }}">Ouvrir la page concernée →</a></p>
+{% if not m.read_at %}<form method="post" action="{{ url_for('notification_read',message_id=m.id) }}">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<button class="btn btn-small" type="submit">Marquer comme lu</button></form>{% endif %}
+</article>
+{% else %}<p>Aucune notification pour le moment.</p>{% endfor %}
+</section>
+<section class="card" style="text-align:left">
+<h3>Notifications sur mon téléphone</h3>
+<p>Autorise les notifications uniquement si tu veux recevoir les rappels des prochains GP et les messages de l'administration.</p>
+{% if not push_configured %}<p class="notice">Service Push en cours de configuration : les messages restent disponibles ci-dessous.</p>{% endif %}
+<div data-push-panel data-public-key="{{ public_key }}" data-csrf="{{ csrf }}">
+<button type="button" class="btn" data-enable-push {% if not push_configured %}disabled{% endif %}>Activer les notifications</button>
+<button type="button" class="btn btn-small btn-warning" data-disable-push {% if not push_configured %}disabled{% endif %}>Désactiver sur cet appareil</button>
+<p data-push-feedback aria-live="polite"></p>
+</div>
+</section>
+<script defer src="{{ url_for('static',filename='v2-push.js') }}"></script>
+{% endblock %}

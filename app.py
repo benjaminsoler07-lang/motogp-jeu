@@ -20,6 +20,8 @@
 import os
 import json
 import uuid
+import secrets
+import hmac
 import re
 import unicodedata
 from datetime import datetime, date, timedelta, timezone
@@ -33,6 +35,8 @@ from flask import (
 )
 from sqlalchemy import create_engine, text
 from werkzeug.security import generate_password_hash, check_password_hash
+from v2_features import register_v2, race_center, deadline_from_weekend
+from v2_notifications import register_notifications
 
 
 app = Flask(__name__)
@@ -181,8 +185,9 @@ def slugify(value: str) -> str:
 def normalize_text_free(value: str) -> str:
     value = (value or "").strip().lower()
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    value = re.sub(r"\s+", " ", value).strip()
-    return value
+    # Tolère ponctuation, tirets, apostrophes et espaces sans accepter d'autres mots.
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def parse_range_options(raw: str):
@@ -212,13 +217,12 @@ def get_bonus_options_for_type(qtype: str, question: dict = None):
     if qtype == "yes_no":
         return ["Oui", "Non"]
     if qtype == "rider":
-        return list(RIDERS)
-    if qtype == "team":
-        return list(ALL_TEAMS)
-    if qtype == "official_team":
-        return list(OFFICIAL_TEAMS)
-    if qtype == "satellite_team":
-        return list(SATELLITE_TEAMS)
+        return list(question["resolved_options"]) if "resolved_options" in question else list(RIDERS)
+    if qtype in {"team", "official_team", "satellite_team"}:
+        if "resolved_options" in question:
+            return list(question["resolved_options"])
+        return list({"team": ALL_TEAMS, "official_team": OFFICIAL_TEAMS,
+                     "satellite_team": SATELLITE_TEAMS}[qtype])
     if qtype == "range":
         opts = question.get("options") or []
         return opts if opts else get_default_range_options()
@@ -279,6 +283,33 @@ def is_bonus_answer_correct(question: dict, predicted, actual):
         return False
 
     return normalize_bonus_answer_by_type(qtype, predicted) == normalize_bonus_answer_by_type(qtype, actual)
+
+
+def load_bonus_reviews(weekend_id: str) -> dict:
+    """Lit une seule fois les corrections du GP pour éviter les requêtes par joueur."""
+    if not engine:
+        return {}
+    ensure_db_bootstrap()
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT player_norm, question_id, decision, prediction_snapshot,
+                   official_snapshot, reviewed_by, reviewed_at
+            FROM bonus_reviews WHERE weekend_id=:wid
+        """), {"wid": weekend_id}).mappings().all()
+    return {(r["player_norm"], r["question_id"]): dict(r) for r in rows}
+
+
+def evaluated_bonus_answer(question, predicted, actual, player_name=None, reviews=None):
+    """Correction humaine prioritaire, uniquement si les deux réponses n'ont pas changé."""
+    automatic = is_bonus_answer_correct(question, predicted, actual)
+    key = (normalize_pseudo(player_name), str(question.get("id") or ""))
+    review = (reviews or {}).get(key)
+    if review is not None and (
+        str(review["prediction_snapshot"]) == str(predicted or "")
+        and str(review["official_snapshot"]) == str(actual or "")
+    ):
+        return bool(review["decision"]), True
+    return automatic, False
 
 
 def load_json(path, default):
@@ -417,9 +448,77 @@ def weekend_status(weekend_date: date, open_days_before: int = 10, cancelled: bo
     return "closed"
 
 
+def weekend_season(w: dict) -> int:
+    try:
+        year = int((w or {}).get("season_year") or get_season_year())
+        return year if 2020 <= year <= 2100 else get_season_year()
+    except (ValueError, TypeError):
+        return get_season_year()
+
+
+def selected_season_year() -> int:
+    """La saison courante évolue sans reclasser les anciens GP de 2026."""
+    chosen = request.values.get("season")
+    if chosen:
+        try:
+            year = int(chosen)
+            return year if 2020 <= year <= 2100 else get_season_year()
+        except (ValueError, TypeError):
+            return get_season_year()
+    legacy_year = get_season_year()
+    if engine:
+        ensure_db_bootstrap()
+        with engine.connect() as conn:
+            current = conn.execute(text("""
+                SELECT MAX(year) FROM seasons
+                WHERE archived=FALSE AND year<=:today
+            """), {"today": date.today().year}).scalar()
+        if current:
+            return max(int(current), legacy_year)
+    return legacy_year
+
+
+def is_season_archived(year: int) -> bool:
+    if not engine:
+        return False
+    ensure_db_bootstrap()
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT archived FROM seasons WHERE year=:y"), {"y": year}).fetchone()
+    return bool(row and row[0])
+
+
+def get_riders_for_season(year: int, *, active_only: bool = True) -> list:
+    """Catalogue persistant par saison ; le barème et les choix archivés ne bougent pas."""
+    if not engine:
+        return list(RIDERS)
+    ensure_db_bootstrap()
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT rider FROM season_riders
+            WHERE season_year=:year AND (:active_only=FALSE OR active=TRUE)
+            ORDER BY rider
+        """), {"year": int(year), "active_only": bool(active_only)}).fetchall()
+    return [r[0] for r in rows]
+
+
+def get_teams_for_season(year: int, *, kind: str = None, active_only: bool = True) -> list:
+    """Liste officielle/satellite persistante de la saison choisie."""
+    if not engine:
+        return list(ALL_TEAMS if not kind else
+                    (OFFICIAL_TEAMS if kind == "official" else SATELLITE_TEAMS))
+    ensure_db_bootstrap()
+    where_kind = "AND kind=:kind" if kind in {"official", "satellite"} else ""
+    with engine.connect() as conn:
+        rows=conn.execute(text("""
+            SELECT team FROM season_teams WHERE season_year=:year
+        """ + where_kind + """
+            AND (:active_only=FALSE OR active=TRUE) ORDER BY team
+        """), {"year":int(year),"kind":kind,"active_only":bool(active_only)}).fetchall()
+    return [r[0] for r in rows]
+
+
 def weekend_sort_key(w: dict):
-    season_year = get_season_year()
-    d = parse_weekend_date(w.get("date", ""), season_year)
+    d = parse_weekend_date(w.get("date", ""), weekend_season(w))
     return (d or date.max, (w.get("label") or "").lower())
 
 
@@ -612,6 +711,82 @@ def db_init():
         """))
 
         conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS seasons (
+            year INTEGER PRIMARY KEY,
+            archived BOOLEAN NOT NULL DEFAULT FALSE
+        );
+        """))
+        conn.execute(text("""
+            INSERT INTO seasons (year, archived) VALUES (2026, FALSE)
+            ON CONFLICT (year) DO NOTHING
+        """))
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS season_riders (
+            season_year INTEGER NOT NULL REFERENCES seasons(year),
+            rider TEXT NOT NULL,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            PRIMARY KEY (season_year, rider)
+        );
+        """))
+        for rider in RIDERS:
+            conn.execute(text("""
+                INSERT INTO season_riders (season_year, rider, active)
+                VALUES (2026, :rider, TRUE)
+                ON CONFLICT (season_year, rider) DO NOTHING
+            """), {"rider": rider})
+
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS season_teams (
+            season_year INTEGER NOT NULL REFERENCES seasons(year),
+            team TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('official','satellite')),
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            PRIMARY KEY (season_year, team)
+        );
+        """))
+        for team in ALL_TEAMS:
+            conn.execute(text("""
+                INSERT INTO season_teams(season_year,team,kind,active)
+                VALUES (2026,:team,:kind,TRUE)
+                ON CONFLICT(season_year,team) DO NOTHING
+            """), {"team":team, "kind":"official" if team in OFFICIAL_TEAMS else "satellite"})
+
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+            endpoint TEXT PRIMARY KEY,
+            participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS push_messages (
+            id BIGSERIAL PRIMARY KEY,
+            participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+            category TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            dedupe_key TEXT NOT NULL UNIQUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            sent_at TIMESTAMPTZ NULL,
+            read_at TIMESTAMPTZ NULL
+        );
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS ix_push_messages_user
+            ON push_messages (participant_id, created_at DESC);
+        """))
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS player_photos (
+            participant_id INTEGER PRIMARY KEY REFERENCES participants(id) ON DELETE CASCADE,
+            photo_data BYTEA NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """))
+
+        conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_pronos (
             id SERIAL PRIMARY KEY,
             user_key TEXT NOT NULL,
@@ -641,6 +816,13 @@ def db_init():
         """))
 
         conn.execute(text("""
+        ALTER TABLE championnat_pronos
+            ADD COLUMN IF NOT EXISTS season_year INTEGER NOT NULL DEFAULT 2026;
+        """))
+        conn.execute(text("""
+        CREATE INDEX IF NOT EXISTS idx_championnat_pronos_season_year ON championnat_pronos(season_year);
+        """))
+        conn.execute(text("""
         CREATE TABLE IF NOT EXISTS championnat_state (
             id INTEGER PRIMARY KEY,
             is_open BOOLEAN NOT NULL DEFAULT TRUE,
@@ -663,6 +845,38 @@ def db_init():
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         """))
+
+        # Migration additive : l'historique des pronostics et résultats est préservé.
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS bonus_reviews (
+            weekend_id TEXT NOT NULL,
+            player_norm TEXT NOT NULL,
+            question_id TEXT NOT NULL,
+            decision BOOLEAN NOT NULL,
+            prediction_snapshot TEXT NOT NULL,
+            official_snapshot TEXT NOT NULL,
+            reviewed_by TEXT NOT NULL,
+            reviewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (weekend_id, player_norm, question_id)
+        );
+        """))
+
+        # Supabase crée les rôles anon/authenticated, PostgreSQL standard non.
+        # Ne retirer des privilèges que pour les rôles qui existent réellement.
+        api_roles = conn.execute(text("""
+            SELECT rolname FROM pg_roles
+            WHERE rolname IN ('anon', 'authenticated')
+        """)).scalars().all()
+        if api_roles:
+            for table_name in (
+                "bonus_reviews", "player_photos", "push_messages",
+                "web_push_subscriptions", "seasons", "season_riders", "season_teams"
+            ):
+                # Table names and role names originate from fixed allow-lists.
+                conn.execute(text(
+                    "REVOKE ALL PRIVILEGES ON TABLE public." + table_name +
+                    " FROM " + ", ".join(api_roles)
+                ))
 
         conn.execute(text("""
             UPDATE pronos
@@ -837,7 +1051,14 @@ def get_weekend(weekend_id):
             w["cancelled"] = bool(w.get("cancelled", False))
             for q in w["bonus_questions"]:
                 q["type_label"] = get_bonus_type_label(q.get("type"))
-                q["resolved_options"] = get_bonus_options_for_type(q.get("type"), q)
+                qtype = q.get("type")
+                if qtype == "rider":
+                    q["resolved_options"] = get_riders_for_season(weekend_season(w))
+                elif qtype in {"team", "official_team", "satellite_team"}:
+                    kind = {"official_team":"official","satellite_team":"satellite"}.get(qtype)
+                    q["resolved_options"] = get_teams_for_season(weekend_season(w), kind=kind)
+                else:
+                    q["resolved_options"] = get_bonus_options_for_type(qtype, q)
             return w
     return None
 
@@ -847,7 +1068,7 @@ def get_sorted_weekends():
     for w in load_weekends_list():
         ww = dict(w)
         ww["cancelled"] = bool(ww.get("cancelled", False))
-        ww["date_obj"] = parse_weekend_date(ww.get("date", ""), get_season_year())
+        ww["date_obj"] = parse_weekend_date(ww.get("date", ""), weekend_season(ww))
         items.append(ww)
     items.sort(key=weekend_sort_key)
     return items
@@ -974,7 +1195,7 @@ def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: st
                 if not new_date:
                     return False, "La date est obligatoire."
 
-                parsed = parse_weekend_date(new_date, get_season_year())
+                parsed = parse_weekend_date(new_date, weekend_season(w))
                 if not parsed:
                     return False, "Date invalide. Format attendu : YYYY-MM-DD."
 
@@ -1256,6 +1477,9 @@ def delete_participant(participant_id: int):
             pseudo_norm = row[2] or normalize_pseudo(pseudo)
 
             conn.execute(text("""
+                DELETE FROM bonus_reviews WHERE player_norm=:pn
+            """), {"pn": pseudo_norm})
+            conn.execute(text("""
                 DELETE FROM pronos_history
                 WHERE participant_id=:pid
                    OR COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
@@ -1326,13 +1550,22 @@ def delete_participant(participant_id: int):
 
 
 def get_current_participant(req):
-    raw_name = (req.cookies.get("player_name") or "").strip()
-    if not raw_name:
+    """Le cookie pseudo historique ne constitue jamais une authentification."""
+    player_norm = session.get("authenticated_player")
+    player_id = session.get("authenticated_player_id")
+    if not player_norm or player_id is None:
         return None
-    return get_participant_by_input(raw_name, active_only=True)
+    participant = get_participant_by_input(player_norm, active_only=True)
+    if not participant or str(participant["id"]) != str(player_id):
+        return None
+    return participant
 
 
 # ------------------ Championnat state ------------------
+def championnat_state_row_id():
+    return 1 if selected_season_year() == 2026 else selected_season_year()
+
+
 def get_championnat_state():
     default = {
         "is_open": True,
@@ -1346,8 +1579,8 @@ def get_championnat_state():
             row = conn.execute(text("""
                 SELECT is_open, revealed, locked_at
                 FROM championnat_state
-                WHERE id=1
-            """)).fetchone()
+                WHERE id=:sid
+            """), {"sid": championnat_state_row_id()}).fetchone()
 
         if row:
             return {
@@ -1357,7 +1590,9 @@ def get_championnat_state():
             }
         return default
 
-    path = os.path.join(DATA_DIR, "championnat_state.json")
+    path = os.path.join(DATA_DIR, f"championnat_state_{selected_season_year()}.json")
+    if selected_season_year() == 2026 and not os.path.exists(path):
+        path = os.path.join(DATA_DIR, "championnat_state.json")
     return load_json(path, default)
 
 
@@ -1373,16 +1608,16 @@ def save_championnat_state(state: dict):
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO championnat_state (id, is_open, revealed, locked_at, updated_at)
-                VALUES (1, :is_open, :revealed, :locked_at, NOW())
+                VALUES (:sid, :is_open, :revealed, :locked_at, NOW())
                 ON CONFLICT (id)
                 DO UPDATE SET
                     is_open = EXCLUDED.is_open,
                     revealed = EXCLUDED.revealed,
                     locked_at = EXCLUDED.locked_at,
                     updated_at = NOW()
-            """), state)
+            """), {**state, "sid": championnat_state_row_id()})
     else:
-        path = os.path.join(DATA_DIR, "championnat_state.json")
+        path = os.path.join(DATA_DIR, f"championnat_state_{selected_season_year()}.json")
         save_json(path, state)
 
 
@@ -1421,8 +1656,9 @@ def get_latest_championnat_pronos_by_player() -> list:
                 SELECT DISTINCT ON (COALESCE(player_norm, LOWER(BTRIM(player_name))))
                     player_name, payload_json, created_at, updated_at
                 FROM championnat_pronos
+                WHERE season_year=:season
                 ORDER BY COALESCE(player_norm, LOWER(BTRIM(player_name))), updated_at DESC
-            """)).fetchall()
+            """), {"season": selected_season_year()}).fetchall()
 
         items = []
         for r in rows:
@@ -1450,7 +1686,7 @@ def get_latest_championnat_pronos_by_player() -> list:
 # ------------------ Identification joueurs (cookies) ------------------
 def current_player(req):
     participant = get_current_participant(req)
-    name = participant["pseudo"] if participant else (req.cookies.get("player_name") or "").strip()
+    name = participant["pseudo"] if participant else ""
     pid = req.cookies.get("player_id")
     if not pid:
         pid = str(uuid.uuid4())
@@ -1459,6 +1695,12 @@ def current_player(req):
 
 # ------------------ Week-end open/close DB state ------------------
 def is_weekend_closed(weekend_id: str) -> bool:
+    weekend = get_weekend(weekend_id)
+    if weekend and is_season_archived(weekend_season(weekend)):
+        return True
+    deadline = deadline_from_weekend(weekend)
+    if deadline is not None and datetime.now(timezone.utc) >= deadline:
+        return True
     if not engine:
         return False
     ensure_db_bootstrap()
@@ -1471,6 +1713,11 @@ def is_weekend_closed(weekend_id: str) -> bool:
 
 
 def is_pronos_public(weekend_id: str) -> bool:
+    weekend = get_weekend(weekend_id)
+    deadline = deadline_from_weekend(weekend)
+    if deadline is not None and datetime.now(timezone.utc) >= deadline:
+        if bool((weekend or {}).get("auto_publish", False)):
+            return True
     if not engine:
         return False
     ensure_db_bootstrap()
@@ -1538,7 +1785,7 @@ def podium_points(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
 
 def qualif_points(pole_pred, pole_real, q1_preds, q1_actual):
     score = 0.0
-    if normalize(pole_pred) == normalize(pole_real):
+    if pole_pred and pole_real and normalize(pole_pred) == normalize(pole_real):
         score += 2.0
     real_set = {normalize(x) for x in (q1_actual or [])}
     for p in (q1_preds or []):
@@ -1582,7 +1829,7 @@ def podium_detail(pred, actual, well_placed, mis_placed, bonus_exact, bonus_all)
 
 
 def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
-    pole_ok = normalize(pole_pred) == normalize(pole_real)
+    pole_ok = bool(pole_pred and pole_real and normalize(pole_pred) == normalize(pole_real))
     pole_pts = 2.0 if pole_ok else 0.0
 
     real_set = {normalize(x) for x in (q1_actual or [])}
@@ -1604,7 +1851,7 @@ def qualif_detail(pole_pred, pole_real, q1_preds, q1_actual):
     }
 
 
-def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list):
+def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: list, *, player_name=None, reviews=None):
     pred_bonus = pred_bonus or {}
     real_bonus = real_bonus or {}
     items = []
@@ -1617,7 +1864,8 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
 
         pred = pred_bonus.get(bid)
         real = real_bonus.get(bid)
-        ok = is_bonus_answer_correct(b, pred, real)
+        ok, manually_reviewed = evaluated_bonus_answer(
+            b, pred, real, player_name=player_name, reviews=reviews)
         pts = BONUS_POINTS_PER_QUESTION if ok else 0.0
         total += pts
 
@@ -1629,13 +1877,14 @@ def bonus_detail(pred_bonus: dict, real_bonus: dict, weekend_bonus_questions: li
             "pred": pred,
             "real": real,
             "ok": ok,
+            "manual": manually_reviewed,
             "pts": pts
         })
 
     return {"items": items, "total": round(total, 2)}
 
 
-def compute_points_breakdown(prono: dict, results: dict, w: dict):
+def compute_points_breakdown(prono: dict, results: dict, w: dict, *, player_name=None, reviews=None):
     prono = prono or {}
     results = results or {}
     w = w or {}
@@ -1660,7 +1909,8 @@ def compute_points_breakdown(prono: dict, results: dict, w: dict):
         well_placed=2.0, mis_placed=1.0, bonus_exact=6.0, bonus_all=3.0
     )
 
-    bonus = bonus_detail(prono.get("bonus", {}), results.get("bonus", {}), bq)
+    bonus = bonus_detail(prono.get("bonus", {}), results.get("bonus", {}), bq,
+                         player_name=player_name, reviews=reviews)
 
     total = round(qual["total"] + sprint["total"] + gp["total"] + bonus["total"], 2)
 
@@ -1683,7 +1933,8 @@ def results_path(weekend_id):
 
 
 def championnat_path():
-    return os.path.join(PRONOS_DIR, "championnat.json")
+    year = selected_season_year()
+    return os.path.join(PRONOS_DIR, "championnat.json" if year == 2026 else f"championnat_{year}.json")
 
 
 def load_results(weekend_id: str):
@@ -1879,20 +2130,28 @@ def home():
     name, _ = current_player(request)
 
     weekends = []
+    season_year = selected_season_year()
+    years = sorted(set([get_season_year()] + [weekend_season(w) for w in get_sorted_weekends()]))
     for w in get_sorted_weekends():
+        if weekend_season(w) != season_year:
+            continue
         w2 = dict(w)
         w2["status"] = weekend_status(
             w2.get("date_obj"),
             open_days_before=10,
             cancelled=bool(w2.get("cancelled", False))
         )
-        w2["closed_db"] = is_weekend_closed(w2.get("id", "")) if engine else False
+        w2["closed_db"] = is_weekend_closed(w2.get("id", ""))
+        w2["public"] = is_pronos_public(w2.get("id", ""))
         weekends.append(w2)
 
     return render_template(
         "index.html",
         name=name,
         weekends=weekends,
+        race_center=race_center(weekends),
+        season_year=season_year,
+        years=years,
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -1917,7 +2176,10 @@ def login():
             return redirect(url_for("login"))
 
         _, pid = current_player(request)
-        resp = make_response(redirect(url_for("home")))
+        session["authenticated_player"] = participant["pseudo_normalized"]
+        session["authenticated_player_id"] = participant["id"]
+        session.permanent = True
+        resp = make_response(redirect(url_for("player_dashboard")))
         resp.set_cookie("player_name", participant["pseudo"], max_age=60 * 60 * 24 * 365)
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
@@ -1934,6 +2196,8 @@ def login():
 
 @app.route("/logout")
 def logout():
+    session.pop("authenticated_player", None)
+    session.pop("authenticated_player_id", None)
     resp = make_response(redirect(url_for("home")))
     resp.delete_cookie("player_name")
     resp.delete_cookie("player_id")
@@ -1960,9 +2224,10 @@ def championnat():
                 SELECT payload_json, created_at, updated_at
                 FROM championnat_pronos
                 WHERE COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                  AND season_year=:season
                 ORDER BY updated_at DESC
                 LIMIT 1
-            """), {"pn": player_norm}).fetchone()
+            """), {"pn": player_norm, "season": selected_season_year()}).fetchone()
         if row:
             my = dict(row[0] or {})
             my["_created_at"] = str(row[1]) if row[1] else None
@@ -1978,16 +2243,19 @@ def championnat():
             my = dict(best)
 
     if request.method == "POST":
+        if is_season_archived(selected_season_year()):
+            flash("Cette saison est archivée.")
+            return redirect(url_for("championnat", season=selected_season_year()))
         if not state.get("is_open", True):
             flash("Les pronostics championnat du monde sont fermés.")
-            return redirect(url_for("championnat"))
+            return redirect(url_for("championnat", season=selected_season_year()))
 
         form = request.form
         picks = [form.get("wc_p1"), form.get("wc_p2"), form.get("wc_p3")]
         v = [x for x in picks if x]
         if len(set(v)) != len(v):
             flash("Doublon détecté : tu ne peux pas mettre le même pilote 2 fois.")
-            return redirect(url_for("championnat"))
+            return redirect(url_for("championnat", season=selected_season_year()))
 
         payload = {
             "player_name": name,
@@ -2002,9 +2270,10 @@ def championnat():
                     SELECT id
                     FROM championnat_pronos
                     WHERE COALESCE(player_norm, LOWER(BTRIM(player_name)))=:pn
+                      AND season_year=:season
                     ORDER BY updated_at DESC
                     LIMIT 1
-                """), {"pn": player_norm}).fetchone()
+                """), {"pn": player_norm, "season": selected_season_year()}).fetchone()
 
                 if existing:
                     conn.execute(text("""
@@ -2027,11 +2296,11 @@ def championnat():
                 else:
                     conn.execute(text("""
                         INSERT INTO championnat_pronos (
-                            user_key, player_name, player_norm, participant_id,
+                            user_key, player_name, player_norm, participant_id, season_year,
                             payload_json, created_at, updated_at
                         )
                         VALUES (
-                            :u, :n, :pn, :pidb,
+                            :u, :n, :pn, :pidb, :season,
                             CAST(:p AS jsonb), NOW(), NOW()
                         )
                     """), {
@@ -2039,7 +2308,8 @@ def championnat():
                         "n": name,
                         "pn": player_norm,
                         "pidb": participant["id"],
-                        "p": json.dumps(payload, ensure_ascii=False)
+                        "p": json.dumps(payload, ensure_ascii=False),
+                        "season": selected_season_year()
                     })
         else:
             all_preds = load_json(championnat_path(), {})
@@ -2049,17 +2319,18 @@ def championnat():
             save_json(championnat_path(), all_preds)
 
         flash("Pronostic championnat enregistré ✅")
-        resp = make_response(redirect(url_for("championnat")))
+        resp = make_response(redirect(url_for("championnat", season=selected_season_year())))
         resp.set_cookie("player_name", name, max_age=60 * 60 * 24 * 365)
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
 
     return render_template(
         "championnat.html",
-        riders=RIDERS,
+        riders=get_riders_for_season(selected_season_year()),
         my=my,
         name=name,
         championnat_state=state,
+        season_year=selected_season_year(),
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -2106,9 +2377,9 @@ def pronos(weekend_id):
     if w.get("cancelled"):
         return "Ce GP est annulé. Les pronostics sont indisponibles.", 403
 
-    closed = is_weekend_closed(weekend_id) if engine else False
+    closed = is_weekend_closed(weekend_id)
 
-    if closed:
+    if closed and is_pronos_public(weekend_id):
         if not engine:
             return "Mode public indisponible sans DB (DATABASE_URL manquant).", 500
         return redirect(url_for("public_pronos", weekend_id=weekend_id))
@@ -2141,6 +2412,9 @@ def pronos(weekend_id):
             my = dict(best)
 
     if request.method == "POST":
+        if is_season_archived(weekend_season(w)):
+            flash("Cette saison est archivée : pronostics non modifiables.")
+            return redirect(url_for("pronos", weekend_id=weekend_id))
         if closed:
             flash("Pronos clos : modification impossible.")
             return redirect(url_for("pronos", weekend_id=weekend_id))
@@ -2270,14 +2544,15 @@ def pronos(weekend_id):
     return render_template(
         "pronos.html",
         w=w,
-        riders=RIDERS,
-        all_teams=ALL_TEAMS,
-        official_teams=OFFICIAL_TEAMS,
-        satellite_teams=SATELLITE_TEAMS,
+        riders=get_riders_for_season(weekend_season(w)),
+        all_teams=get_teams_for_season(weekend_season(w)),
+        official_teams=get_teams_for_season(weekend_season(w), kind="official"),
+        satellite_teams=get_teams_for_season(weekend_season(w), kind="satellite"),
         bonus_type_choices=BONUS_TYPE_CHOICES,
         my=my,
         name=name,
         closed=closed,
+        is_public=is_pronos_public(weekend_id),
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -2333,7 +2608,7 @@ def admin_home():
             "date": w.get("date"),
             "count": count,
             "closed": is_weekend_closed(wid) if engine else False,
-            "public": is_weekend_closed(wid) if engine else False,
+            "public": is_pronos_public(wid) if engine else False,
             "bonus_count": len(w.get("bonus_questions", []) or []),
             "cancelled": bool(w.get("cancelled", False)),
         })
@@ -2409,6 +2684,7 @@ def admin_championnat():
         "admin_championnat.html",
         name=name,
         championnat_state=state,
+        season_year=selected_season_year(),
         count=count,
         pronos=pronos_list
     )
@@ -2419,7 +2695,7 @@ def admin_championnat():
 def admin_open_championnat():
     open_championnat()
     flash("🟢 Pronostics championnat OUVERTS")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/championnat/close", methods=["POST"])
@@ -2427,7 +2703,7 @@ def admin_open_championnat():
 def admin_close_championnat():
     close_championnat()
     flash("🔒 Pronostics championnat FERMÉS")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/championnat/reveal", methods=["POST"])
@@ -2436,11 +2712,11 @@ def admin_reveal_championnat():
     state = get_championnat_state()
     if state.get("is_open", True):
         flash("Ferme d’abord les pronostics avant de les divulguer.")
-        return redirect(url_for("admin_championnat"))
+        return redirect(url_for("admin_championnat", season=selected_season_year()))
 
     reveal_championnat()
     flash("👁️ Pronostics championnat divulgués")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/championnat/hide", methods=["POST"])
@@ -2448,7 +2724,7 @@ def admin_reveal_championnat():
 def admin_hide_championnat():
     hide_championnat()
     flash("🙈 Pronostics championnat masqués")
-    return redirect(url_for("admin_championnat"))
+    return redirect(url_for("admin_championnat", season=selected_season_year()))
 
 
 @app.route("/admin/w/<weekend_id>")
@@ -2460,7 +2736,7 @@ def admin_weekend(weekend_id):
 
     count = count_distinct_pronos_for_weekend(weekend_id)
     closed = is_weekend_closed(weekend_id) if engine else False
-    public = closed
+    public = is_pronos_public(weekend_id) if engine else False
 
     name, _ = current_player(request)
     return render_template(
@@ -2589,19 +2865,22 @@ def admin_calendar():
             "date": w.get("date"),
             "date_obj": w.get("date_obj"),
             "closed": closed,
-            "public": closed,
+            "public": is_pronos_public(wid) if engine else False,
             "cancelled": cancelled,
             "status": status,
             "count": count_distinct_pronos_for_weekend(wid),
-            "can_edit_date": not closed,
+            "can_edit_date": not is_season_archived(weekend_season(w)),
             "can_cancel": not closed and not cancelled,
             "can_reactivate": not closed and cancelled,
         })
 
+    if not session.get("v2_csrf"):
+        session["v2_csrf"] = secrets.token_urlsafe(32)
     name, _ = current_player(request)
     return render_template(
         "admin_calendar.html",
         name=name,
+        csrf=session["v2_csrf"],
         weekends=items
     )
 
@@ -2613,13 +2892,21 @@ def admin_calendar_update(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
-    if is_weekend_closed(weekend_id):
-        flash("GP déjà clos : date non modifiable.")
+    if is_season_archived(weekend_season(w)):
+        flash("Saison archivée : calendrier non modifiable.")
         return redirect(url_for("admin_calendar"))
+    if not hmac.compare_digest(str(request.form.get("csrf") or ""),
+                               str(session.get("v2_csrf") or "")) or not session.get("v2_csrf"):
+        return "Formulaire de modification invalide.", 403
 
     new_date = (request.form.get("date") or "").strip()
     new_label = (request.form.get("label") or "").strip()
 
+    if new_date:
+        new_day = parse_weekend_date(new_date, weekend_season(w))
+        if not new_day or new_day.year != weekend_season(w):
+            flash("La date du GP doit rester dans sa saison.")
+            return redirect(url_for("admin_calendar"))
     ok, msg = update_weekend_calendar(
         weekend_id=weekend_id,
         new_date=new_date,
@@ -2682,7 +2969,16 @@ def admin_results(weekend_id):
         for b in w.get("bonus_questions", []):
             bid = b["id"]
             answer = f.get(f"bonus_{bid}")
-            ok, err = validate_bonus_answer_for_question(b, answer)
+            official_question = dict(b)
+            if official_question.get("type") == "rider":
+                official_question["resolved_options"] = get_riders_for_season(
+                    weekend_season(w), active_only=False)
+            elif official_question.get("type") in {"team", "official_team", "satellite_team"}:
+                kind = {"official_team":"official", "satellite_team":"satellite"}.get(
+                    official_question.get("type"))
+                official_question["resolved_options"] = get_teams_for_season(
+                    weekend_season(w), kind=kind, active_only=False)
+            ok, err = validate_bonus_answer_for_question(official_question, answer)
             if not ok:
                 flash(f"Bonne réponse bonus invalide : {err}")
                 return redirect(url_for("admin_results", weekend_id=weekend_id))
@@ -2715,13 +3011,95 @@ def admin_results(weekend_id):
         "admin_results.html",
         name=name,
         w=w,
-        riders=RIDERS,
-        all_teams=ALL_TEAMS,
-        official_teams=OFFICIAL_TEAMS,
-        satellite_teams=SATELLITE_TEAMS,
+        riders=get_riders_for_season(weekend_season(w), active_only=False),
+        all_teams=get_teams_for_season(weekend_season(w), active_only=False),
+        official_teams=get_teams_for_season(weekend_season(w), kind="official", active_only=False),
+        satellite_teams=get_teams_for_season(weekend_season(w), kind="satellite", active_only=False),
         bonus_type_choices=BONUS_TYPE_CHOICES,
         results=results
     )
+
+
+@app.route("/admin/w/<weekend_id>/bonus-reviews", methods=["GET", "POST"])
+@require_admin
+def admin_bonus_reviews(weekend_id):
+    """Validation ponctuelle, réversible et horodatée sans toucher au prono brut."""
+    w = get_weekend(weekend_id)
+    if not w:
+        return "Week-end inconnu", 404
+    if not engine:
+        return "Base PostgreSQL requise pour la validation manuelle.", 503
+    results = load_results(weekend_id) or {}
+    questions = w.get("bonus_questions", []) or []
+    pronos_by_player = get_latest_pronos_by_player_for_weekend(weekend_id)
+    token = session.get("bonus_review_csrf")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["bonus_review_csrf"] = token
+
+    if request.method == "POST":
+        if not hmac.compare_digest(
+            str(request.form.get("csrf_token") or ""), str(token)):
+            return "Formulaire expiré ou non autorisé", 403
+        pname = str(request.form.get("player") or "")
+        qid = str(request.form.get("question") or "")
+        decision = str(request.form.get("decision") or "")
+        question = next((b for b in questions if b.get("id") == qid), None)
+        player_name = next(
+            (p for p in pronos_by_player if normalize_pseudo(p) == normalize_pseudo(pname)),
+            None)
+        if not question or player_name is None or decision not in ("auto", "valid", "invalid"):
+            return "Correction invalide", 400
+        predicted = (pronos_by_player[player_name].get("bonus") or {}).get(qid)
+        official = (results.get("bonus") or {}).get(qid)
+        if decision != "auto" and not official:
+            flash("Saisir et enregistrer d'abord la bonne réponse officielle.")
+            return redirect(url_for("admin_bonus_reviews", weekend_id=weekend_id))
+        key = {"wid": weekend_id, "player": normalize_pseudo(player_name), "qid": qid}
+        with engine.begin() as conn:
+            if decision == "auto":
+                conn.execute(text("""
+                    DELETE FROM bonus_reviews
+                    WHERE weekend_id=:wid AND player_norm=:player AND question_id=:qid
+                """), key)
+            else:
+                conn.execute(text("""
+                    INSERT INTO bonus_reviews (
+                        weekend_id, player_norm, question_id, decision,
+                        prediction_snapshot, official_snapshot, reviewed_by
+                    ) VALUES (
+                        :wid, :player, :qid, :decision, :prediction, :official, :admin
+                    )
+                    ON CONFLICT (weekend_id, player_norm, question_id)
+                    DO UPDATE SET decision=EXCLUDED.decision,
+                        prediction_snapshot=EXCLUDED.prediction_snapshot,
+                        official_snapshot=EXCLUDED.official_snapshot,
+                        reviewed_by=EXCLUDED.reviewed_by, reviewed_at=NOW()
+                """), {**key, "decision": decision == "valid",
+                       "prediction": str(predicted or ""),
+                       "official": str(official or ""), "admin": ADMIN_USER})
+        flash("Validation mise à jour ; les classements sont recalculés automatiquement.")
+        return redirect(url_for("admin_bonus_reviews", weekend_id=weekend_id))
+
+    reviews = load_bonus_reviews(weekend_id)
+    entries = []
+    for b in questions:
+        real = (results.get("bonus") or {}).get(b.get("id"))
+        answers = []
+        for player_name, prediction in sorted(pronos_by_player.items()):
+            pred = (prediction.get("bonus") or {}).get(b.get("id"))
+            valid, manual = evaluated_bonus_answer(
+                b, pred, real, player_name=player_name, reviews=reviews)
+            review = reviews.get((normalize_pseudo(player_name), b.get("id")))
+            stale = review is not None and not manual
+            answers.append({"player": player_name, "pred": pred, "valid": valid,
+                            "automatic": is_bonus_answer_correct(b, pred, real),
+                            "manual": manual, "stale": stale,
+                            "decision": ("valid" if valid else "invalid") if manual else "auto"})
+        entries.append({"question": b, "official": real, "answers": answers})
+    return render_template("admin_bonus_reviews.html",
+        w=w, entries=entries, csrf_token=token,
+        name=current_player(request)[0])
 
 
 @app.route("/admin/w/<weekend_id>/questions", methods=["GET", "POST"])
@@ -2816,8 +3194,8 @@ def public_pronos(weekend_id):
     if w.get("cancelled"):
         return "Ce GP est annulé.", 403
 
-    if not is_weekend_closed(weekend_id):
-        return "Pronos pas encore visibles : le GP est encore ouvert.", 403
+    if not is_pronos_public(weekend_id):
+        return "Les pronostics de ce GP ne sont pas encore rendus publics.", 403
 
     with engine.begin() as conn:
         rows = conn.execute(text("""
@@ -2854,7 +3232,7 @@ def public_pronos(weekend_id):
 def results_by_race():
     name, _ = current_player(request)
 
-    weekends = get_sorted_weekends()
+    weekends = [w for w in get_sorted_weekends() if weekend_season(w) == selected_season_year()]
     gp_id = (request.args.get("gp") or "").strip()
 
     selected = get_weekend(gp_id) if gp_id else None
@@ -2930,10 +3308,12 @@ def results_by_race():
                 })
             pronos_list = dedupe_pronos_by_playername(tmp)
 
+    reviews = load_bonus_reviews(gp_id)
     rows = []
     for item in pronos_list:
         p = item["payload"] or {}
-        breakdown = compute_points_breakdown(p, results, selected)
+        breakdown = compute_points_breakdown(
+            p, results, selected, player_name=item["player_name"], reviews=reviews)
         rows.append({
             "player": item["player_name"],
             "created_at": item.get("created_at"),
@@ -2983,51 +3363,18 @@ def classement_weekend(weekend_id):
             is_admin=is_admin()
         )
 
+    reviews = load_bonus_reviews(weekend_id)
     rows = []
     for player_name, p in pronos_by_player.items():
-        q_score = qualif_points(
-            p.get("pole"),
-            results.get("pole"),
-            [p.get("q1_1"), p.get("q1_2")],
-            results.get("q1", []),
-        )
-
-        s_score = podium_points(
-            [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
-            results.get("sprint", []),
-            well_placed=1.0,
-            mis_placed=0.5,
-            bonus_exact=3.0,
-            bonus_all=1.5
-        )
-
-        g_score = podium_points(
-            [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
-            results.get("gp", []),
-            well_placed=2.0,
-            mis_placed=1.0,
-            bonus_exact=6.0,
-            bonus_all=3.0
-        )
-
-        bonus_score = 0.0
-        for b in w.get("bonus_questions", []):
-            bid = b.get("id")
-            if not bid:
-                continue
-            pred = (p.get("bonus", {}) or {}).get(bid)
-            real = (results.get("bonus", {}) or {}).get(bid)
-            if is_bonus_answer_correct(b, pred, real):
-                bonus_score += BONUS_POINTS_PER_QUESTION
-
-        total = round(q_score + s_score + g_score + bonus_score, 2)
+        pts = compute_points_breakdown(
+            p, results, w, player_name=player_name, reviews=reviews)
         rows.append({
-            "player": player_name or p.get("player_name", "??"),
-            "q": round(q_score, 2),
-            "s": round(s_score, 2),
-            "gp": round(g_score, 2),
-            "bonus": round(bonus_score, 2),
-            "total": round(total, 2)
+            "player": player_name,
+            "q": pts["qualif"]["total"],
+            "s": pts["sprint"]["total"],
+            "gp": pts["gp"]["total"],
+            "bonus": pts["bonus"]["total"],
+            "total": pts["total"]
         })
 
     rows.sort(key=lambda r: r["total"], reverse=True)
@@ -3049,7 +3396,7 @@ def classement_weekend(weekend_id):
 def classement_general():
     name, _ = current_player(request)
 
-    weekends = get_sorted_weekends()
+    weekends = [w for w in get_sorted_weekends() if weekend_season(w) == selected_season_year()]
     if not weekends:
         return render_template(
             "classement_general.html",
@@ -3079,44 +3426,16 @@ def classement_general():
         gp_scored.append({"id": wid, "label": w.get("label", wid)})
 
         pronos_by_player = get_latest_pronos_by_player_for_weekend(wid)
+        reviews = load_bonus_reviews(wid)
 
         for player_name, p in pronos_by_player.items():
-            q_score = qualif_points(
-                p.get("pole"),
-                results.get("pole"),
-                [p.get("q1_1"), p.get("q1_2")],
-                results.get("q1", []),
-            )
-
-            s_score = podium_points(
-                [p.get("sprint_p1"), p.get("sprint_p2"), p.get("sprint_p3")],
-                results.get("sprint", []),
-                well_placed=1.0,
-                mis_placed=0.5,
-                bonus_exact=3.0,
-                bonus_all=1.5
-            )
-
-            g_score = podium_points(
-                [p.get("gp_p1"), p.get("gp_p2"), p.get("gp_p3")],
-                results.get("gp", []),
-                well_placed=2.0,
-                mis_placed=1.0,
-                bonus_exact=6.0,
-                bonus_all=3.0
-            )
-
-            bonus_score = 0.0
-            for b in (w.get("bonus_questions", []) or []):
-                bid = b.get("id")
-                if not bid:
-                    continue
-                pred = (p.get("bonus", {}) or {}).get(bid)
-                real = (results.get("bonus", {}) or {}).get(bid)
-                if is_bonus_answer_correct(b, pred, real):
-                    bonus_score += BONUS_POINTS_PER_QUESTION
-
-            total_gp = round(q_score + s_score + g_score + bonus_score, 2)
+            pts = compute_points_breakdown(
+                p, results, w, player_name=player_name, reviews=reviews)
+            q_score = pts["qualif"]["total"]
+            s_score = pts["sprint"]["total"]
+            g_score = pts["gp"]["total"]
+            bonus_score = pts["bonus"]["total"]
+            total_gp = pts["total"]
 
             cur = totals.get(player_name)
             if not cur:
@@ -3172,6 +3491,47 @@ def health():
         except Exception as e:
             return f"DB ERROR: {e}", 500
     return "OK", 200
+
+register_v2(app, {
+    "engine": engine,
+    "get_current_participant": get_current_participant,
+    "get_all_participants": get_all_participants,
+    "current_player": current_player,
+    "get_weekend": get_weekend,
+    "get_sorted_weekends": get_sorted_weekends,
+    "load_weekends_data": load_weekends_data,
+    "save_weekends_data": save_weekends_data,
+    "ensure_db_bootstrap": ensure_db_bootstrap,
+    "is_admin": is_admin,
+    "normalize_pseudo": normalize_pseudo,
+    "get_latest_pronos_by_player_for_weekend": get_latest_pronos_by_player_for_weekend,
+    "load_results": load_results,
+    "load_bonus_reviews": load_bonus_reviews,
+    "compute_points_breakdown": compute_points_breakdown,
+    "is_weekend_closed": is_weekend_closed,
+    "is_pronos_public": is_pronos_public,
+    "is_season_archived": is_season_archived,
+    "weekend_season": weekend_season,
+    "selected_season_year": selected_season_year,
+    "get_season_year": get_season_year,
+    "get_riders_for_season": get_riders_for_season,
+    "get_teams_for_season": get_teams_for_season,
+})
+
+register_notifications(app, {
+    "engine": engine,
+    "get_current_participant": get_current_participant,
+    "get_all_participants": get_all_participants,
+    "get_sorted_weekends": get_sorted_weekends,
+    "get_weekend": get_weekend,
+    "current_player": current_player,
+    "is_admin": is_admin,
+    "is_season_archived": is_season_archived,
+    "weekend_season": weekend_season,
+    "normalize_pseudo": normalize_pseudo,
+    "deadline_from_weekend": deadline_from_weekend,
+    "is_weekend_closed": is_weekend_closed,
+})
 
 print("APP FLASK DEMARREE", flush=True)
 

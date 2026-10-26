@@ -1088,3 +1088,59 @@ details.card[open] summary::after{
     padding: 14px;
   }
 }
+
+/* PronoGP V2 — Navigation admin inspirée de PronoSki */
+.v2-admin-tabs{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;
+  margin:0 auto 22px;padding:10px;
+  max-width:1000px;border:1px solid rgba(255,255,255,.20);
+  border-radius:14px;background:rgba(0,0,0,.12);
+}
+.v2-admin-tabs a{
+  text-decoration:none;font-weight:700;font-size:14px;
+  border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.06);padding:11px 14px;border-radius:10px;
+  transition:background .15s ease;
+}
+.v2-admin-tabs a:is(:focus-visible,:hover),.v2-admin-tabs a.active{
+  background:#ffd60a;color:#11385b;border-color:#ffd60a;
+}
+@media (max-width:600px) {
+  .v2-admin-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
+  .v2-admin-tabs a{padding:10px 6px;}
+}
+
+
+/* PRONOGP V2 — addition only, compatible with classic pages */
+.v2-intro{padding:36px 20px;border-radius:18px;background:linear-gradient(125deg,#091e36,#235d8a);margin:20px auto 24px;max-width:1100px}
+.v2-intro>span,.v2-eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.15em;color:#ffd60a;text-transform:uppercase}
+.v2-intro h1{font-size:clamp(1.6rem,4vw,2.65rem);margin:12px auto;max-width:900px;line-height:1.15}
+.v2-intro p{color:#dceaf7;max-width:720px;margin:8px auto 20px}
+.v2-racecenter{border:1px solid rgba(255,255,255,.22);border-top:5px solid #ffd60a;border-radius:18px;background:#081e33;padding:22px;margin:22px auto;box-shadow:0 10px 35px rgba(0,0,0,.18)}
+.v2-racecenter h2{font-size:clamp(1.5rem,4vw,2.3rem);margin:8px 0 20px}
+.v2-counter{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px;margin:9px auto;border-radius:10px;background:rgba(255,255,255,.08);max-width:640px;text-align:left}
+.v2-counter strong{font-size:1.14rem;font-variant-numeric:tabular-nums;white-space:nowrap;color:#ffd60a}
+.v2-race-links{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px}
+.v2-race-links a{color:#ffdd39;font-weight:700}
+.v2-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px auto}
+.v2-stats article{display:flex;flex-direction:column;gap:10px;text-align:left;background:#17446e;border:1px solid rgba(255,255,255,.14);border-radius:13px;padding:19px 16px}
+.v2-stats article strong{font-size:2rem;color:#ffd60a}
+.v2-stats article strong.v2-event-name{font-size:1rem;line-height:1.4;color:#fff}
+.v2-stats article small{color:#b5d9f3;letter-spacing:.05em}
+.v2-stats article span{color:#e1f1fe;font-size:.85rem}
+.v2-event-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px auto 28px}
+.v2-event{display:flex;gap:12px;align-items:center;text-align:left;padding:15px 17px;background:#17446e;border-radius:13px;border:1px solid rgba(255,255,255,.15);flex-wrap:wrap}
+.v2-event>div{flex:1;min-width:130px}
+.v2-event strong{display:block}
+.v2-event small{display:block;margin-top:6px;color:#bdcddd}
+.v2-event a{color:#ffdc39;font-weight:700;text-decoration:none}
+.v2-pill{font-size:.76rem;border-radius:20px;border:1px solid rgba(255,255,255,.3);padding:5px 9px}
+.v2-player{display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap}
+.avatar-v2{display:inline-flex;align-items:center;justify-content:center;position:relative;overflow:hidden;vertical-align:middle;border:2px solid #ffd60a;border-radius:50%;background:#092b46;color:#ffd60a;font-weight:900;flex-shrink:0;height:38px;width:38px}
+.avatar-v2 img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.avatar-lg{width:92px;height:92px;font-size:2.1rem}
+.avatar-sm{width:34px;height:34px;margin-right:7px}
+.profile-v2{max-width:630px;margin:20px auto}
+.profile-v2 input[type=file]{max-width:100%}
+.v2-rider-search{margin:8px 0 4px;width:100%;border-radius:8px}
+@media(max-width:760px){.v2-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.v2-event-grid{grid-template-columns:1fr}.v2-counter{flex-direction:column;align-items:flex-start}.v2-intro{padding:25px 12px}}

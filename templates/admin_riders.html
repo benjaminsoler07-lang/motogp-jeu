@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Administration pilotes — {{ year }}{% endblock %}
+{% block content %}
+{% include "_admin_nav.html" %}
+<h2>🏍️ Pilotes MotoGP — Saison {{ year }}</h2>
+<p>Chaque saison possède sa liste indépendante. Désactiver un pilote le retire des nouveaux pronostics, mais ne supprime jamais les pronostics historiques.</p>
+<nav class="v2-season-picker">{% for y in seasons %}
+<a class="btn btn-small" href="{{ url_for('admin_riders', season=y) }}" {% if y == year %}aria-current="page"{% endif %}>{{ y }}</a>{% endfor %}</nav>
+{% if archived %}<p class="notice">Saison archivée : liste verrouillée.</p>{% endif %}
+<section class="card" style="max-width:900px;margin:18px auto;text-align:left">
+<h3>Ajouter ou réactiver un pilote</h3>
+<form method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="season" value="{{ year }}">
+<input type="hidden" name="action" value="add">
+<label for="rider">Numéro et nom du pilote</label>
+<input id="rider" name="rider" type="text" maxlength="100" placeholder="#49 Fabio Di Giannantonio" required {% if archived %}disabled{% endif %}>
+<button class="btn" type="submit" {% if archived %}disabled{% endif %}>Ajouter ce pilote</button>
+</form>
+</section>
+<section class="card" style="max-width:900px;margin:18px auto;text-align:left">
+<h3>Présence des pilotes</h3>
+<div style="overflow:auto">
+<table class="classement" style="width:100%">
+<thead><tr><th>Pilote</th><th>Statut</th><th>Action</th></tr></thead>
+<tbody>
+{% for item in rows %}
+<tr>
+<td>{{ item.rider }}</td>
+<td>{{ '🟢 Disponible' if item.active else '⛔ Absent' }}</td>
+<td><form method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="season" value="{{ year }}">
+<input type="hidden" name="action" value="toggle">
+<input type="hidden" name="rider" value="{{ item.rider }}">
+<button type="submit" class="btn btn-small" {% if archived %}disabled{% endif %}>{{ 'Marquer absent' if item.active else 'Réactiver' }}</button>
+</form></td>
+</tr>
+{% else %}
+<tr><td colspan="3">Aucun pilote : ajoute les pilotes de cette saison avant d'ouvrir les pronostics.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</section>
+{% endblock %}

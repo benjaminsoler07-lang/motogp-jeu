@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Administration des saisons — PronoGP{% endblock %}
+{% block content %}
+{% include "_admin_nav.html" %}
+<h2>🗓️ Gestion des saisons</h2>
+<p>Créer de nouvelles saisons sans toucher aux pronostics historiques. Une saison archivée ne peut plus recevoir de nouveaux pronostics.</p>
+<div class="card" style="text-align:left;max-width:850px;margin:auto">
+<h3>Créer une saison</h3>
+<form method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add">
+<label for="new_year">Année (ex. 2027)</label>
+<input type="number" min="2026" max="2100" name="year" id="new_year" required>
+<button class="btn" type="submit">➕ Créer</button>
+</form>
+</div>
+<div class="v2-event-grid">
+{% for season in seasons %}
+<div class="v2-event">
+<div><strong>Saison {{ season.year }}</strong>
+<small>{{ counts.get(season.year, 0) }} Grands Prix · {{ 'Archive' if season.archived else 'Active' }}</small></div>
+<a href="{{ url_for('home', season=season.year) }}">Voir</a>
+<form method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<input type="hidden" name="action" value="archive">
+<input type="hidden" name="year" value="{{ season.year }}">
+<input type="hidden" name="archived" value="{{ '0' if season.archived else '1' }}">
+<button class="btn btn-small" type="submit">{{ 'Rouvrir' if season.archived else 'Archiver' }}</button>
+</form>
+</div>
+{% endfor %}
+</div>
+<section class="card" style="text-align:left;max-width:850px;margin:auto">
+<h3>Ajouter un Grand Prix</h3>
+<form method="post">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="gp">
+<label for="gpyear">Saison</label>
+<select id="gpyear" name="year">
+{% for season in seasons if not season.archived %}<option value="{{ season.year }}">{{ season.year }}</option>{% endfor %}
+</select>
+<label for="gplabel">Nom du GP</label>
+<input type="text" id="gplabel" name="label" maxlength="120" placeholder="GP du Portugal" required>
+<label for="gpdate">Date du GP</label>
+<input type="date" id="gpdate" name="date" required>
+<p><button class="btn" type="submit">🏁 Ajouter à la saison</button></p>
+</form>
+<p>Après ajout, configure les heures de clôture, les séances et les questions bonus depuis l'administration du GP.</p>
+</section>
+{% endblock %}

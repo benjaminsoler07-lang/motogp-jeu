@@ -5,11 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Pronos - MotoGP{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="manifest" href="{{ url_for('pwa_manifest') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('pwa_icon',size=192) }}">
+    <meta name="theme-color" content="#0d3b66">
+    <script defer src="{{ url_for('static',filename='v2-pwa.js') }}"></script>
   </head>
 
   <body>
     <header class="checkerbar">
-      <h1 class="header-title">Prono MotoGP 2026</h1>
+      <h1 class="header-title">PRONOGP · MOTOGP</h1>
 
       <div class="header-auth">
         {% if name %}
@@ -31,8 +35,12 @@
 
       <nav class="header-nav">
         <a class="btn" href="{{ url_for('home') }}">Accueil</a>
+        {% if name %}<a class="btn" href="{{ url_for('player_dashboard') }}">Mon espace</a>
+        <a class="btn" href="{{ url_for('profile') }}">Mon profil</a>
+        <a class="btn" href="{{ url_for('notifications') }}">🔔 Notifications</a>{% endif %}
         <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
-        <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par course</a>
+        <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par GP</a>
+        <a class="btn" href="{{ url_for('championnat',season=request.args.get('season') or 2026) }}">Championnat</a>
       </nav>
     </header>
 
