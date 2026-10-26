@@ -105,7 +105,15 @@ class MotoGPSyncTests(unittest.TestCase):
                                           "Accept": "application/json"})
             data = reply.json() if reply.status_code == 200 else None
             size = len(data) if isinstance(data, list) else -1
-            print("PRONOGP_API_PROBE status=%s events=%s" % (reply.status_code, size))
+            if isinstance(data, list):
+                from motogp_schedule import normalise_event
+                parsed = [normalise_event(x, 2026) for x in data]
+                parsed = [x for x in parsed if x]
+                print("PRONOGP_API_PROBE status=%s events=%s valid_gp=%s first=%s" %
+                      (reply.status_code, size, len(parsed),
+                       [(x["date"], x["name"], len(x["sessions"])) for x in parsed[:3]]))
+            else:
+                print("PRONOGP_API_PROBE status=%s events=%s" % (reply.status_code, size))
         except Exception as exc:
             print("PRONOGP_API_PROBE error=%s" % type(exc).__name__)
 
