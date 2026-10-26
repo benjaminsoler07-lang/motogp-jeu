@@ -218,12 +218,11 @@ def get_bonus_options_for_type(qtype: str, question: dict = None):
         return ["Oui", "Non"]
     if qtype == "rider":
         return list(question["resolved_options"]) if "resolved_options" in question else list(RIDERS)
-    if qtype == "team":
-        return list(ALL_TEAMS)
-    if qtype == "official_team":
-        return list(OFFICIAL_TEAMS)
-    if qtype == "satellite_team":
-        return list(SATELLITE_TEAMS)
+    if qtype in {"team", "official_team", "satellite_team"}:
+        if "resolved_options" in question:
+            return list(question["resolved_options"])
+        return list({"team": ALL_TEAMS, "official_team": OFFICIAL_TEAMS,
+                     "satellite_team": SATELLITE_TEAMS}[qtype])
     if qtype == "range":
         opts = question.get("options") or []
         return opts if opts else get_default_range_options()
@@ -502,6 +501,22 @@ def get_riders_for_season(year: int, *, active_only: bool = True) -> list:
     return [r[0] for r in rows]
 
 
+def get_teams_for_season(year: int, *, kind: str = None, active_only: bool = True) -> list:
+    """Liste officielle/satellite persistante de la saison choisie."""
+    if not engine:
+        return list(ALL_TEAMS if not kind else
+                    (OFFICIAL_TEAMS if kind == "official" else SATELLITE_TEAMS))
+    ensure_db_bootstrap()
+    where_kind = "AND kind=:kind" if kind in {"official", "satellite"} else ""
+    with engine.connect() as conn:
+        rows=conn.execute(text("""
+            SELECT team FROM season_teams WHERE season_year=:year
+        """ + where_kind + """
+            AND (:active_only=FALSE OR active=TRUE) ORDER BY team
+        """), {"year":int(year),"kind":kind,"active_only":bool(active_only)}).fetchall()
+    return [r[0] for r in rows]
+
+
 def weekend_sort_key(w: dict):
     d = parse_weekend_date(w.get("date", ""), weekend_season(w))
     return (d or date.max, (w.get("label") or "").lower())
@@ -719,6 +734,22 @@ def db_init():
                 VALUES (2026, :rider, TRUE)
                 ON CONFLICT (season_year, rider) DO NOTHING
             """), {"rider": rider})
+
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS season_teams (
+            season_year INTEGER NOT NULL REFERENCES seasons(year),
+            team TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('official','satellite')),
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            PRIMARY KEY (season_year, team)
+        );
+        """))
+        for team in ALL_TEAMS:
+            conn.execute(text("""
+                INSERT INTO season_teams(season_year,team,kind,active)
+                VALUES (2026,:team,:kind,TRUE)
+                ON CONFLICT(season_year,team) DO NOTHING
+            """), {"team":team, "kind":"official" if team in OFFICIAL_TEAMS else "satellite"})
 
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -1003,9 +1034,14 @@ def get_weekend(weekend_id):
             w["cancelled"] = bool(w.get("cancelled", False))
             for q in w["bonus_questions"]:
                 q["type_label"] = get_bonus_type_label(q.get("type"))
-                q["resolved_options"] = (get_riders_for_season(weekend_season(w))
-                                         if q.get("type") == "rider"
-                                         else get_bonus_options_for_type(q.get("type"), q))
+                qtype = q.get("type")
+                if qtype == "rider":
+                    q["resolved_options"] = get_riders_for_season(weekend_season(w))
+                elif qtype in {"team", "official_team", "satellite_team"}:
+                    kind = {"official_team":"official","satellite_team":"satellite"}.get(qtype)
+                    q["resolved_options"] = get_teams_for_season(weekend_season(w), kind=kind)
+                else:
+                    q["resolved_options"] = get_bonus_options_for_type(qtype, q)
             return w
     return None
 
