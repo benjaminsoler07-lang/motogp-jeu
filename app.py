@@ -1181,43 +1181,80 @@ def is_weekend_cancelled(weekend_or_id) -> bool:
     return bool(w and w.get("cancelled", False))
 
 
-def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: str = None):
+def weekend_config_revision(weekend: dict) -> str:
+    """Version courte du calendrier et des heures pour éviter les écrasements concurrents."""
+    import hashlib
+    relevant = {key: (weekend or {}).get(key) for key in (
+        "date", "label", "sessions", "deadline_utc", "auto_publish", "cancelled"
+    )}
+    payload = json.dumps(relevant, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def update_weekend_config_fields(weekend_id: str, updates: dict, expected_revision=None):
+    """Met à jour UN GP atomiquement en PostgreSQL, sans toucher au disque de Render.
+
+    Les résultats, pronos, indicateurs closed_at/public et autres GP ne changent pas.
+    """
+    allowed = {"date", "label", "deadline_utc", "sessions", "auto_publish", "cancelled"}
+    if not updates or set(updates) - allowed:
+        return False, "Champs de calendrier invalides."
     data = load_weekends_data()
-    weekends = data.get("weekends", [])
+    base = next((dict(w) for w in data.get("weekends", [])
+                 if w.get("id") == weekend_id), None)
+    if base is None:
+        return False, "Grand Prix introuvable."
+    if engine:
+        ensure_db_bootstrap()
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT config_json FROM weekends WHERE weekend_id=:id FOR UPDATE
+            """), {"id": weekend_id}).fetchone()
+            if row is not None and row[0]:
+                base.update(dict(row[0]))
+            base["id"] = weekend_id
+            if expected_revision and weekend_config_revision(base) != expected_revision:
+                return False, "Le GP a été modifié depuis l'aperçu. Recharge les horaires."
+            base.update(updates)
+            conn.execute(text("""
+                INSERT INTO weekends(weekend_id,config_json,updated_at)
+                VALUES (:id,CAST(:config AS jsonb),NOW())
+                ON CONFLICT (weekend_id) DO UPDATE
+                SET config_json=EXCLUDED.config_json,updated_at=NOW()
+            """), {
+                "id": weekend_id,
+                "config": json.dumps(base, ensure_ascii=False)
+            })
+    else:
+        if expected_revision and weekend_config_revision(base) != expected_revision:
+            return False, "Le GP a été modifié depuis l'aperçu. Recharge les horaires."
+        for item in data.get("weekends", []):
+            if item.get("id") == weekend_id:
+                item.update(updates)
+                break
+        save_weekends_data(data)
+    return True, "Configuration du GP enregistrée."
 
-    for w in weekends:
-        if w.get("id") == weekend_id:
-            if new_label is not None:
-                w["label"] = (new_label or "").strip() or w.get("label", weekend_id)
 
-            if new_date is not None:
-                new_date = (new_date or "").strip()
-                if not new_date:
-                    return False, "La date est obligatoire."
-
-                parsed = parse_weekend_date(new_date, weekend_season(w))
-                if not parsed:
-                    return False, "Date invalide. Format attendu : YYYY-MM-DD."
-
-                w["date"] = parsed.isoformat()
-
-            save_weekends_data(data)
-            return True, "GP mis à jour."
-
-    return False, "Week-end introuvable."
+def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: str = None):
+    gp = get_weekend(weekend_id)
+    if not gp:
+        return False, "Grand Prix introuvable."
+    changes = {}
+    if new_label is not None:
+        changes["label"] = (new_label or "").strip() or gp.get("label", weekend_id)
+    if new_date is not None:
+        parsed = parse_weekend_date((new_date or "").strip(), weekend_season(gp))
+        if not parsed or parsed.year != weekend_season(gp):
+            return False, "Date invalide : format AAAA-MM-JJ et année de saison obligatoires."
+        changes["date"] = parsed.isoformat()
+    if not changes:
+        return False, "Aucune modification."
+    return update_weekend_config_fields(weekend_id, changes)
 
 
 def set_weekend_cancelled_flag(weekend_id: str, cancelled: bool):
-    data = load_weekends_data()
-    weekends = data.get("weekends", [])
-
-    for w in weekends:
-        if w.get("id") == weekend_id:
-            w["cancelled"] = bool(cancelled)
-            save_weekends_data(data)
-            return True, "Statut du GP mis à jour."
-
-    return False, "Week-end introuvable."
+    return update_weekend_config_fields(weekend_id, {"cancelled": bool(cancelled)})
 
 
 # ------------------ Participants helpers ------------------
@@ -3656,6 +3693,8 @@ register_v2(app, {
     "get_sorted_weekends": get_sorted_weekends,
     "load_weekends_data": load_weekends_data,
     "save_weekends_data": save_weekends_data,
+    "update_weekend_config_fields": update_weekend_config_fields,
+    "weekend_config_revision": weekend_config_revision,
     "ensure_db_bootstrap": ensure_db_bootstrap,
     "is_admin": is_admin,
     "normalize_pseudo": normalize_pseudo,
