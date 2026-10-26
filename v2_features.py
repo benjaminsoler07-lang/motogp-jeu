@@ -101,6 +101,7 @@ def race_center(weekends):
     return {
         "id": weekend["id"],
         "name": weekend.get("label", ""),
+        "public": bool(weekend.get("public")),
         "deadline_iso": deadline.isoformat() if deadline else None,
         "session_label": session_next[1] if session_next else None,
         "session_iso": session_next[0].isoformat() if session_next else None,
@@ -347,6 +348,7 @@ def register_v2(app, api):
         for w in weekends:
             w["played"] = bool(played.get(w["id"]))
             w["closed"] = api["is_weekend_closed"](w["id"])
+            w["public"] = api["is_pronos_public"](w["id"])
         return render_template("player_dashboard.html",
             name=person["pseudo"], person=person,
             weekends=weekends, points=all_totals.get(myname,0), rank=rank,
