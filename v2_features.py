@@ -167,6 +167,12 @@ def register_v2(app, api):
                                 WHERE season_year=2026
                                 ON CONFLICT(season_year,rider) DO NOTHING
                             """), {"y": year})
+                            conn.execute(text("""
+                                INSERT INTO season_teams(season_year,team,kind,active)
+                                SELECT :y,team,kind,active FROM season_teams
+                                WHERE season_year=2026
+                                ON CONFLICT(season_year,team) DO NOTHING
+                            """), {"y": year})
                     flash("Saison créée (liste de pilotes copiée, à vérifier).")
                 elif action == "archive":
                     with engine.begin() as conn:
@@ -265,6 +271,55 @@ def register_v2(app, api):
             seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
         return render_template("admin_riders.html",name=api["current_player"](request)[0],
                                year=year,seasons=seasons,rows=rows,archived=bool(season[0]),
+                               csrf=csrf_value())
+
+    @app.route("/admin/teams", methods=["GET", "POST"])
+    def admin_teams():
+        admin_only()
+        if not engine:
+            abort(503)
+        api["ensure_db_bootstrap"]()
+        year=int(api["selected_season_year"]())
+        with engine.connect() as conn:
+            season=conn.execute(text("SELECT archived FROM seasons WHERE year=:y"),{"y":year}).fetchone()
+        if not season:
+            flash("Créer la saison avant de gérer ses équipes.")
+            return redirect(url_for("admin_seasons"))
+        if request.method=="POST":
+            check_csrf()
+            if season[0]:
+                abort(403)
+            action=request.form.get("action") or ""
+            team=(request.form.get("team") or "").strip()
+            kind=request.form.get("kind") or ""
+            if action=="add":
+                if not (2<=len(team)<=100 and kind in ("official","satellite")):
+                    abort(400)
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        INSERT INTO season_teams(season_year,team,kind,active)
+                        VALUES (:year,:team,:kind,TRUE)
+                        ON CONFLICT(season_year,team)
+                        DO UPDATE SET active=TRUE,kind=EXCLUDED.kind
+                    """),{"year":year,"team":team,"kind":kind})
+                flash("Équipe ajoutée / réactivée.")
+            elif action=="toggle":
+                with engine.begin() as conn:
+                    changed=conn.execute(text("""
+                        UPDATE season_teams SET active=NOT active
+                        WHERE season_year=:year AND team=:team
+                    """),{"year":year,"team":team}).rowcount
+                flash("Équipe mise à jour." if changed else "Équipe introuvable.")
+            else:
+                abort(400)
+            return redirect(url_for("admin_teams",season=year))
+        with engine.connect() as conn:
+            rows=conn.execute(text("""
+                SELECT team,kind,active FROM season_teams WHERE season_year=:year ORDER BY kind,team
+            """),{"year":year}).mappings().all()
+            seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
+        return render_template("admin_teams.html",name=api["current_player"](request)[0],
+                               year=year,rows=rows,archived=bool(season[0]),seasons=seasons,
                                csrf=csrf_value())
 
     @app.route("/admin/w/<weekend_id>/schedule", methods=["GET", "POST"])
