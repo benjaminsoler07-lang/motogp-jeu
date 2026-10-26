@@ -3418,6 +3418,7 @@ register_notifications(app, {
     "weekend_season": weekend_season,
     "normalize_pseudo": normalize_pseudo,
     "deadline_from_weekend": deadline_from_weekend,
+    "is_weekend_closed": is_weekend_closed,
 })
 
 print("APP FLASK DEMARREE", flush=True)
