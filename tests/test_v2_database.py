@@ -109,6 +109,125 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(urlsplit(login.headers["Location"]).path, "/profile")
         self.assertEqual(fresh.get("/profile").status_code, 200)
 
+    def test_player_changes_password_and_revokes_other_sessions(self):
+        from werkzeug.security import check_password_hash
+
+        added, message = add_participant("PasswordChangeCI", "initial-pass-123")
+        self.assertTrue(added, message)
+        user = app.test_client()
+        other_device = app.test_client()
+        def do_login(client, password):
+            return client.post("/login", data={"name":"PasswordChangeCI", "secret":password})
+        self.assertEqual(do_login(user, "initial-pass-123").status_code, 302)
+        self.assertEqual(do_login(other_device, "initial-pass-123").status_code, 302)
+
+        page = user.get("/profile")
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn("Changer mon mot de passe", html)
+        self.assertIn('name="current_password"', html)
+        self.assertIn('name="confirm_password"', html)
+        with user.session_transaction() as st:
+            csrf = st["v2_csrf"]
+
+        url = "/profile"
+        payload = {
+            "csrf": csrf, "operation": "change_password",
+            "current_password": "initial-pass-123",
+            "new_password": "longer-secret-456",
+            "confirm_password": "longer-secret-456"
+        }
+        initial_hash = get_participant_by_input("PasswordChangeCI")["secret_hash"]
+        invalids = (
+            {**payload, "csrf": ""},
+            {**payload, "current_password": "wrong-old-secret"},
+            {**payload, "confirm_password": "typo-secret"},
+            {**payload, "new_password": "short", "confirm_password": "short"},
+            {**payload, "new_password": "initial-pass-123",
+             "confirm_password": "initial-pass-123"},
+        )
+        for i, bad in enumerate(invalids):
+            with self.subTest(invalid=i):
+                response = user.post(url, data=bad)
+                self.assertEqual(response.status_code, 403 if i == 0 else 302)
+                self.assertEqual(get_participant_by_input("PasswordChangeCI")["secret_hash"],
+                                 initial_hash)
+
+        self.assertEqual(user.post(url, data=payload).status_code, 302)
+        new_hash = get_participant_by_input("PasswordChangeCI")["secret_hash"]
+        self.assertNotEqual(initial_hash, new_hash)
+        self.assertTrue(check_password_hash(new_hash, "longer-secret-456"))
+        self.assertNotIn("longer-secret-456", new_hash)
+        self.assertEqual(user.get("/profile").status_code, 200)
+        self.assertEqual(other_device.get("/profile").status_code, 302)
+
+        old_login = app.test_client()
+        self.assertEqual(old_login.post("/login", data={
+            "name": "PasswordChangeCI", "secret": "initial-pass-123"
+        }).headers["Location"].rsplit("/",1)[-1], "login")
+        self.assertEqual(do_login(old_login, "longer-secret-456").status_code, 302)
+        self.assertEqual(old_login.get("/profile").status_code, 200)
+
+    def test_admin_resets_password_without_old_secret(self):
+        from werkzeug.security import check_password_hash
+
+        added, message = add_participant("AdminRecoveryCI", "original-secret-123")
+        self.assertTrue(added, message)
+        target = get_participant_by_input("AdminRecoveryCI")
+        pid = target["id"]
+        old_hash = target["secret_hash"]
+        player = app.test_client()
+        self.assertEqual(player.post("/login", data={
+            "name":"AdminRecoveryCI","secret":"original-secret-123"
+        }).status_code,302)
+        admin = app.test_client()
+        with admin.session_transaction() as st:
+            st["is_admin"] = True
+        self.assertEqual(admin.get("/admin/participants").status_code,200)
+        with admin.session_transaction() as st:
+            token = st["v2_csrf"]
+        url = f"/admin/participants/{pid}/reset_secret"
+
+        request_data = {
+            "csrf": token, "new_secret": "recovery-secret-456",
+            "new_secret_confirm": "recovery-secret-456"
+        }
+        self.assertEqual(app.test_client().post(url, data=request_data).status_code, 401)
+        self.assertEqual(admin.post(url, data={
+            "new_secret": "recovery-secret-456",
+            "new_secret_confirm": "recovery-secret-456"
+        }).status_code,403)
+        self.assertEqual(admin.post(url, data={
+            **request_data, "new_secret_confirm": "different-secret"
+        }).status_code,302)
+        self.assertEqual(admin.post(url, data={
+            **request_data, "new_secret": "1234", "new_secret_confirm": "1234"
+        }).status_code,302)
+        self.assertEqual(get_participant_by_input("AdminRecoveryCI")["secret_hash"],old_hash)
+
+        self.assertEqual(admin.post(url, data=request_data).status_code,302)
+        new_hash = get_participant_by_input("AdminRecoveryCI")["secret_hash"]
+        self.assertNotEqual(new_hash,old_hash)
+        self.assertTrue(check_password_hash(new_hash,"recovery-secret-456"))
+        self.assertEqual(player.get("/profile").status_code,302)
+
+        old = app.test_client()
+        self.assertEqual(old.post("/login",data={
+            "name":"AdminRecoveryCI","secret":"original-secret-123"
+        }).headers["Location"].rsplit("/",1)[-1],"login")
+        self.assertEqual(old.post("/login",data={
+            "name":"AdminRecoveryCI","secret":"recovery-secret-456"
+        }).status_code,302)
+        self.assertEqual(old.get("/profile").status_code,200)
+
+        # Les autres actions d'administration des joueurs sont aussi protegees.
+        self.assertEqual(admin.post(
+            f"/admin/participants/{pid}/toggle",data={}
+        ).status_code,403)
+        self.assertEqual(admin.post("/admin/participants",data={
+            "pseudo":"BadCsrf","secret":"password-long"
+        }).status_code,403)
+
     def test_photo_persists_in_database(self):
         picture=Image.new("RGB",(100,100),"blue")
         buffer=io.BytesIO()

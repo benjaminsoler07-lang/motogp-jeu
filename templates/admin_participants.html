@@ -9,7 +9,7 @@
   <p><strong>Gestion des participants autorisés</strong></p>
   <p class="admin-tip">
     Ajoute ici les pseudos autorisés à se connecter et à enregistrer des pronostics.
-    Chaque joueur doit avoir son propre code secret.
+    Chaque joueur doit avoir son propre mot de passe (8 caractères minimum pour les nouveaux comptes).
     Un joueur désactivé ne pourra plus se connecter, mais ses anciens pronos resteront visibles.
     Un joueur supprimé sera effacé définitivement avec tous ses pronostics liés.
   </p>
@@ -17,6 +17,7 @@
 
 <div class="card">
   <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="admin-left">
       <div class="admin-title">
         <strong>➕ Ajouter un joueur</strong>
@@ -38,11 +39,13 @@
     <div style="margin-top: 12px;">
       <label for="secret"><strong>Code secret</strong></label>
       <input
-        type="text"
+        type="password"
         id="secret"
         name="secret"
-        placeholder="Ex : 4721"
+        placeholder="Au moins 8 caractères"
+        autocomplete="new-password"
         required
+        minlength="8"
         maxlength="100"
       >
     </div>
@@ -97,18 +100,33 @@
 
           <div style="margin-top: 12px;">
             <form method="post" action="{{ url_for('admin_reset_participant_secret', participant_id=p.id) }}">
-              <label for="secret_{{ p.id }}"><strong>Réinitialiser le code secret</strong></label>
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <label for="secret_{{ p.id }}"><strong>🔐 Réinitialiser le mot de passe</strong></label>
+              <p class="admin-tip">En cas d'oubli, attribue un nouveau mot de passe sans connaître l'ancien. Le joueur devra se reconnecter.</p>
               <input
-                type="text"
+                type="password"
                 id="secret_{{ p.id }}"
                 name="new_secret"
-                placeholder="Nouveau code secret"
+                placeholder="Nouveau mot de passe (8 caractères minimum)"
+                autocomplete="new-password"
                 required
+                minlength="8"
                 maxlength="100"
                 style="margin-top:6px;"
               >
+              <label for="confirm_secret_{{ p.id }}">Confirmer le nouveau mot de passe</label>
+              <input
+                type="password"
+                id="confirm_secret_{{ p.id }}"
+                name="new_secret_confirm"
+                placeholder="Répète le nouveau mot de passe"
+                autocomplete="new-password"
+                required
+                minlength="8"
+                maxlength="100"
+              >
               <div class="admin-actions" style="margin-top:8px;">
-                <button class="btn btn-small" type="submit">🔁 Mettre à jour le code</button>
+                <button class="btn btn-small" type="submit">🔁 Réinitialiser le mot de passe</button>
               </div>
             </form>
           </div>
@@ -116,6 +134,7 @@
 
         <div class="admin-actions" style="display:flex; flex-direction:column; gap:8px;">
           <form method="post" action="{{ url_for('admin_toggle_participant', participant_id=p.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
             {% if p.active %}
               <button class="btn btn-small btn-warning" type="submit">
                 ⛔ Désactiver
@@ -132,6 +151,7 @@
             action="{{ url_for('admin_delete_participant', participant_id=p.id) }}"
             onsubmit="return confirm('Supprimer définitivement {{ p.pseudo }} et toutes ses données liées ? Cette action est irréversible.');"
           >
+            <input type="hidden" name="csrf" value="{{ csrf }}">
             <button class="btn btn-small btn-danger" type="submit">
               🗑️ Supprimer
             </button>
