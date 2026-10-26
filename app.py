@@ -2452,6 +2452,7 @@ def pronos(weekend_id):
         my=my,
         name=name,
         closed=closed,
+        is_public=is_pronos_public(weekend_id),
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
