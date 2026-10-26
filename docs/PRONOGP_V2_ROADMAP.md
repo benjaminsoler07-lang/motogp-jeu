@@ -1,48 +1,36 @@
-# PronoGP V2 — roadmap de migration
+# PronoGP V2 — suivi de la préparation
 
-## Portée actuelle : lot 1, déjà codé sur `prono-gp-v2`
+## Réalisé sur `prono-gp-v2` (non publié tant que la migration réelle n'est pas validée)
 
-- Correction des bonus en mode automatique / manuel valide / manuel refusé.
-- Correction réversible, horodatée, sans modification des pronostics.
-- Vérification des snapshots de réponses avant application de la dérogation.
-- Calcul des points unifié (classement GP, classement général et détail par course).
-- Navigation administration responsive.
-- Tests unitaires de non-régression ; CI GitHub Actions.
+- ✅ Validation manuelle/automatique des bonus, traçable, réversible, par joueur et question ;
+- ✅ Barème préservé et calcul harmonisé dans les trois affichages des scores ;
+- ✅ Onglets d'administration responsive ;
+- ✅ Multi-saisons, championnat distinct par saison et conservation des données 2026 ;
+- ✅ Administration pilotes et équipes officielles/satellites par saison (activation/désactivation) ;
+- ✅ Tableau de bord joueur, podiums avec avatars et photos de profil persistantes ;
+- ✅ Race Center avec horaires, sessions et compte à rebours ;
+- ✅ Clôture côté serveur, publication automatique en option (cochée initialement) ;
+- ✅ Modification admin des dates et horaires après expiration du créneau initial ;
+- ✅ PWA, notifications internes, notifications push sous réserve de VAPID, ciblage joueur et historique administrateur ;
+- ✅ Rappels automatiques et notifications de résultats après clôture, déclenchés par GitHub Actions avec OIDC ;
+- ✅ Tests unitaires + intégration sur PostgreSQL GitHub Actions ;
+- ✅ Scripts de sauvegarde et essai de restauration sur une base distincte ;
+- ✅ Guide de déploiement/retour arrière dans `docs/MISE_EN_PRODUCTION_V2.md`.
 
-## Restant à réaliser pour la V2 complète
+## Vérifications extérieures au dépôt encore requises avant une publication
 
-### Lot 2 — Sécurité et gestion des saisons
-- Sauvegarde de la DB PostgreSQL de production avec test de restauration.
-- Audit des clés/identifiants de données de la saison 2026 et de leur persistance.
-- Modèle multi-saisons 2026, 2027+ (migration additive) et classements isolés.
-- Inscription / participation des joueurs par saison, archives lisibles.
-- Test de migration avec copie anonymisée de la DB.
+1. Sauvegarde réelle PostgreSQL de production et restauration validée dans une base de test ;
+2. Vérification non intrusive des accès/secrets Render (`DATABASE_URL`, `SECRET_KEY`, `ADMIN_USER`, `ADMIN_PASS`) ;
+3. Configuration VAPID sur Render pour recevoir des push sur les téléphones ;
+4. Configuration de la variable GitHub Actions `PRONOGP_BASE_URL` ;
+5. Validation fonctionnelle complète avec copie de données historiques 2026, scores de référence et tests mobiles ;
+6. Fusion de la PR et déploiement **manuel** sur Render, avec point de retour et contrôle `/health`.
 
-### Lot 3 — Expérience joueur inspirée de PronoSki
-- Accueil avec sélecteur de saison et visuel MotoGP.
-- Tableau de bord joueur : points, rang, dernier résultat, prochaine course.
-- Podiums avec portraits ; gestion des photos de profil et stockage persistant.
-- Recherche par numéro et par nom des pilotes ; gestion des absences.
+## Limites explicites
 
-### Lot 4 — Administration / Race Center
-- Horaires par séance, édition administrative en heure Europe/Paris avec UTC en base.
-- Fermeture des pronostics automatique côté serveur à la date/heure de clôture.
-- Publication automatique des pronostics après clôture, désactivable.
-- Modification administrative des horaires et historique de changement.
-- Bloc Race Center : prochain GP, prochaine séance et compte à rebours.
+- Les horaires de séances et la clôture doivent être saisis GP par GP côté administration : aucune source MotoGP externe n'est branchée.
+- Les notifications GitHub Actions sont gratuites mais non garanties à la minute.
+- Les notifications sont consultables dans le site sans VAPID ; la réception sur le téléphone exige VAPID + consentement du navigateur.
+- La sécurité et la récupération des données nécessitent une vraie sauvegarde distincte ; les tests PostgreSQL CI ne sont pas une sauvegarde de production.
 
-### Lot 5 — PWA et notifications
-- Notifications ciblées / collectives, catégories et historique en site.
-- Rappels de clôture, calendrier et résultats.
-- Planificateur gratuit sécurisé, sans garantie de précision à la minute.
-- Installation web app sur smartphone.
-
-## Prérequis de production
-
-1. Sauvegarder la base de données, vérifier la restauration.
-2. Déployer en environnement de préproduction distinct.
-3. Vérifier comptes, pronostics réels et scores par GP.
-4. Revalider les règles métier et confirmer les horaires de clôture.
-5. Déployer avec stratégie de retour arrière.
-
-Aucune migration complète de PronoSki ni aucun changement des barèmes MotoGP ne doivent être effectués implicitement.
+**Ne pas annoncer « en ligne » avant réussite de ces contrôles.**
