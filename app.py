@@ -1185,7 +1185,7 @@ def weekend_config_revision(weekend: dict) -> str:
     """Version courte du calendrier et des heures pour éviter les écrasements concurrents."""
     import hashlib
     relevant = {key: (weekend or {}).get(key) for key in (
-        "date", "label", "sessions", "deadline_utc", "auto_publish", "cancelled"
+        "date", "label", "sessions", "deadline_utc", "deadline_source", "auto_publish", "cancelled"
     )}
     payload = json.dumps(relevant, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -1196,7 +1196,7 @@ def update_weekend_config_fields(weekend_id: str, updates: dict, expected_revisi
 
     Les résultats, pronos, indicateurs closed_at/public et autres GP ne changent pas.
     """
-    allowed = {"date", "label", "deadline_utc", "sessions", "auto_publish", "cancelled"}
+    allowed = {"date", "label", "deadline_utc", "deadline_source", "sessions", "auto_publish", "cancelled"}
     if not updates or set(updates) - allowed:
         return False, "Champs de calendrier invalides."
     data = load_weekends_data()
@@ -1234,6 +1234,102 @@ def update_weekend_config_fields(weekend_id: str, updates: dict, expected_revisi
                 break
         save_weekends_data(data)
     return True, "Configuration du GP enregistrée."
+
+
+def update_weekend_configs_bulk(plans: list):
+    """Enregistre une sélection de GP en UNE transaction, ou aucun si erreur.
+
+    Le snapshot des horaires et les révisions de TOUS les GP sélectionnés
+    sont revalidés sous verrou. Résultats, pronostics et drapeaux de publication
+    sont totalement indépendants de config_json.
+    """
+    if not engine:
+        return False, "Base PostgreSQL indisponible. Aucun GP modifié."
+    if not isinstance(plans, list) or not 1 <= len(plans) <= 50:
+        return False, "Sélection de GP invalide."
+    allowed = {"date", "sessions", "deadline_utc", "deadline_source"}
+    known = {
+        w.get("id"): dict(w)
+        for w in load_weekends_data().get("weekends", [])
+        if w.get("id")
+    }
+    visited = set()
+    for plan in plans:
+        if not isinstance(plan, dict):
+            return False, "Données d'import invalides."
+        wid = plan.get("id")
+        updates = plan.get("updates")
+        if (not isinstance(wid, str) or wid in visited or wid not in known
+                or not isinstance(updates, dict) or not updates
+                or set(updates) - allowed
+                or not isinstance(plan.get("revision"), str)
+                or len(plan["revision"]) != 64):
+            return False, "Sélection, champs ou version de GP invalides."
+        if "sessions" in updates and (
+            not isinstance(updates["sessions"], list)
+            or not 1 <= len(updates["sessions"]) <= 20
+        ):
+            return False, "Liste de séances incorrecte."
+        visited.add(wid)
+
+    now = datetime.now(timezone.utc)
+    try:
+        with engine.begin() as conn:
+            updates_ready = []
+            for plan in sorted(plans, key=lambda p: p["id"]):
+                wid = plan["id"]
+                current = dict(known[wid])
+                row = conn.execute(text("""
+                    SELECT config_json, closed_at
+                    FROM weekends WHERE weekend_id=:id
+                    FOR UPDATE
+                """), {"id": wid}).fetchone()
+                if row is not None and row[0]:
+                    current.update(dict(row[0]))
+                current["id"] = wid
+                if weekend_config_revision(current) != plan["revision"]:
+                    raise ValueError(
+                        "Le GP " + wid + " a changé depuis l'aperçu. Recharge l'import."
+                    )
+                changes = plan["updates"]
+                old_deadline = deadline_from_weekend(current)
+                already_closed = bool(row[1]) if row is not None else False
+                if "date" in changes and already_closed:
+                    raise ValueError(
+                        "Le GP " + wid + " est clôturé : sa date ne peut pas "
+                        "être changée par import global."
+                    )
+                if "date" in changes:
+                    parsed = parse_weekend_date(changes["date"], weekend_season(current))
+                    if not parsed or parsed.year != weekend_season(current):
+                        raise ValueError("Date hors saison pour " + wid + ".")
+                if "deadline_utc" in changes:
+                    value = changes["deadline_utc"]
+                    new_deadline = _parse_dt_maybe(value)
+                    if (
+                        already_closed or (old_deadline and old_deadline <= now)
+                        or not new_deadline or new_deadline.tzinfo is None
+                        or new_deadline.astimezone(timezone.utc) <= now
+                    ):
+                        raise ValueError(
+                            "Clôture déjà passée ou GP fermé : import Q1 refusé pour " + wid
+                        )
+                current.update(changes)
+                updates_ready.append((wid, current))
+
+            for wid, config in updates_ready:
+                conn.execute(text("""
+                    INSERT INTO weekends (weekend_id,config_json,updated_at)
+                    VALUES (:id,CAST(:cfg AS jsonb),NOW())
+                    ON CONFLICT (weekend_id) DO UPDATE
+                    SET config_json=EXCLUDED.config_json,updated_at=NOW()
+                """), {
+                    "id": wid,
+                    "cfg": json.dumps(config, ensure_ascii=False)
+                })
+    except ValueError as exc:
+        return False, str(exc)
+    return True, str(len(updates_ready)) + " GP mis à jour en une transaction."
 
 
 def update_weekend_calendar(weekend_id: str, new_date: str = None, new_label: str = None):
@@ -3694,6 +3790,7 @@ register_v2(app, {
     "load_weekends_data": load_weekends_data,
     "save_weekends_data": save_weekends_data,
     "update_weekend_config_fields": update_weekend_config_fields,
+    "update_weekend_configs_bulk": update_weekend_configs_bulk,
     "weekend_config_revision": weekend_config_revision,
     "ensure_db_bootstrap": ensure_db_bootstrap,
     "is_admin": is_admin,
