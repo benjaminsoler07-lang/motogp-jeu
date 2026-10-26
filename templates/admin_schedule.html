@@ -16,7 +16,7 @@
 <small>Format : Nom de séance|AAAA-MM-JJTHH:MM. Jusqu'à 20 séances. Ordre chronologique automatique.</small>
 </div>
 <label style="display:flex;gap:10px;align-items:center">
-<input type="checkbox" name="auto_publish" value="1" {% if w.auto_publish %}checked{% endif %} style="width:auto">
+<input type="checkbox" name="auto_publish" value="1" {% if w.auto_publish is not defined or w.auto_publish %}checked{% endif %} style="width:auto">
 <strong>Rendre automatiquement publics les pronostics dès la clôture</strong>
 </label>
 <p>La publication automatique ne dévoile jamais les pronostics avant l'heure configurée. Si cette option est désactivée, les pronostics restent privés jusqu'à publication manuelle.</p>
