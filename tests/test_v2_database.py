@@ -79,6 +79,36 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(admin_client.get("/").status_code, 200)
         self.assertEqual(admin_client.get("/admin").status_code, 200)
 
+    def test_unified_profile_and_legacy_dashboard_redirect(self):
+        from urllib.parse import urlsplit, parse_qs
+
+        page = self.client.get("/profile")
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        for label in ("Mon profil", "Enregistrer ma photo", "MES POINTS",
+                      "MON CLASSEMENT", "DERNIER RÉSULTAT", "Mes pronostics"):
+            with self.subTest(section=label):
+                self.assertIn(label, html)
+        self.assertNotIn("Mon espace", html)
+
+        old_link = self.client.get("/me")
+        self.assertEqual(old_link.status_code, 302)
+        self.assertEqual(urlsplit(old_link.headers["Location"]).path, "/profile")
+
+        year_link = self.client.get("/me?season=2026")
+        self.assertEqual(year_link.status_code, 302)
+        parsed = urlsplit(year_link.headers["Location"])
+        self.assertEqual(parsed.path, "/profile")
+        self.assertEqual(parse_qs(parsed.query)["season"], ["2026"])
+
+        fresh = app.test_client()
+        login = fresh.post("/login", data={
+            "name": "IntegrationTest", "secret": "secure-test-123"
+        })
+        self.assertEqual(login.status_code, 302)
+        self.assertEqual(urlsplit(login.headers["Location"]).path, "/profile")
+        self.assertEqual(fresh.get("/profile").status_code, 200)
+
     def test_photo_persists_in_database(self):
         picture=Image.new("RGB",(100,100),"blue")
         buffer=io.BytesIO()
