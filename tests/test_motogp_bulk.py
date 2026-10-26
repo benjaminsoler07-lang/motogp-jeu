@@ -105,7 +105,7 @@ class TestBulkGPImport(unittest.TestCase):
             override_manual=True
         )
         self.assertEqual(list(changes),["sessions"])
-        self.assertIn("clôturée",status)
+        self.assertIn("clôturé",status)
         row["closed"]=False
         changes,status=proposal_changes(
             row,now=now,change_dates=True,schedule_q1=True,
