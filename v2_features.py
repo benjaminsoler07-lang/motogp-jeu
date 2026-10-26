@@ -504,7 +504,7 @@ def register_v2(app, api):
             w=weekend, year=year, events=events, preview=preview,
             api_error=api_error, csrf=csrf_value(),
             deadline=paris_input(weekend.get("deadline_utc")),
-            name=api["current_player"](request)[0]
+            name=api["current_player"](request)[0], to_paris=paris_input
         )
 
     @app.route("/avatar/<int:participant_id>")
