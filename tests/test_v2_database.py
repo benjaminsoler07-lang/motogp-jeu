@@ -49,7 +49,7 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(avatar.mimetype,"image/jpeg")
 
     def test_schema_and_notification_delivery_queue(self):
-        for name in ("seasons","bonus_reviews","player_photos","push_messages","push_subscriptions"):
+        for name in ("seasons","bonus_reviews","player_photos","push_messages","web_push_subscriptions"):
             with engine.connect() as c:
                 exists=c.execute(text("SELECT to_regclass(:name)"),{"name":name}).scalar()
             self.assertIsNotNone(exists,name)
