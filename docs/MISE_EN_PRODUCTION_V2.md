@@ -1,6 +1,6 @@
 # Déploiement contrôlé — PronoGP V2
 
-**Statut : prêt pour validation préproduction ; ne pas publier sans les prérequis ci-dessous.**
+**Statut : sauvegarde externe restaurée avec succès le 26/10/2026. Les tests CI PostgreSQL et métier sont au vert. Déploiement manuel contrôlé en préparation.**
 
 Service de production connu : `motogp-jeu` sur Render, branche `main`, déploiement automatique **désactivé**. La branche de préparation est `prono-gp-v2` (PR GitHub #1).
 
@@ -52,7 +52,7 @@ Vérifier la présence **sans exposer les valeurs** de :
 
 ### C. Configuration GitHub Actions
 
-Dans le dépôt GitHub : Settings → Secrets and variables → Actions → Variables, renseigner `PRONOGP_BASE_URL` avec l'URL HTTPS publique du service PronoGP. Le workflow `.github/workflows/push-hourly.yml` exige une preuve d'identité OIDC GitHub (pas de mot de passe partagé). Il devient actif après fusion sur `main`. Il peut aussi être lancé manuellement pour vérifier le dispatch.
+Le workflow `.github/workflows/push-hourly.yml` utilise par défaut l'URL HTTPS de production `https://motogp-jeu.onrender.com`. Une variable `PRONOGP_BASE_URL` peut la remplacer, sans être requise. Le workflow exige une preuve d'identité OIDC GitHub (pas de mot de passe partagé) et devient actif sur `main`. Il faut contrôler le dispatch et les clés VAPID pour la réception effective des push.
 
 ### D. Vérification fonctionnelle en environnement isolé
 
@@ -92,3 +92,15 @@ En cas de régression : arrêter toute modification admin, remettre le commit ap
 - Ne jamais détruire une saison déjà jouée.
 - Pas de publication tant que la sauvegarde et sa restauration sur une copie n'ont pas été vérifiées.
 - Le déploiement Render reste manuel.
+
+## Contrôle de sauvegarde externe du 26/10/2026
+
+Le propriétaire a exporté avec PostgreSQL 18 depuis **Supabase Session Pooler** et testé une restauration complète dans une **base PostgreSQL locale distincte** :
+
+- Export : `PronoGP_20261026_221617.dump` (50 977 octets), conservé dans `Documents/PronoGP-Sauvegardes` sur le PC de l'utilisateur.
+- Format : `pg_dump -Fc --schema=public`, fichier lisible avec `pg_restore --list`.
+- Restauration : `pg_restore --single-transaction --exit-on-error` en base locale indépendante, terminée avec succès.
+- Correspondance : **186** `pronos`, **349** `pronos_history`, **18** `results` dans la copie comme dans la base de production.
+- Ne **jamais** ajouter ce dump à GitHub, Render ou à une pièce jointe non chiffrée. Les anciennes copies internes sont une sécurité supplémentaire, pas un substitut.
+
+Le contrôle par l'utilisateur confirme le prérequis sauvegarde + restauration. Les autres vérifications fonctionnelles et le déploiement restent distincts.
