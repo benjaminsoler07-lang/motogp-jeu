@@ -1,22 +1,56 @@
-<section class="v2-racecenter">
-  <div class="v2-eyebrow">🏁 RACE CENTER</div>
+<section class="v2-racecenter v2-home-racecenter" aria-label="Race Center — {{ rc.name }}">
+  <div class="v2-racecenter-top">
+    <span class="v2-eyebrow">🏁 RACE CENTER</span>
+    <span class="v2-race-state{% if rc.closed %} is-closed{% else %} is-open{% endif %}">
+      {{ 'Pronos clôturés' if rc.closed else 'Pronos ouverts' }}
+    </span>
+  </div>
+
   <h2>{{ rc.name }}</h2>
-  {% if rc.deadline_iso %}
-    <div class="v2-counter"><span>🔒 Clôture des pronostics</span>
-      <strong data-countdown="{{ rc.deadline_iso }}">Calcul…</strong>
+  {% if rc.played %}<p class="v2-race-saved">✓ Ton pronostic est enregistré</p>{% endif %}
+
+  <div class="v2-race-metrics">
+    <div class="v2-race-metric v2-race-metric-deadline">
+      <span>🔒 Clôture des pronostics</span>
+      {% if rc.closed %}
+        <strong>Clôturés</strong>
+      {% elif rc.deadline_iso %}
+        <strong class="v2-race-deadline-value" data-countdown="{{ rc.deadline_iso }}">Calcul…</strong>
+      {% else %}
+        <strong class="v2-race-metric-detail">Clôture manuelle</strong>
+      {% endif %}
     </div>
-  {% else %}
-    <div class="v2-counter">Clôture par l'administrateur</div>
-  {% endif %}
-  {% if rc.session_iso %}
-    <div class="v2-counter"><span>Prochaine séance : {{ rc.session_label }}</span>
-      <strong data-countdown="{{ rc.session_iso }}">Calcul…</strong>
+    <div class="v2-race-metric">
+      <span>🏍️ Prochaine séance</span>
+      {% if rc.session_iso %}
+        <strong class="v2-race-session-name">{{ rc.session_label }}</strong>
+        <span class="v2-race-session-timer" data-countdown="{{ rc.session_iso }}">Calcul…</span>
+      {% else %}
+        <strong class="v2-race-metric-detail">Horaire non renseigné</strong>
+      {% endif %}
     </div>
-  {% endif %}
+  </div>
+
+  <div class="v2-race-actions">
+    {% if not rc.closed %}
+      <a class="v2-race-main-action" href="{{ url_for('pronos', weekend_id=rc.id) }}">
+        {{ '✏️ Modifier mon pronostic' if rc.played else '🏁 Faire mon pronostic' }}
+      </a>
+    {% elif rc.public %}
+      <a class="v2-race-main-action" href="{{ url_for('public_pronos', weekend_id=rc.id) }}">👀 Voir les pronostics publics</a>
+    {% else %}
+      <span class="v2-race-main-action is-inactive">🔒 Pronostics fermés</span>
+    {% endif %}
+  </div>
+
   <div class="v2-race-links">
-    <a href="{{ url_for('pronos', weekend_id=rc.id) }}">Fais ton prono</a>
-    {% if rc.public %}<a href="{{ url_for('public_pronos', weekend_id=rc.id) }}">Pronos publics</a>{% else %}<span style="opacity:.75">Pronos publics après clôture</span>{% endif %}
-    <a href="{{ url_for('classement_weekend', weekend_id=rc.id) }}">Classement</a>
+    {% if rc.public %}
+      <a href="{{ url_for('public_pronos', weekend_id=rc.id) }}">Pronos publics</a>
+    {% else %}
+      <span>Pronos publics après publication</span>
+    {% endif %}
+    <a href="{{ url_for('results_by_race', gp=rc.id) }}">Résultats du GP</a>
+    <a href="{{ url_for('classement_weekend', weekend_id=rc.id) }}">Classement du GP</a>
   </div>
 </section>
 <script defer src="{{ url_for('static',filename='v2-countdown.js') }}"></script>
