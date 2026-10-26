@@ -243,11 +243,40 @@ def register_notifications(app, api):
             flash(f"Message ajouté à la boîte de {len(ids)} joueur(s). "
                   "Le push sera envoyé lors du prochain passage planifié.")
             return redirect(url_for("admin_notifications"))
+        with engine.connect() as conn:
+            history=conn.execute(text("""
+                SELECT title, body, category, destination, created_at,
+                       COUNT(*) AS recipients, COUNT(sent_at) AS processed
+                FROM push_messages
+                GROUP BY title, body, category, destination, created_at
+                ORDER BY created_at DESC LIMIT 40
+            """)).mappings().all()
         return render_template("admin_notifications.html",name=api["current_player"](request)[0],
-                               players=players,gps=gps,csrf=csrf(),push_configured=vapid_ready())
+                               players=players,gps=gps,csrf=csrf(),push_configured=vapid_ready(),
+                               history=history)
 
     def reminders(conn):
         now=datetime.now(timezone.utc)
+        # Une saisie/correction officielle produit un événement à destination des joueurs.
+        # Les classements ne sont annoncés qu'après clôture, jamais avant la course.
+        recent_results=conn.execute(text("""
+            SELECT weekend_id, updated_at FROM results
+            WHERE updated_at >= NOW() - INTERVAL '72 hours'
+            ORDER BY updated_at DESC LIMIT 60
+        """)).mappings().all()
+        active_users=[p["id"] for p in api["get_all_participants"](include_inactive=False)]
+        for result in recent_results:
+            wid=result["weekend_id"]
+            w=api["get_weekend"](wid)
+            if not w or w.get("cancelled") or not api["is_weekend_closed"](wid):
+                continue
+            if active_users:
+                enqueue(conn, users=active_users, category="results",
+                        title="🏁 Résultats MotoGP : "+str(w.get("label",wid)),
+                        body="Les résultats et le classement du Grand Prix sont disponibles.",
+                        destination=url_for("results_by_race",gp=wid),
+                        dedupe="results:"+wid+":"+result["updated_at"].isoformat())
+
         for w in api["get_sorted_weekends"]():
             if w.get("cancelled") or api["is_season_archived"](api["weekend_season"](w)):
                 continue
