@@ -394,14 +394,11 @@ def register_v2(app, api):
         all_totals = {}
         gp_count = 0
         last_result = None
-        played = {}
         for w in weekends:
             if w.get("cancelled"):
                 continue
             entries = api["get_latest_pronos_by_player_for_weekend"](w["id"])
             players = {api["normalize_pseudo"](k): (k,v) for k,v in entries.items()}
-            if myname in players:
-                played[w["id"]] = True
             result = api["load_results"](w["id"])
             if not result:
                 continue
@@ -415,18 +412,12 @@ def register_v2(app, api):
                     last_result = {"name": w.get("label"), "points": pts}
         standings = sorted(all_totals, key=lambda n:(-all_totals[n],n))
         rank = standings.index(myname)+1 if myname in standings else None
-        for w in weekends:
-            w["played"] = bool(played.get(w["id"]))
-            w["closed"] = api["is_weekend_closed"](w["id"])
-            w["public"] = api["is_pronos_public"](w["id"])
         return {
-            "weekends": weekends,
             "points": all_totals.get(myname,0),
             "rank": rank,
             "gp_count": gp_count,
             "last_result": last_result,
-            "season_year": year,
-            "next_gp": race_center(weekends)
+            "season_year": year
         }
 
     @app.route("/me")

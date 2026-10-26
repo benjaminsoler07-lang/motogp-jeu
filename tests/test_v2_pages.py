@@ -55,8 +55,12 @@ class V2PagesTests(unittest.TestCase):
             self.assertIn("Clôture des pronostics", html)
             self.assertIn("GP du Qatar", html)
             html=render_template("profile.html", name="Alex", person={"id":1,"pseudo":"Alex"},
-               csrf="test", weekends=[], points=12.5, rank=2, gp_count=1,
-               last_result={"name":"GP Test","points":12.5}, next_gp=None, season_year=2026)
+               csrf="test", points=12.5, rank=2, gp_count=1,
+               last_result={"name":"GP Test","points":12.5}, season_year=2026,
+               # Même si un appelant injecte accidentellement le calendrier,
+               # le template profil ne doit jamais l'afficher.
+               weekends=[{"id":"futur-ci", "label":"GP du futur à cacher", "date":"2026-11-01"}],
+               next_gp={"name":"Race Center caché", "deadline_iso":"2026-10-31T15:00:00+00:00"})
             self.assertIn("Mon profil", html)
             self.assertIn("Enregistrer ma photo", html)
             self.assertIn("Changer mon mot de passe", html)
@@ -65,8 +69,15 @@ class V2PagesTests(unittest.TestCase):
             self.assertIn('name="confirm_password"', html)
             self.assertIn("MES POINTS", html)
             self.assertIn("MON CLASSEMENT", html)
-            self.assertIn("Mes pronostics", html)
+            self.assertIn("Mon bilan", html)
+            self.assertIn("GP CLASSÉS", html)
+            self.assertIn("DERNIER RÉSULTAT", html)
             self.assertIn("GP Test", html)
+            self.assertNotIn("Mes pronostics", html)
+            self.assertNotIn("v2-event-grid", html)
+            self.assertNotIn("GP du futur à cacher", html)
+            self.assertNotIn("Race Center caché", html)
+            self.assertNotIn("Clôture des pronostics", html)
             self.assertNotIn("Mon espace", html)
             # Les statistiques doivent être dans la page et non dans <title>.
             self.assertNotIn("<h2>", html.split("</title>")[0])
