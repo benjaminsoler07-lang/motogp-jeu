@@ -2277,7 +2277,7 @@ def pronos(weekend_id):
     if w.get("cancelled"):
         return "Ce GP est annulé. Les pronostics sont indisponibles.", 403
 
-    closed = is_weekend_closed(weekend_id) if engine else False
+    closed = is_weekend_closed(weekend_id)
 
     if closed and is_pronos_public(weekend_id):
         if not engine:
@@ -2507,7 +2507,7 @@ def admin_home():
             "date": w.get("date"),
             "count": count,
             "closed": is_weekend_closed(wid) if engine else False,
-            "public": is_weekend_closed(wid) if engine else False,
+            "public": is_pronos_public(wid) if engine else False,
             "bonus_count": len(w.get("bonus_questions", []) or []),
             "cancelled": bool(w.get("cancelled", False)),
         })
@@ -2635,7 +2635,7 @@ def admin_weekend(weekend_id):
 
     count = count_distinct_pronos_for_weekend(weekend_id)
     closed = is_weekend_closed(weekend_id) if engine else False
-    public = closed
+    public = is_pronos_public(weekend_id) if engine else False
 
     name, _ = current_player(request)
     return render_template(
@@ -2764,19 +2764,22 @@ def admin_calendar():
             "date": w.get("date"),
             "date_obj": w.get("date_obj"),
             "closed": closed,
-            "public": closed,
+            "public": is_pronos_public(wid) if engine else False,
             "cancelled": cancelled,
             "status": status,
             "count": count_distinct_pronos_for_weekend(wid),
-            "can_edit_date": not closed,
+            "can_edit_date": not is_season_archived(weekend_season(w)),
             "can_cancel": not closed and not cancelled,
             "can_reactivate": not closed and cancelled,
         })
 
+    if not session.get("v2_csrf"):
+        session["v2_csrf"] = secrets.token_urlsafe(32)
     name, _ = current_player(request)
     return render_template(
         "admin_calendar.html",
         name=name,
+        csrf=session["v2_csrf"],
         weekends=items
     )
 
@@ -2788,13 +2791,21 @@ def admin_calendar_update(weekend_id):
     if not w:
         return "Week-end inconnu", 404
 
-    if is_weekend_closed(weekend_id):
-        flash("GP déjà clos : date non modifiable.")
+    if is_season_archived(weekend_season(w)):
+        flash("Saison archivée : calendrier non modifiable.")
         return redirect(url_for("admin_calendar"))
+    if not hmac.compare_digest(str(request.form.get("csrf") or ""),
+                               str(session.get("v2_csrf") or "")) or not session.get("v2_csrf"):
+        return "Formulaire de modification invalide.", 403
 
     new_date = (request.form.get("date") or "").strip()
     new_label = (request.form.get("label") or "").strip()
 
+    if new_date:
+        new_day = parse_weekend_date(new_date, weekend_season(w))
+        if not new_day or new_day.year != weekend_season(w):
+            flash("La date du GP doit rester dans sa saison.")
+            return redirect(url_for("admin_calendar"))
     ok, msg = update_weekend_calendar(
         weekend_id=weekend_id,
         new_date=new_date,
