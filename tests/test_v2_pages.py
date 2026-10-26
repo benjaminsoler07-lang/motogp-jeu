@@ -11,18 +11,29 @@ class V2PagesTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
-    def test_public_pages_render(self):
-        for url in ("/", "/classement", "/results_by_race", "/healthz"):
+    def test_private_pages_redirect_anonymous_to_login(self):
+        from urllib.parse import urlsplit
+        for url in ("/", "/classement", "/results_by_race",
+                    "/championnat/public", "/me", "/profile", "/avatar/1"):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(urlsplit(response.headers["Location"]).path, "/login")
+
+    def test_login_and_technical_pages_remain_available(self):
+        for url in ("/login", "/admin/login", "/healthz",
+                    "/manifest.webmanifest", "/service-worker.js"):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[:400])
 
-    def test_accounts_protected(self):
-        for url in ("/me", "/profile"):
+    def test_admin_can_browse_with_admin_session_only(self):
+        with self.client.session_transaction() as state:
+            state["is_admin"] = True
+        for url in ("/", "/classement", "/results_by_race"):
             with self.subTest(url=url):
                 response = self.client.get(url)
-                self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.get("/avatar/1").status_code, 404)
+                self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[:400])
 
     def test_template_smoke_race_center(self):
         with app.test_request_context("/"):
