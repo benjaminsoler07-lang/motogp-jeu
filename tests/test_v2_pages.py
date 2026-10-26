@@ -59,11 +59,18 @@ class V2PagesTests(unittest.TestCase):
                last_result={"name":"GP Test","points":12.5}, next_gp=None, season_year=2026)
             self.assertIn("Mon profil", html)
             self.assertIn("Enregistrer ma photo", html)
+            self.assertIn("Changer mon mot de passe", html)
+            self.assertIn('name="current_password"', html)
+            self.assertIn('name="new_password"', html)
+            self.assertIn('name="confirm_password"', html)
             self.assertIn("MES POINTS", html)
             self.assertIn("MON CLASSEMENT", html)
             self.assertIn("Mes pronostics", html)
             self.assertIn("GP Test", html)
             self.assertNotIn("Mon espace", html)
+            # Les statistiques doivent être dans la page et non dans <title>.
+            self.assertNotIn("<h2>", html.split("</title>")[0])
+            self.assertIn("Mon bilan", html.split("</title>")[1])
 
     def test_local_time_paris_in_utc(self):
         utc=parse_paris_local("2026-10-25T11:30")
