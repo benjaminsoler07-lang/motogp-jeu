@@ -1,46 +1,107 @@
 {% extends "base.html" %}
-{% block title %}Administration équipes — {{ year }}{% endblock %}
+{% block title %}Administration écuries — {{ year }}{% endblock %}
 {% block content %}
 {% include "_admin_nav.html" %}
-<h2>🏍️ Équipes MotoGP — Saison {{ year }}</h2>
-<p>Les équipes officielles et satellites sont gérées par saison. Une équipe désactivée disparaît des nouveaux pronostics sans modifier les anciens.</p>
-<nav class="v2-season-picker">{% for y in seasons %}
-<a class="btn btn-small" href="{{ url_for('admin_teams',season=y) }}" {% if y == year %}aria-current="page"{% endif %}>{{ y }}</a>{% endfor %}</nav>
+<h2>🏁 Écuries MotoGP — Saison {{ year }}</h2>
+<p>Les écuries masquées n'apparaissent plus dans les nouveaux pronostics, mais restent disponibles dans l'historique. Tu peux les réactiver à tout moment.</p>
+<nav class="v2-season-picker">
+{% for y in seasons %}
+<a class="btn btn-small" href="{{ url_for('admin_teams',season=y) }}"
+   {% if y == year %}aria-current="page"{% endif %}>{{ y }}</a>
+{% endfor %}
+</nav>
 {% if archived %}<p class="notice">Saison archivée : édition verrouillée.</p>{% endif %}
-<section class="card" style="max-width:900px;margin:18px auto;text-align:left">
-<h3>Ajouter ou réactiver une équipe</h3>
-<form method="post">
-<input type="hidden" name="csrf" value="{{ csrf }}">
-<input type="hidden" name="season" value="{{ year }}">
-<input type="hidden" name="action" value="add">
-<label for="team">Nom de l'équipe</label>
-<input id="team" name="team" maxlength="100" required placeholder="Ducati Lenovo Team" {% if archived %}disabled{% endif %}>
-<label for="kind">Catégorie</label>
-<select id="kind" name="kind" {% if archived %}disabled{% endif %}>
-<option value="official">Officielle</option><option value="satellite">Satellite</option>
-</select>
-<button type="submit" class="btn" {% if archived %}disabled{% endif %}>Ajouter cette équipe</button>
-</form>
+
+<section class="card v2-catalog-card">
+  <h3>➕ Ajouter ou réactiver une écurie</h3>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="season" value="{{ year }}">
+    <input type="hidden" name="action" value="add">
+    <label for="team">Nom de l'écurie</label>
+    <input id="team" name="team" maxlength="100" required
+           placeholder="Ducati Lenovo Team" {% if archived %}disabled{% endif %}>
+    <label for="kind">Catégorie</label>
+    <select id="kind" name="kind" {% if archived %}disabled{% endif %}>
+      <option value="official">Officielle</option>
+      <option value="satellite">Satellite</option>
+    </select>
+    <button class="btn" type="submit" {% if archived %}disabled{% endif %}>Ajouter cette écurie</button>
+  </form>
 </section>
-<section class="card" style="max-width:900px;margin:18px auto;text-align:left">
-<h3>Équipes de la saison</h3>
-<div style="overflow:auto">
-<table class="classement" style="width:100%">
-<thead><tr><th>Équipe</th><th>Catégorie</th><th>Statut</th><th>Action</th></tr></thead>
-<tbody>
-{% for item in rows %}
-<tr><td>{{ item.team }}</td>
-<td>{{ 'Officielle' if item.kind == 'official' else 'Satellite' }}</td>
-<td>{{ '🟢 Disponible' if item.active else '⛔ Absente' }}</td>
-<td><form method="post">
-<input type="hidden" name="csrf" value="{{ csrf }}">
-<input type="hidden" name="season" value="{{ year }}">
-<input type="hidden" name="action" value="toggle">
-<input type="hidden" name="team" value="{{ item.team }}">
-<button type="submit" class="btn btn-small" {% if archived %}disabled{% endif %}>{{ 'Désactiver' if item.active else 'Réactiver' }}</button>
-</form></td>
-</tr>{% else %}
-<tr><td colspan="4">Aucune équipe enregistrée pour cette saison.</td></tr>{% endfor %}
-</tbody></table></div>
+
+<section class="card v2-catalog-card">
+  <h3>🟢 Écuries disponibles ({{ active_rows|length }})</h3>
+  <p class="admin-tip">Les écuries disponibles sont proposées aux joueurs dans les pronostics de cette saison. « Masquer » est réversible ; « Retirer » supprime uniquement l'entrée du catalogue de saison.</p>
+  <div style="overflow:auto">
+    <table class="classement v2-catalog-table">
+      <thead><tr><th>Écurie</th><th>Catégorie</th><th>Gestion</th></tr></thead>
+      <tbody>
+      {% for item in active_rows %}
+        <tr>
+          <td><strong>{{ item.team }}</strong></td>
+          <td>{{ 'Officielle' if item.kind == 'official' else 'Satellite' }}</td>
+          <td>
+            <div class="v2-catalog-actions">
+              <form method="post">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" name="season" value="{{ year }}">
+                <input type="hidden" name="team" value="{{ item.team }}">
+                <input type="hidden" name="action" value="toggle">
+                <button type="submit" class="btn btn-small" {% if archived %}disabled{% endif %}>🙈 Masquer</button>
+              </form>
+              <form method="post" onsubmit="return confirm('Retirer {{ item.team }} du catalogue {{ year }} ? Les pronostics précédents ne seront pas effacés.');">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" name="season" value="{{ year }}">
+                <input type="hidden" name="team" value="{{ item.team }}">
+                <input type="hidden" name="action" value="remove">
+                <button type="submit" class="btn btn-small btn-danger" {% if archived %}disabled{% endif %}>🗑️ Retirer</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3">Aucune écurie disponible pour cette saison.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
+
+<details class="card v2-catalog-card v2-catalog-hidden">
+  <summary><strong>🙈 Écuries masquées ({{ hidden_rows|length }})</strong> — cliquer pour afficher</summary>
+  <div style="overflow:auto">
+    <table class="classement v2-catalog-table">
+      <thead><tr><th>Écurie</th><th>Catégorie</th><th>Gestion</th></tr></thead>
+      <tbody>
+      {% for item in hidden_rows %}
+        <tr>
+          <td>{{ item.team }}</td>
+          <td>{{ 'Officielle' if item.kind == 'official' else 'Satellite' }}</td>
+          <td>
+            <div class="v2-catalog-actions">
+              <form method="post">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" name="season" value="{{ year }}">
+                <input type="hidden" name="team" value="{{ item.team }}">
+                <input type="hidden" name="action" value="toggle">
+                <button type="submit" class="btn btn-small" {% if archived %}disabled{% endif %}>✅ Réactiver</button>
+              </form>
+              <form method="post" onsubmit="return confirm('Retirer définitivement {{ item.team }} du catalogue {{ year }} ?');">
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <input type="hidden" name="season" value="{{ year }}">
+                <input type="hidden" name="team" value="{{ item.team }}">
+                <input type="hidden" name="action" value="remove">
+                <button type="submit" class="btn btn-small btn-danger" {% if archived %}disabled{% endif %}>🗑️ Retirer</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3">Aucune écurie masquée.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
 {% endblock %}
