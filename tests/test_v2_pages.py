@@ -54,9 +54,16 @@ class V2PagesTests(unittest.TestCase):
             })
             self.assertIn("Clôture des pronostics", html)
             self.assertIn("GP du Qatar", html)
-            html=render_template("player_dashboard.html", name="Alex", person={"id":1,"pseudo":"Alex"},
-               weekends=[], points=0.0, rank=None, gp_count=0, last_result=None, next_gp=None)
-            self.assertIn("Bienvenue Alex",html)
+            html=render_template("profile.html", name="Alex", person={"id":1,"pseudo":"Alex"},
+               csrf="test", weekends=[], points=12.5, rank=2, gp_count=1,
+               last_result={"name":"GP Test","points":12.5}, next_gp=None, season_year=2026)
+            self.assertIn("Mon profil", html)
+            self.assertIn("Enregistrer ma photo", html)
+            self.assertIn("MES POINTS", html)
+            self.assertIn("MON CLASSEMENT", html)
+            self.assertIn("Mes pronostics", html)
+            self.assertIn("GP Test", html)
+            self.assertNotIn("Mon espace", html)
 
     def test_local_time_paris_in_utc(self):
         utc=parse_paris_local("2026-10-25T11:30")

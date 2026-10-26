@@ -6,7 +6,7 @@
   <h1>Une saison. Des Grands Prix. Ton podium.</h1>
   <p>Les plus belles courses, tes pronostics et les points de la saison {{ season_year }}.</p>
   {% if name %}<p>👋 Salut <strong>{{ name }}</strong></p>
-    <a href="{{ url_for('player_dashboard',season=season_year) }}" class="btn">🏁 Mon espace joueur</a>
+    <a href="{{ url_for('profile',season=season_year) }}" class="btn">👤 Mon profil</a>
   {% else %}
     <p>Connecte-toi pour pronostiquer et consulter ton espace personnel.</p>
     <a href="{{ url_for('login') }}" class="btn">🔑 Se connecter</a>
