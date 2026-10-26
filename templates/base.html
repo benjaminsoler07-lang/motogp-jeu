@@ -38,8 +38,7 @@
       {% if name or session.get('is_admin') %}
       <nav class="header-nav">
         <a class="btn" href="{{ url_for('home') }}">Accueil</a>
-        {% if name %}<a class="btn" href="{{ url_for('player_dashboard') }}">Mon espace</a>
-        <a class="btn" href="{{ url_for('profile') }}">Mon profil</a>
+        {% if name %}<a class="btn" href="{{ url_for('profile') }}">Mon profil</a>
         <a class="btn" href="{{ url_for('notifications') }}">🔔 Notifications</a>{% endif %}
         <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
         <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par GP</a>
