@@ -90,33 +90,6 @@ class MotoGPSyncTests(unittest.TestCase):
             with self.assertRaises(MotoGPAPIError):
                 fetch_motogp_events(2026)
 
-    def test_live_provider_reachability_diagnostic(self):
-        # Diagnostic non bloquant : le fournisseur ne garantit pas l'accès public.
-        import os
-        if not os.environ.get("GITHUB_ACTIONS"):
-            return
-        try:
-            import requests
-            from motogp_schedule import API_BASE
-            reply = requests.get(API_BASE + "/events",
-                                 params={"seasonYear": 2026},
-                                 timeout=(3, 8), allow_redirects=False,
-                                 headers={"User-Agent": "PronoGP-Schedule/1.0",
-                                          "Accept": "application/json"})
-            data = reply.json() if reply.status_code == 200 else None
-            size = len(data) if isinstance(data, list) else -1
-            if isinstance(data, list):
-                from motogp_schedule import normalise_event
-                parsed = [normalise_event(x, 2026) for x in data]
-                parsed = [x for x in parsed if x]
-                print("PRONOGP_API_PROBE status=%s events=%s valid_gp=%s first=%s" %
-                      (reply.status_code, size, len(parsed),
-                       [(x["date"], x["name"], len(x["sessions"])) for x in parsed[:3]]))
-            else:
-                print("PRONOGP_API_PROBE status=%s events=%s" % (reply.status_code, size))
-        except Exception as exc:
-            print("PRONOGP_API_PROBE error=%s" % type(exc).__name__)
-
     def test_race_date_malaysia_in_paris(self):
         date = parse_external_datetime("2026-11-01T15:00:00+08:00")
         self.assertEqual(date, datetime(2026, 11, 1, 7, 0, tzinfo=timezone.utc))
