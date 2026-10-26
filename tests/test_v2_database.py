@@ -175,6 +175,13 @@ class DatabaseV2Tests(unittest.TestCase):
         with admin.session_transaction() as st:
             self.assertEqual(st["motogp_sync_preview"]["event"]["date"],"2026-11-01")
         self.assertEqual(get_weekend(wid)["date"],"2026-11-30")  # preview read-only
+        with patch("motogp_schedule.fetch_motogp_events",return_value=[candidate]):
+            overview = admin.get(endpoint)
+        self.assertEqual(overview.status_code,200)
+        overview_text = overview.get_data(as_text=True)
+        self.assertIn("Comparer les informations",overview_text)
+        self.assertIn("Q1",overview_text)
+        self.assertIn("Conserver l'heure actuelle",overview_text)
 
         response=admin.post(endpoint,data={
             "csrf":csrf,"action":"apply", "apply_date":"1",
