@@ -217,7 +217,7 @@ def get_bonus_options_for_type(qtype: str, question: dict = None):
     if qtype == "yes_no":
         return ["Oui", "Non"]
     if qtype == "rider":
-        return list(RIDERS)
+        return list(question.get("resolved_options") or RIDERS)
     if qtype == "team":
         return list(ALL_TEAMS)
     if qtype == "official_team":
@@ -474,6 +474,24 @@ def is_season_archived(year: int) -> bool:
     return bool(row and row[0])
 
 
+def get_riders_for_season(year: int, *, active_only: bool = True) -> list:
+    """Catalogue persistant par saison ; le barème et les choix archivés ne bougent pas."""
+    if not engine:
+        return list(RIDERS)
+    ensure_db_bootstrap()
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT rider FROM season_riders
+            WHERE season_year=:year AND (:active_only=FALSE OR active=TRUE)
+            ORDER BY rider
+        """), {"year": int(year), "active_only": bool(active_only)}).fetchall()
+    if rows:
+        return [r[0] for r in rows]
+    if not active_only:
+        return []
+    return list(RIDERS) if int(year) == 2026 else []
+
+
 def weekend_sort_key(w: dict):
     d = parse_weekend_date(w.get("date", ""), weekend_season(w))
     return (d or date.max, (w.get("label") or "").lower())
@@ -677,6 +695,21 @@ def db_init():
             INSERT INTO seasons (year, archived) VALUES (2026, FALSE)
             ON CONFLICT (year) DO NOTHING
         """))
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS season_riders (
+            season_year INTEGER NOT NULL REFERENCES seasons(year),
+            rider TEXT NOT NULL,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            PRIMARY KEY (season_year, rider)
+        );
+        """))
+        for rider in RIDERS:
+            conn.execute(text("""
+                INSERT INTO season_riders (season_year, rider, active)
+                VALUES (2026, :rider, TRUE)
+                ON CONFLICT (season_year, rider) DO NOTHING
+            """), {"rider": rider})
+
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS push_subscriptions (
             endpoint TEXT PRIMARY KEY,
@@ -960,7 +993,9 @@ def get_weekend(weekend_id):
             w["cancelled"] = bool(w.get("cancelled", False))
             for q in w["bonus_questions"]:
                 q["type_label"] = get_bonus_type_label(q.get("type"))
-                q["resolved_options"] = get_bonus_options_for_type(q.get("type"), q)
+                q["resolved_options"] = (get_riders_for_season(weekend_season(w))
+                                         if q.get("type") == "rider"
+                                         else get_bonus_options_for_type(q.get("type"), q))
             return w
     return None
 
