@@ -218,7 +218,7 @@ def register_v2(app, api):
             abort(503)
         api["ensure_db_bootstrap"]()
         try:
-            year = int(request.values.get("season") or api["get_season_year"]())
+            year = int(api["selected_season_year"]())
             if year < 2026 or year > 2100:
                 abort(400)
         except ValueError:
