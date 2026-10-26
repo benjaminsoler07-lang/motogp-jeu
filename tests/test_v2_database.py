@@ -217,6 +217,161 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(blocked.status_code,302)
         self.assertEqual(get_weekend(wid)["label"],"GP malaisien modifié")
 
+    def test_bulk_import_requires_admin_preview_and_schedules_q1_atomically(self):
+        import json
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+        from app import get_weekend, update_weekend_configs_bulk, weekend_config_revision
+
+        year = datetime.now(timezone.utc).year + 1
+        wid1, wid2, wid3 = ("bulk-future-1-ci", "bulk-future-2-ci", "bulk-closed-3-ci")
+        old_manual = f"{year}-02-28T09:45:00+00:00"
+        initial = [
+            {
+                "id":wid1, "label":"GP Malaisie de test", "date":f"{year}-03-30",
+                "season_year":year, "sessions":[], "deadline_utc":"",
+                "auto_publish":True,"cancelled":False,
+            },
+            {
+                "id":wid2, "label":"GP Portugal de test", "date":f"{year}-04-01",
+                "season_year":year, "sessions":[], "deadline_utc":old_manual,
+                "deadline_source":"manual","auto_publish":False,"cancelled":False,
+            },
+            {
+                "id":wid3, "label":"GP historique clos de test", "date":f"{year}-03-22",
+                "season_year":year, "sessions":[], "deadline_utc":"",
+                "auto_publish":True,"cancelled":False,
+            }
+        ]
+        with engine.begin() as conn:
+            for item in initial:
+                conn.execute(text("""
+                    INSERT INTO weekends
+                    (weekend_id,config_json,closed_at,pronos_public_at,updated_at)
+                    VALUES (:id,CAST(:config AS jsonb),:closed,NULL,NOW())
+                    ON CONFLICT (weekend_id) DO UPDATE
+                    SET config_json=EXCLUDED.config_json,
+                        closed_at=EXCLUDED.closed_at,
+                        pronos_public_at=NULL,updated_at=NOW()
+                """), {
+                    "id":item["id"], "config":json.dumps(item),
+                    "closed": datetime.now(timezone.utc) if item["id"] == wid3 else None
+                })
+
+        def event(external_id, name, day):
+            return {
+                "external_id":external_id, "name":name,
+                "date":f"{year}-03-{day:02d}",
+                "sessions":[
+                    {"label":"FP1","utc":f"{year}-03-{day-2:02d}T10:00:00+00:00"},
+                    {"label":"Q1","utc":f"{year}-03-{day-1:02d}T10:30:00+00:00"},
+                    {"label":"Course","utc":f"{year}-03-{day:02d}T11:00:00+00:00"},
+                ]
+            }
+        ev1,ev2,ev3=event("pul-m","Official Malaysian GP",15),event(
+            "pul-p","Official Portuguese GP",22),event("pul-c","Official Historical GP",29)
+        events=[ev1,ev2,ev3]
+        uri=f"/admin/calendar/sync_motogp?season={year}"
+        visitor=app.test_client()
+        self.assertEqual(visitor.get(uri).status_code,302)
+        player=self.client
+        self.assertEqual(player.get(uri).status_code,403)
+
+        admin=app.test_client()
+        with admin.session_transaction() as st:
+            st["is_admin"]=True
+        with patch("v2_bulk_import.fetch_motogp_events",return_value=events):
+            landing=admin.get(uri)
+        self.assertEqual(landing.status_code,200)
+        self.assertIn("Importer tous les horaires MotoGP",landing.get_data(as_text=True))
+        with admin.session_transaction() as st:
+            csrf=st["v2_csrf"]
+        preview_data={
+            "csrf":csrf,"action":"preview","season":str(year),
+            "event_"+wid1:ev1["external_id"],
+            "event_"+wid2:ev2["external_id"],
+            "event_"+wid3:ev3["external_id"],
+        }
+        with patch("v2_bulk_import.fetch_motogp_events",return_value=events):
+            self.assertEqual(admin.post(uri,data={**preview_data,"csrf":""}).status_code,403)
+            page=admin.post(uri,data=preview_data)
+        self.assertEqual(page.status_code,200,page.get_data(as_text=True)[:800])
+        html=page.get_data(as_text=True)
+        self.assertIn("Programmer automatiquement la clôture au départ de la Q1",html)
+        self.assertIn("Clôture personnalisée",html) if "Clôture personnalisée" in html else None
+        self.assertEqual(get_weekend(wid1)["date"],f"{year}-03-30")
+        self.assertEqual(get_weekend(wid2)["deadline_utc"],old_manual)
+        with admin.session_transaction() as st:
+            token=st["bulk_motogp_preview"]
+            self.assertEqual(token["year"],year)
+            self.assertEqual(len(token["digest"]),64)
+            self.assertLess(len(str(st)),3500)
+
+        options={
+            **preview_data, "action":"apply",
+            "selected_gp":[wid1,wid2,wid3],
+            "change_dates":"1","schedule_q1":"1","final_confirmation":"1"
+        }
+        with patch("v2_bulk_import.fetch_motogp_events",return_value=events), patch(
+            "app.save_json",side_effect=OSError("Render read-only filesystem")
+        ):
+            applied=admin.post(uri,data=options)
+        self.assertEqual(applied.status_code,302)
+        gp1,gp2,gp3=(get_weekend(wid1),get_weekend(wid2),get_weekend(wid3))
+        self.assertEqual(gp1["date"],ev1["date"])
+        self.assertEqual(len(gp1["sessions"]),3)
+        self.assertEqual(gp1["deadline_utc"],ev1["sessions"][1]["utc"])
+        self.assertEqual(gp1["deadline_source"],"motogp_q1")
+        self.assertTrue(gp1["auto_publish"])
+        self.assertEqual(gp2["date"],ev2["date"])
+        self.assertEqual(gp2["deadline_utc"],old_manual)
+        self.assertEqual(gp2["deadline_source"],"manual")
+        self.assertEqual(gp3["date"],f"{year}-03-22")  # clos : date conservée
+        self.assertEqual(gp3["deadline_utc"],"")
+        self.assertEqual(len(gp3["sessions"]),3)
+        with engine.connect() as conn:
+            closed=conn.execute(text(
+                "SELECT closed_at FROM weekends WHERE weekend_id=:w"
+            ),{"w":wid3}).scalar_one()
+            self.assertIsNotNone(closed)
+
+        # Nouveau preview, validation d'écrasement express pour le futur manuel.
+        with patch("v2_bulk_import.fetch_motogp_events",return_value=events):
+            self.assertEqual(admin.post(uri,data=preview_data).status_code,200)
+            override=admin.post(uri,data={
+                **preview_data, "action":"apply", "selected_gp":[wid2],
+                "schedule_q1":"1","override_manual":"1","final_confirmation":"1"
+            })
+        self.assertEqual(override.status_code,302)
+        gp2=get_weekend(wid2)
+        self.assertEqual(gp2["deadline_utc"],ev2["sessions"][1]["utc"])
+        self.assertEqual(gp2["deadline_source"],"motogp_q1")
+
+        # Modification frauduleuse d'association après preview => refus.
+        with patch("v2_bulk_import.fetch_motogp_events",return_value=events):
+            self.assertEqual(admin.post(uri,data=preview_data).status_code,200)
+            forged=admin.post(uri,data={
+                **preview_data, "action":"apply",
+                "event_"+wid1:ev2["external_id"],
+                "event_"+wid2:ev1["external_id"],
+                "selected_gp":[wid1], "schedule_q1":"1","final_confirmation":"1"
+            })
+        self.assertEqual(forged.status_code,302)
+        self.assertEqual(get_weekend(wid1)["date"],ev1["date"])
+
+        # Une version obsolète d'un GP fait échouer TOUT le lot, sans update partiel.
+        old1=get_weekend(wid1)
+        old2=get_weekend(wid2)
+        ok,_=update_weekend_configs_bulk([
+            {"id":wid1,"updates":{"date":f"{year}-04-01"},
+             "revision":weekend_config_revision(old1)},
+            {"id":wid2,"updates":{"date":f"{year}-04-04"},
+             "revision":"f"*64}
+        ])
+        self.assertFalse(ok)
+        self.assertEqual(get_weekend(wid1)["date"],old1["date"])
+        self.assertEqual(get_weekend(wid2)["date"],old2["date"])
+
     def test_unified_profile_and_legacy_dashboard_redirect(self):
         from urllib.parse import urlsplit, parse_qs
 

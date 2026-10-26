@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Import global MotoGP · Administration{% endblock %}
+{% block content %}
+{% include "_admin_nav.html" %}
+
+<section class="card v2-bulk-intro">
+  <span class="v2-home-kicker">ADMINISTRATION · SAISON {{ year }}</span>
+  <h2>🔄 Importer tous les horaires MotoGP</h2>
+  <p>Un seul import pour toute la saison. L'heure de clôture proposée est <strong>l'heure exacte du départ de la Q1 MotoGP</strong>, et non celle de la Q2, du Sprint ou de la course.</p>
+  <p>Les GP déjà clôturés peuvent recevoir leur programme historique sans changer leurs résultats, leurs dates ni leurs anciennes clôtures. Les modifications futures ne sont jamais appliquées sans ta confirmation.</p>
+  <p><a class="btn btn-small" href="{{ url_for('admin_calendar') }}">← Calendrier administration</a>
+     <a class="btn btn-small" href="{{ url_for('admin_bulk_motogp',season=year) }}">↻ Actualiser les horaires proposés</a></p>
+  {% if api_error %}<p class="notice">⚠️ {{ api_error }} — Aucun GP modifié. La saisie manuelle reste disponible.</p>{% endif %}
+</section>
+
+{% if rows and stage == "choose" %}
+<section class="card v2-bulk-card">
+  <h3>1. Associer les GP aux épreuves officielles</h3>
+  <p>Les correspondances identifiées automatiquement sont présélectionnées. Si un nom est différent, choisis l'épreuve correcte ; laisse « Sans correspondance » si elle n'est pas disponible.</p>
+  <form method="post" action="{{ url_for('admin_bulk_motogp') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="season" value="{{ year }}">
+    <input type="hidden" name="action" value="preview">
+    <div class="v2-bulk-matches">
+      {% for gp in rows %}
+      <div class="v2-bulk-match">
+        <div class="v2-bulk-match-heading">
+          <strong>{{ gp.label }}</strong>
+          <small>Actuellement : {{ gp.current_date or "?" }}{% if gp.closed %} · Déjà clôturé{% endif %}{% if gp.cancelled %} · Annulé{% endif %}</small>
+        </div>
+        <div class="v2-bulk-match-select">
+          <label for="event_{{ gp.id }}">Épreuve MotoGP associée</label>
+          <select name="event_{{ gp.id }}" id="event_{{ gp.id }}">
+            <option value="">— Sans correspondance : ne rien importer —</option>
+            {% for event in events %}
+            <option value="{{ event.external_id }}"
+                    {% if gp.event and gp.event.external_id == event.external_id %}selected{% endif %}>
+              {{ event.date }} · {{ event.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="admin-tip">Une même épreuve officielle ne peut pas être associée à deux GP. Les GP annulés seront protégés.</p>
+    <button type="submit" class="btn">🔎 Prévisualiser toute la saison</button>
+  </form>
+</section>
+{% elif rows and stage == "preview" %}
+<section class="card v2-bulk-card">
+  <h3>2. Vérifier les horaires avant validation</h3>
+  <p><strong>Aucune modification n'a encore été enregistrée.</strong> Les horaires ci-dessous proviennent de l'API, convertis à l'heure de Paris.</p>
+  <form method="post" action="{{ url_for('admin_bulk_motogp') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="season" value="{{ year }}">
+    <input type="hidden" name="action" value="apply">
+    {% for gp in rows %}
+      <input type="hidden" name="event_{{ gp.id }}" value="{{ gp.event.external_id if gp.event else '' }}">
+    {% endfor %}
+
+    <div class="v2-bulk-options">
+      <label class="v2-bulk-option">
+        <input type="checkbox" name="change_dates" value="1" checked>
+        <span><strong>Corriger les dates des GP à venir</strong><small>Jamais pour un GP déjà terminé ou clôturé.</small></span>
+      </label>
+      <label class="v2-bulk-option">
+        <input type="checkbox" name="schedule_q1" value="1" checked>
+        <span><strong>Programmer automatiquement la clôture au départ de la Q1</strong><small>Pour les GP non clôturés, uniquement si l'heure Q1 est future et disponible.</small></span>
+      </label>
+      <label class="v2-bulk-option">
+        <input type="checkbox" name="override_manual" value="1">
+        <span><strong>Remplacer aussi mes clôtures personnalisées futures</strong><small>Décoché par défaut : tes réglages manuels sont conservés. Les clôtures Q1 déjà gérées par l'API peuvent être actualisées.</small></span>
+      </label>
+    </div>
+
+    <div class="v2-bulk-toolbar">
+      <strong>Programme officiel des GP</strong>
+      <span>
+        <button class="btn btn-small" type="button" onclick="document.querySelectorAll('.v2-bulk-select-gp:not(:disabled)').forEach(e => e.checked = true)">Tout sélectionner</button>
+        <button class="btn btn-small" type="button" onclick="document.querySelectorAll('.v2-bulk-select-gp:not(:disabled)').forEach(e => e.checked = false)">Tout décocher</button>
+      </span>
+    </div>
+
+    <div class="v2-bulk-preview-list">
+      {% for gp in rows %}
+      <article class="v2-bulk-preview-row{% if not gp.event or gp.cancelled %} is-unmatched{% endif %}">
+        <div class="v2-bulk-preview-title">
+          <label class="v2-bulk-option v2-bulk-main-check">
+            <input class="v2-bulk-select-gp" type="checkbox" name="selected_gp" value="{{ gp.id }}"
+                   {% if gp.event and not gp.cancelled %}checked{% else %}disabled{% endif %}>
+            <span><strong>{{ gp.label }}</strong>
+              <small>
+                {% if gp.closed %}GP terminé : séances uniquement, clôture et date inchangées{% else %}GP à venir{% endif %}
+              </small>
+            </span>
+          </label>
+          <a href="{{ url_for('admin_schedule',weekend_id=gp.id) }}">Modifier seul</a>
+        </div>
+        {% if gp.event %}
+          <p class="v2-bulk-provider">{{ gp.event.name }} · {{ gp.event.date }}</p>
+          <div class="v2-bulk-preview-details">
+            <span>🏍️ {{ gp.event.sessions|length }} séances</span>
+            <span>📅 Date actuelle : {{ gp.current_date or '?' }}</span>
+            <span>🔒 Q1 : {% if gp.q1_paris %}{{ gp.q1_paris|replace('T',' à ') }} (Paris){% else %}<strong>Non fournie</strong>{% endif %}</span>
+            <span>⏰ Clôture actuelle : {{ gp.current_deadline_paris|replace('T',' à ') if gp.current_deadline_paris else 'Manuelle / non renseignée' }}</span>
+          </div>
+          {% if gp.event and not gp.q1_future and not gp.closed %}
+            <p class="v2-bulk-note">Q1 passée ou absente : aucune nouvelle clôture ne sera programmée.</p>
+          {% endif %}
+        {% else %}
+          <p class="v2-bulk-note">Aucune correspondance fiable : ce GP ne sera pas modifié. Reviens à l'étape précédente pour le lier manuellement.</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+
+    <label class="v2-bulk-final-confirm">
+      <input type="checkbox" name="final_confirmation" value="1" required>
+      <span><strong>Je confirme l'import des GP cochés et la règle de clôture Q1 ci-dessus.</strong> Les pronostics, résultats et historiques ne seront pas modifiés.</span>
+    </label>
+    <button type="submit" class="btn" onclick="return confirm('Valider l\'import global des séances et les clôtures Q1 pour les GP cochés ?')">
+      💾 Importer les horaires sélectionnés
+    </button>
+    <p><a href="{{ url_for('admin_bulk_motogp',season=year) }}">← Changer les correspondances / annuler</a></p>
+  </form>
+</section>
+{% endif %}
+{% endblock %}
