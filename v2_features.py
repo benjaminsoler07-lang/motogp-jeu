@@ -442,9 +442,32 @@ def register_v2(app, api):
             return redirect(url_for("login"))
         if request.method == "POST":
             check_csrf()
+            operation = request.form.get("operation") or "upload_photo"
+            if operation == "change_password":
+                old_password = request.form.get("current_password") or ""
+                new_password = request.form.get("new_password") or ""
+                confirmation = request.form.get("confirm_password") or ""
+                if new_password != confirmation:
+                    flash("Les deux nouveaux mots de passe ne correspondent pas.")
+                else:
+                    ok, message = api["change_participant_secret"](
+                        person, old_password, new_password
+                    )
+                    if ok:
+                        # Conserver CETTE session; toutes les anciennes sessions,
+                        # sur les autres appareils, seront invalidées.
+                        refreshed = api["get_participant_by_input"](person["pseudo"])
+                        session["authenticated_secret_marker"] = api[
+                            "participant_secret_marker"
+                        ](refreshed)
+                        session["v2_csrf"] = secrets.token_urlsafe(32)
+                    flash(message)
+                return redirect(url_for("profile"))
+            if operation not in ("delete", "upload_photo"):
+                abort(400)
             if not engine:
                 abort(503)
-            if request.form.get("operation") == "delete":
+            if operation == "delete":
                 with engine.begin() as conn:
                     conn.execute(text("DELETE FROM player_photos WHERE participant_id=:id"),
                                  {"id": person["id"]})
