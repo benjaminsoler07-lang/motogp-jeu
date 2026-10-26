@@ -17,25 +17,27 @@
 
       <div class="header-auth">
         {% if name %}
-          <span class="status">✅ Connecté{% if session.get('is_admin') %} — 🛠️ Admin{% endif %}</span>
+          <span class="status">✅ Connecté{% if viewer_is_admin %} — 🛠️ Admin{% endif %}</span>
           <span class="status">Bonjour <strong>{{ name }}</strong> 👋</span>
           <a class="btn" href="{{ url_for('logout') }}">Changer / Déconnexion</a>
-        {% elif session.get('is_admin') %}
+        {% elif viewer_is_admin %}
           <span class="status">🛠️ Administrateur connecté</span>
         {% else %}
           <span class="status">❌ Non connecté</span>
           <a class="btn" href="{{ url_for('login') }}">Connexion</a>
         {% endif %}
 
-        {% if session.get('is_admin') %}
+        {% if viewer_is_admin %}
           <a class="btn" href="{{ url_for('admin_home') }}">Dashboard admin</a>
-          <a class="btn btn-warning" href="{{ url_for('admin_logout') }}">Logout admin</a>
+          {% if viewer_is_root_admin %}
+            <a class="btn btn-warning" href="{{ url_for('admin_logout') }}">Logout admin</a>
+          {% endif %}
         {% else %}
           <a class="btn" href="{{ url_for('admin_login') }}">Connexion Admin</a>
         {% endif %}
       </div>
 
-      {% if name or session.get('is_admin') %}
+      {% if name or viewer_is_admin %}
       <nav class="header-nav">
         <a class="btn" href="{{ url_for('home') }}">Accueil</a>
         {% if name %}<a class="btn" href="{{ url_for('profile') }}">Mon profil</a>
