@@ -352,7 +352,8 @@ class DatabaseV2Tests(unittest.TestCase):
             self.assertEqual(admin.post(uri,data=preview_data).status_code,200)
             forged=admin.post(uri,data={
                 **preview_data, "action":"apply",
-                "event_"+wid1:ev3["external_id"],
+                "event_"+wid1:ev2["external_id"],
+                "event_"+wid2:ev1["external_id"],
                 "selected_gp":[wid1], "schedule_q1":"1","final_confirmation":"1"
             })
         self.assertEqual(forged.status_code,302)
