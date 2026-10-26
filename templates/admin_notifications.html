@@ -1,5 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Admin — Notifications{% endblock %}
+{% block title %}Admin — Notifications<section class="card" style="text-align:left;max-width:900px;margin:20px auto">
+  <h3>📋 Historique des notifications</h3>
+  <p>« Traité » signifie que le moteur a tenté la livraison push lorsque celui-ci est configuré ; cela ne garantit pas l'affichage sur chaque téléphone. Tous les messages sont conservés dans la boîte des joueurs.</p>
+  {% if history %}
+  <div style="overflow:auto">
+    <table class="classement" style="width:100%">
+      <thead><tr><th>Date UTC</th><th>Message</th><th>Type</th><th>Destinataires</th><th>Traités</th></tr></thead>
+      <tbody>{% for row in history %}
+        <tr><td>{{ row.created_at.strftime('%d/%m %H:%M') }}</td>
+            <td style="text-align:left"><strong>{{ row.title }}</strong><small style="display:block">{{ row.body }}</small></td>
+            <td>{{ row.category }}</td><td>{{ row.recipients }}</td><td>{{ row.processed }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% else %}<p>Aucun message encore enregistré.</p>{% endif %}
+</section>
+{% endblock %}
 {% block content %}
 {% include '_admin_nav.html' %}
 <h2>🔔 Envoyer une notification</h2>
