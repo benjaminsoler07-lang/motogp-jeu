@@ -259,7 +259,17 @@ def register_v2(app, api):
                         UPDATE season_riders SET active=NOT active
                         WHERE season_year=:year AND rider=:rider
                     """),{"year":year,"rider":rider}).rowcount
-                flash("Présence du pilote mise à jour." if changed else "Pilote introuvable.")
+                flash("Visibilité du pilote mise à jour." if changed else "Pilote introuvable.")
+            elif action == "remove":
+                # Seul le catalogue de cette saison est modifié. Les pronostics
+                # déjà enregistrés / historiques ne sont jamais supprimés.
+                with engine.begin() as conn:
+                    changed = conn.execute(text("""
+                        DELETE FROM season_riders
+                        WHERE season_year=:year AND rider=:rider
+                    """), {"year":year,"rider":rider}).rowcount
+                flash("Pilote retiré de cette saison (historique conservé)." if changed
+                      else "Pilote introuvable.")
             else:
                 abort(400)
             return redirect(url_for("admin_riders", season=year))
@@ -270,8 +280,10 @@ def register_v2(app, api):
             """),{"year":year}).mappings().all()
             seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
         return render_template("admin_riders.html",name=api["current_player"](request)[0],
-                               year=year,seasons=seasons,rows=rows,archived=bool(season[0]),
-                               csrf=csrf_value())
+                               year=year,seasons=seasons,
+                               active_rows=[r for r in rows if r["active"]],
+                               hidden_rows=[r for r in rows if not r["active"]],
+                               archived=bool(season[0]),csrf=csrf_value())
 
     @app.route("/admin/teams", methods=["GET", "POST"])
     def admin_teams():
@@ -309,7 +321,16 @@ def register_v2(app, api):
                         UPDATE season_teams SET active=NOT active
                         WHERE season_year=:year AND team=:team
                     """),{"year":year,"team":team}).rowcount
-                flash("Équipe mise à jour." if changed else "Équipe introuvable.")
+                flash("Visibilité de l'écurie mise à jour." if changed else "Écurie introuvable.")
+            elif action=="remove":
+                # Pas de suppression de pronostics ou de résultats historiques.
+                with engine.begin() as conn:
+                    changed=conn.execute(text("""
+                        DELETE FROM season_teams
+                        WHERE season_year=:year AND team=:team
+                    """),{"year":year,"team":team}).rowcount
+                flash("Écurie retirée de cette saison (historique conservé)." if changed
+                      else "Écurie introuvable.")
             else:
                 abort(400)
             return redirect(url_for("admin_teams",season=year))
@@ -319,7 +340,10 @@ def register_v2(app, api):
             """),{"year":year}).mappings().all()
             seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
         return render_template("admin_teams.html",name=api["current_player"](request)[0],
-                               year=year,rows=rows,archived=bool(season[0]),seasons=seasons,
+                               year=year,
+                               active_rows=[r for r in rows if r["active"]],
+                               hidden_rows=[r for r in rows if not r["active"]],
+                               archived=bool(season[0]),seasons=seasons,
                                csrf=csrf_value())
 
     @app.route("/admin/w/<weekend_id>/schedule", methods=["GET", "POST"])
