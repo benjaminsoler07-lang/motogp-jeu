@@ -174,7 +174,7 @@ def register_notifications(app, api):
             abort(400)
         with engine.begin() as conn:
             conn.execute(text("""
-                INSERT INTO push_subscriptions(endpoint,participant_id,p256dh,auth,updated_at)
+                INSERT INTO web_push_subscriptions(endpoint,participant_id,p256dh,auth,updated_at)
                 VALUES (:endpoint,:pid,:p256dh,:auth,NOW())
                 ON CONFLICT(endpoint) DO UPDATE
                 SET participant_id=EXCLUDED.participant_id,p256dh=EXCLUDED.p256dh,
@@ -189,7 +189,7 @@ def register_notifications(app, api):
         if len(endpoint)>2048:
             abort(400)
         with engine.begin() as conn:
-            conn.execute(text("DELETE FROM push_subscriptions WHERE endpoint=:e AND participant_id=:p"),
+            conn.execute(text("DELETE FROM web_push_subscriptions WHERE endpoint=:e AND participant_id=:p"),
                          {"e":endpoint,"p":p["id"]})
         return jsonify(ok=True)
 
@@ -308,7 +308,7 @@ def register_notifications(app, api):
         rows=conn.execute(text("""
             SELECT m.id,m.participant_id,m.title,m.body,m.destination,m.created_at,
                 s.endpoint,s.p256dh,s.auth
-            FROM push_messages m LEFT JOIN push_subscriptions s ON s.participant_id=m.participant_id
+            FROM push_messages m LEFT JOIN web_push_subscriptions s ON s.participant_id=m.participant_id
             WHERE m.sent_at IS NULL ORDER BY m.id ASC LIMIT 200
         """)).mappings().all()
         grouped={}
@@ -333,7 +333,7 @@ def register_notifications(app, api):
                         ttl=3600,timeout=8)
                 except WebPushException as exc:
                     if exc.status_code in (404,410):
-                        conn.execute(text("DELETE FROM push_subscriptions WHERE endpoint=:e"),
+                        conn.execute(text("DELETE FROM web_push_subscriptions WHERE endpoint=:e"),
                                      {"e":sub["endpoint"]})
                     else:
                         failed=True
