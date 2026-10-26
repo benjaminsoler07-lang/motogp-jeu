@@ -29,6 +29,8 @@ class BonusReviewTests(unittest.TestCase):
 
     def test_automatic_keeps_correct_spelling_rules(self):
         self.assertTrue(is_bonus_answer_correct(self.question, "Énea Bastianini", "enea bastianini"))
+        self.assertTrue(is_bonus_answer_correct(self.question, "Jean-Luc", "jean luc"))
+        self.assertTrue(is_bonus_answer_correct(self.question, "Fabio Di-Giannantonio!", "fabio di giannantonio"))
         self.assertFalse(is_bonus_answer_correct(self.question, self.pred, self.official))
 
     def test_manual_accepts_typo_without_changing_prediction(self):
