@@ -20,6 +20,8 @@
           <span class="status">✅ Connecté{% if session.get('is_admin') %} — 🛠️ Admin{% endif %}</span>
           <span class="status">Bonjour <strong>{{ name }}</strong> 👋</span>
           <a class="btn" href="{{ url_for('logout') }}">Changer / Déconnexion</a>
+        {% elif session.get('is_admin') %}
+          <span class="status">🛠️ Administrateur connecté</span>
         {% else %}
           <span class="status">❌ Non connecté</span>
           <a class="btn" href="{{ url_for('login') }}">Connexion</a>
@@ -33,6 +35,7 @@
         {% endif %}
       </div>
 
+      {% if name or session.get('is_admin') %}
       <nav class="header-nav">
         <a class="btn" href="{{ url_for('home') }}">Accueil</a>
         {% if name %}<a class="btn" href="{{ url_for('player_dashboard') }}">Mon espace</a>
@@ -42,6 +45,7 @@
         <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par GP</a>
         <a class="btn" href="{{ url_for('championnat',season=request.args.get('season') or 2026) }}">Championnat</a>
       </nav>
+      {% endif %}
     </header>
 
     <main>

@@ -35,6 +35,50 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(response.status_code,302)
         self.assertEqual(self.client.get("/profile").status_code,200)
 
+    def test_anonymous_visitors_cannot_browse_game(self):
+        from urllib.parse import urlsplit
+
+        visitor = app.test_client()
+        player_id = get_participant_by_input("IntegrationTest")["id"]
+        private_pages = (
+            "/", "/classement", "/results_by_race", "/championnat/public",
+            "/w/any-gp/public/pronos", "/w/any-gp/classement",
+            "/me", "/profile", "/notifications", f"/avatar/{player_id}",
+            "/admin", "/admin/seasons"
+        )
+        for path in private_pages:
+            with self.subTest(path=path):
+                response = visitor.get(path)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(urlsplit(response.headers["Location"]).path, "/login")
+
+        # Un cookie pseudo historique n'est pas une session authentifiee.
+        visitor.set_cookie("player_name", "IntegrationTest")
+        self.assertEqual(visitor.get("/classement").status_code, 302)
+
+        # Les formulaires protegés ne sont pas accessibles en POST anonyme.
+        self.assertEqual(visitor.post("/w/any-gp/pronos").status_code, 401)
+
+        # Pages publiques nécessaires à la connexion et aux fonctions techniques.
+        for path in ("/login", "/admin/login", "/healthz", "/manifest.webmanifest",
+                     "/pwa/icon/192", "/service-worker.js"):
+            with self.subTest(public=path):
+                self.assertEqual(visitor.get(path).status_code, 200)
+
+        # Le endpoint GitHub reste accessible au job OIDC, mais refuse les inconnus.
+        self.assertEqual(visitor.post("/internal/github-dispatch").status_code, 403)
+
+        # Un vrai joueur conserve l'accès aux pages de consultation.
+        self.assertEqual(self.client.get("/").status_code, 200)
+        self.assertEqual(self.client.get("/classement").status_code, 200)
+
+    def test_admin_can_access_home_without_player_session(self):
+        admin_client = app.test_client()
+        with admin_client.session_transaction() as st:
+            st["is_admin"] = True
+        self.assertEqual(admin_client.get("/").status_code, 200)
+        self.assertEqual(admin_client.get("/admin").status_code, 200)
+
     def test_photo_persists_in_database(self):
         picture=Image.new("RGB",(100,100),"blue")
         buffer=io.BytesIO()

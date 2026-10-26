@@ -1561,6 +1561,39 @@ def get_current_participant(req):
     return participant
 
 
+# ------------------ Accès privé au jeu ------------------
+# Les classements, résultats et pronostics publiés sont visibles uniquement
+# par les joueurs authentifiés ou l'administrateur.
+# Les endpoints techniques restent disponibles pour le fonctionnement PWA,
+# les contrôles de disponibilité et le dispatch GitHub (authentifié par OIDC).
+PUBLIC_ENDPOINTS = frozenset({
+    "login",
+    "admin_login",
+    "logout",
+    "admin_logout",
+    "healthz",
+    "static",
+    "pwa_manifest",
+    "pwa_icon",
+    "pwa_service_worker",
+    "github_dispatch",
+})
+
+
+@app.before_request
+def require_game_authentication():
+    endpoint = request.endpoint
+    if endpoint is None or endpoint in PUBLIC_ENDPOINTS:
+        return None
+
+    if is_admin() or get_current_participant(request):
+        return None
+
+    if request.method in ("GET", "HEAD"):
+        return redirect(url_for("login"))
+    return "Connexion requise.", 401
+
+
 # ------------------ Championnat state ------------------
 def championnat_state_row_id():
     return 1 if selected_season_year() == 2026 else selected_season_year()
