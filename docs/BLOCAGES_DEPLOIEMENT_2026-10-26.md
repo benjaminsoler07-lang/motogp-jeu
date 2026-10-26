@@ -44,3 +44,13 @@ Docs : https://supabase.com/docs/guides/database/postgres/row-level-security
 - L'ancienne application Render répond toujours à `/healthz` HTTP 200 ; des appels publics à l'accueil et à la page des résultats répondent HTTP 200 dans les journaux.
 
 **Toujours requis avant mise en ligne :** une sauvegarde **externe** complète `pg_dump` suivie d'un essai de restauration indépendant. Le schéma privé n'est pas un substitut à ce contrôle.
+
+## Mise à jour sécurité effectuée le 26/10/2026
+
+- Instantané SQL **interne** créé dans le schéma privé `pronogp_safety_20261026`, comptages comparés aux huit tables de production. Important : **pas une sauvegarde hors site** et ne remplace pas un dump.
+- Migration `pronogp_revoke_public_api_grants_20261026` : suppression des droits sur les huit tables historiques pour les rôles `anon` et `authenticated` ; vérification de `has_table_privilege` : lecture et écriture interdites.
+- Migration `pronogp_block_default_public_table_grants_20261026` : plus de droits implicites `anon`/`authenticated` sur les **nouvelles tables et séquences créées par le rôle postgres**.
+- Le rôle `postgres` conserve les droits directs exigés par le serveur Flask.
+- Collision de schéma corrigée dans la V2 : la table existante `push_subscriptions` est préservée, et la V2 crée `web_push_subscriptions` pour sa nouvelle structure.
+- La RLS des tables historiques reste désactivée (alerte linter Supabase) ; mais l'API ne dispose désormais plus des privilèges nécessaires sur ces tables. Ne pas activer la RLS ni écrire des politiques sans validation de l'ensemble des usages.
+- La sauvegarde **externe** `pg_dump`, avec essai de restauration indépendant, est toujours requise avant de déployer la V2.
