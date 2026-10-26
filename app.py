@@ -2528,9 +2528,9 @@ def pronos(weekend_id):
         "pronos.html",
         w=w,
         riders=get_riders_for_season(weekend_season(w)),
-        all_teams=ALL_TEAMS,
-        official_teams=OFFICIAL_TEAMS,
-        satellite_teams=SATELLITE_TEAMS,
+        all_teams=get_teams_for_season(weekend_season(w)),
+        official_teams=get_teams_for_season(weekend_season(w), kind="official"),
+        satellite_teams=get_teams_for_season(weekend_season(w), kind="satellite"),
         bonus_type_choices=BONUS_TYPE_CHOICES,
         my=my,
         name=name,
@@ -2956,6 +2956,11 @@ def admin_results(weekend_id):
             if official_question.get("type") == "rider":
                 official_question["resolved_options"] = get_riders_for_season(
                     weekend_season(w), active_only=False)
+            elif official_question.get("type") in {"team", "official_team", "satellite_team"}:
+                kind = {"official_team":"official", "satellite_team":"satellite"}.get(
+                    official_question.get("type"))
+                official_question["resolved_options"] = get_teams_for_season(
+                    weekend_season(w), kind=kind, active_only=False)
             ok, err = validate_bonus_answer_for_question(official_question, answer)
             if not ok:
                 flash(f"Bonne réponse bonus invalide : {err}")
@@ -2990,9 +2995,9 @@ def admin_results(weekend_id):
         name=name,
         w=w,
         riders=get_riders_for_season(weekend_season(w), active_only=False),
-        all_teams=ALL_TEAMS,
-        official_teams=OFFICIAL_TEAMS,
-        satellite_teams=SATELLITE_TEAMS,
+        all_teams=get_teams_for_season(weekend_season(w), active_only=False),
+        official_teams=get_teams_for_season(weekend_season(w), kind="official", active_only=False),
+        satellite_teams=get_teams_for_season(weekend_season(w), kind="satellite", active_only=False),
         bonus_type_choices=BONUS_TYPE_CHOICES,
         results=results
     )
@@ -3493,6 +3498,7 @@ register_v2(app, {
     "selected_season_year": selected_season_year,
     "get_season_year": get_season_year,
     "get_riders_for_season": get_riders_for_season,
+    "get_teams_for_season": get_teams_for_season,
 })
 
 register_notifications(app, {
