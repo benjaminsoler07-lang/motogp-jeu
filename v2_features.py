@@ -385,6 +385,56 @@ def register_v2(app, api):
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
+    def profile_summary(person):
+        """Résumé de saison présenté directement sur Mon profil (ancienne page /me)."""
+        year = api["selected_season_year"]()
+        weekends = [w for w in api["get_sorted_weekends"]()
+                    if api["weekend_season"](w) == year]
+        myname = api["normalize_pseudo"](person["pseudo"])
+        all_totals = {}
+        gp_count = 0
+        last_result = None
+        played = {}
+        for w in weekends:
+            if w.get("cancelled"):
+                continue
+            entries = api["get_latest_pronos_by_player_for_weekend"](w["id"])
+            players = {api["normalize_pseudo"](k): (k,v) for k,v in entries.items()}
+            if myname in players:
+                played[w["id"]] = True
+            result = api["load_results"](w["id"])
+            if not result:
+                continue
+            review = api["load_bonus_reviews"](w["id"])
+            for normalized, (player_name,prediction) in players.items():
+                pts = api["compute_points_breakdown"](
+                    prediction, result, w, player_name=player_name, reviews=review)["total"]
+                all_totals[normalized] = round(all_totals.get(normalized,0)+pts, 2)
+                if normalized == myname:
+                    gp_count += 1
+                    last_result = {"name": w.get("label"), "points": pts}
+        standings = sorted(all_totals, key=lambda n:(-all_totals[n],n))
+        rank = standings.index(myname)+1 if myname in standings else None
+        for w in weekends:
+            w["played"] = bool(played.get(w["id"]))
+            w["closed"] = api["is_weekend_closed"](w["id"])
+            w["public"] = api["is_pronos_public"](w["id"])
+        return {
+            "weekends": weekends,
+            "points": all_totals.get(myname,0),
+            "rank": rank,
+            "gp_count": gp_count,
+            "last_result": last_result,
+            "season_year": year,
+            "next_gp": race_center(weekends)
+        }
+
+    @app.route("/me")
+    def player_dashboard():
+        # Conserver les anciens liens/favoris vers Mon espace, sans doublon de page.
+        year = request.args.get("season")
+        return redirect(url_for("profile", season=year)) if year else redirect(url_for("profile"))
+
     @app.route("/profile", methods=["GET", "POST"])
     def profile():
         person = connected()
@@ -429,47 +479,5 @@ def register_v2(app, api):
                 flash("Photo enregistrée.")
             return redirect(url_for("profile"))
         return render_template("profile.html", name=person["pseudo"], person=person,
-                               csrf=csrf_value())
+                               csrf=csrf_value(), **profile_summary(person))
 
-    @app.route("/me")
-    def player_dashboard():
-        person = connected()
-        if not person:
-            return redirect(url_for("login"))
-        year = api["selected_season_year"]()
-        weekends = [w for w in api["get_sorted_weekends"]()
-                    if api["weekend_season"](w) == year]
-        myname = api["normalize_pseudo"](person["pseudo"])
-        all_totals = {}
-        gp_count = 0
-        last_result = None
-        played = {}
-        for w in weekends:
-            if w.get("cancelled"):
-                continue
-            entries = api["get_latest_pronos_by_player_for_weekend"](w["id"])
-            players = {api["normalize_pseudo"](k): (k,v) for k,v in entries.items()}
-            if myname in players:
-                played[w["id"]] = True
-            result = api["load_results"](w["id"])
-            if not result:
-                continue
-            review = api["load_bonus_reviews"](w["id"])
-            for normalized, (player_name,prediction) in players.items():
-                pts = api["compute_points_breakdown"](
-                    prediction, result, w, player_name=player_name, reviews=review)["total"]
-                all_totals[normalized] = round(all_totals.get(normalized,0)+pts, 2)
-                if normalized == myname:
-                    gp_count += 1
-                    last_result = {"name": w.get("label"), "points": pts}
-        standings = sorted(all_totals, key=lambda n:(-all_totals[n],n))
-        rank = standings.index(myname)+1 if myname in standings else None
-        for w in weekends:
-            w["played"] = bool(played.get(w["id"]))
-            w["closed"] = api["is_weekend_closed"](w["id"])
-            w["public"] = api["is_pronos_public"](w["id"])
-        return render_template("player_dashboard.html",
-            name=person["pseudo"], person=person,
-            weekends=weekends, points=all_totals.get(myname,0), rank=rank,
-            gp_count=gp_count, last_result=last_result,
-            season_year=year, next_gp=race_center(weekends))
