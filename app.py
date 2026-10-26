@@ -861,15 +861,22 @@ def db_init():
         );
         """))
 
-        # PostgreSQL est accessible exclusivement par le backend Flask.
-        # Les nouvelles tables ne doivent pas être publiées via l'API Supabase.
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.bonus_reviews FROM anon, authenticated"))
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.player_photos FROM anon, authenticated"))
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.push_messages FROM anon, authenticated"))
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.web_push_subscriptions FROM anon, authenticated"))
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.seasons FROM anon, authenticated"))
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.season_riders FROM anon, authenticated"))
-        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.season_teams FROM anon, authenticated"))
+        # Supabase crée les rôles anon/authenticated, PostgreSQL standard non.
+        # Ne retirer des privilèges que pour les rôles qui existent réellement.
+        api_roles = conn.execute(text("""
+            SELECT rolname FROM pg_roles
+            WHERE rolname IN ('anon', 'authenticated')
+        """)).scalars().all()
+        if api_roles:
+            for table_name in (
+                "bonus_reviews", "player_photos", "push_messages",
+                "web_push_subscriptions", "seasons", "season_riders", "season_teams"
+            ):
+                # Table names and role names originate from fixed allow-lists.
+                conn.execute(text(
+                    "REVOKE ALL PRIVILEGES ON TABLE public." + table_name +
+                    " FROM " + ", ".join(api_roles)
+                ))
 
         conn.execute(text("""
             UPDATE pronos
