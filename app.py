@@ -752,7 +752,7 @@ def db_init():
             """), {"team":team, "kind":"official" if team in OFFICIAL_TEAMS else "satellite"})
 
         conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS push_subscriptions (
+        CREATE TABLE IF NOT EXISTS web_push_subscriptions (
             endpoint TEXT PRIMARY KEY,
             participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
             p256dh TEXT NOT NULL,
