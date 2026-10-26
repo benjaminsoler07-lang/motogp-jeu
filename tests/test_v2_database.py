@@ -79,6 +79,21 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(admin_client.get("/").status_code, 200)
         self.assertEqual(admin_client.get("/admin").status_code, 200)
 
+    def test_homepage_is_focused_on_race_and_future_events(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Le prochain Grand Prix", html)
+        self.assertIn("v2-home-shortcuts", html)
+        self.assertIn("Classement général", html)
+        self.assertIn("Résultats par GP", html)
+        self.assertIn("Prono championnat", html)
+        self.assertNotIn("Une saison. Des Grands Prix", html)
+        self.assertNotIn("Calendrier MotoGP", html)
+        self.assertNotIn("v2-intro", html)
+        self.assertLessEqual(html.count('class="v2-home-upcoming-card"'), 3)
+        self.assertEqual(self.client.get("/results_by_race").status_code, 200)
+
     def test_unified_profile_and_legacy_dashboard_redirect(self):
         from urllib.parse import urlsplit, parse_qs
 
