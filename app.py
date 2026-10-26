@@ -2227,36 +2227,65 @@ def count_distinct_pronos_for_weekend(weekend_id: str) -> int:
     return 0
 
 
-# ================== PUBLIC ROUTES ==================
+# ================== ACCUEIL / RACE CENTER ==================
+def home_upcoming_weekends(weekends: list, *, today=None, exclude_id=None, limit=3) -> list:
+    """Ne montre jamais les GP passés : accessibles via « Résultats par GP »."""
+    today = today or date.today()
+    coming = [
+        w for w in weekends
+        if not w.get("cancelled")
+        and w.get("date_obj") is not None
+        and w["date_obj"] >= today
+        and w.get("id") != exclude_id
+    ]
+    coming.sort(key=lambda w: (w["date_obj"], (w.get("label") or "").lower()))
+    return coming[:max(0, limit)]
+
+
 @app.route("/")
 def home():
     name, _ = current_player(request)
-
-    weekends = []
+    all_weekends = get_sorted_weekends()
     season_year = selected_season_year()
-    years = sorted(set([get_season_year()] + [weekend_season(w) for w in get_sorted_weekends()]))
-    for w in get_sorted_weekends():
-        if weekend_season(w) != season_year:
-            continue
-        w2 = dict(w)
-        w2["status"] = weekend_status(
-            w2.get("date_obj"),
-            open_days_before=10,
-            cancelled=bool(w2.get("cancelled", False))
-        )
-        w2["closed_db"] = is_weekend_closed(w2.get("id", ""))
-        w2["public"] = is_pronos_public(w2.get("id", ""))
-        weekends.append(w2)
+    years = sorted(set([get_season_year()] + [weekend_season(w) for w in all_weekends]))
+    season_weekends = [w for w in all_weekends if weekend_season(w) == season_year]
+
+    # Le Race Center est la priorité ; les prochaines épreuves viennent APRÈS,
+    # sans répéter le GP déjà mis en avant.
+    active_gp = race_center(season_weekends)
+
+    def player_has_prono(weekend_id):
+        if not name:
+            return False
+        saved = get_latest_pronos_by_player_for_weekend(weekend_id)
+        return normalize_pseudo(name) in {
+            normalize_pseudo(pseudo) for pseudo in saved
+        }
+
+    if active_gp:
+        active_gp["closed"] = is_weekend_closed(active_gp["id"])
+        active_gp["public"] = is_pronos_public(active_gp["id"])
+        active_gp["played"] = player_has_prono(active_gp["id"])
+
+    upcoming = home_upcoming_weekends(
+        season_weekends,
+        exclude_id=active_gp["id"] if active_gp else None,
+        limit=3
+    )
+    upcoming_cards = []
+    for weekend in upcoming:
+        item = dict(weekend)
+        item["closed"] = is_weekend_closed(item["id"])
+        item["played"] = player_has_prono(item["id"])
+        upcoming_cards.append(item)
 
     return render_template(
         "index.html",
         name=name,
-        weekends=weekends,
-        race_center=race_center(weekends),
+        upcoming=upcoming_cards,
+        race_center=active_gp,
         season_year=season_year,
-        years=years,
-        admin_enabled=admin_enabled(),
-        is_admin=is_admin()
+        years=years
     )
 
 
