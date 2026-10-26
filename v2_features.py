@@ -237,7 +237,7 @@ def register_v2(app, api):
             action=request.form.get("action") or ""
             rider=(request.form.get("rider") or "").strip()
             if action == "add":
-                if len(rider)>100 or not re.fullmatch(r"#[0-9]{1,3} [^\\s].{1,90}", rider):
+                if len(rider)>100 or not re.fullmatch(r"#[0-9]{1,3} [A-Za-zÀ-ÿ].{1,90}", rider):
                     flash("Format requis : #49 Fabio Di Giannantonio")
                     return redirect(url_for("admin_riders", season=year))
                 with engine.begin() as conn:
