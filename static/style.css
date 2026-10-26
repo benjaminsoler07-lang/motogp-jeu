@@ -1478,3 +1478,16 @@ details.card[open] summary::after{
   .v2-race-metric strong{font-size:1.7rem}
   .v2-home .v2-race-links{gap:9px 15px}
 }
+
+
+/* Import API MotoGP : comparatif lisible desktop/mobile, aucune action automatique */
+.v2-sync-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.v2-sync-comparison>div{display:flex;flex-direction:column;gap:10px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.06);padding:15px}
+.v2-sync-comparison small{color:#d2e0ed;font-size:.82rem}
+.v2-sync-comparison strong{color:var(--accent);font-variant-numeric:tabular-nums;font-size:1.12rem}
+.v2-sync-sessions{display:grid;gap:5px;margin-bottom:16px}
+.v2-sync-sessions>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;background:rgba(255,255,255,.07);border-radius:9px;font-variant-numeric:tabular-nums}
+.v2-sync-sessions>div span{color:#d1e6f5;font-size:.86rem}
+.v2-sync-deadline-settings{margin-top:13px;padding:15px;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.15)}
+.v2-sync-deadline-settings input[type=checkbox]{flex:0 0 auto}
+@media(max-width:540px){.v2-sync-comparison{grid-template-columns:1fr}.v2-sync-sessions>div{align-items:start;flex-direction:column;gap:3px}}

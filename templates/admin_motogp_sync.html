@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Import MotoGP — {{ w.label }}{% endblock %}
+{% block content %}
+{% include "_admin_nav.html" %}
+<div class="card" style="text-align:left;max-width:850px">
+  <h2>🔄 Synchroniser les séances MotoGP</h2>
+  <p><strong>GP PronoGP :</strong> {{ w.label }} — <code>{{ w.id }}</code> · Saison {{ year }}</p>
+  <p>Source : <strong>API MotoGP Pulselive</strong> (interface publique non garantie). Les horaires sont convertis en <strong>heure de Paris</strong>.</p>
+  <p class="notice"><strong>Contrôle administrateur :</strong> aucune date, séance ou clôture n'est modifiée sans ta validation. Il n'y a aucune synchronisation automatique en arrière-plan.</p>
+  <p><a class="btn btn-small" href="{{ url_for('admin_schedule', weekend_id=w.id) }}">✏️ Saisie manuelle / clôture</a></p>
+</div>
+
+<div class="card" style="text-align:left;max-width:850px;margin-top:16px">
+  <h3>1. Choisir le GP sur le calendrier MotoGP</h3>
+  {% if api_error %}
+  <p class="notice">⚠️ {{ api_error }}</p>
+  <p>L'API est indisponible ou a changé. Tes horaires existants sont inchangés ; la saisie manuelle reste disponible.</p>
+  {% else %}
+  <form method="post" action="{{ url_for('admin_sync_motogp',weekend_id=w.id) }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="action" value="preview">
+    <label for="external_id">Grand Prix officiel à associer à « {{ w.label }} »</label>
+    <select name="external_id" id="external_id" required>
+      <option value="">— Sélectionner l'épreuve officielle —</option>
+      {% for event in events %}
+      <option value="{{ event.external_id }}"
+              {% if preview and preview.event.external_id == event.external_id %}selected{% endif %}>
+        {{ event.date }} · {{ event.name }}
+      </option>
+      {% endfor %}
+    </select>
+    <p style="font-size:.87rem;opacity:.85">Vérifie le GP choisi : l'application ne rapproche pas automatiquement des noms qui peuvent être sponsorisés ou traduits.</p>
+    <button type="submit" class="btn">🔎 Prévisualiser les horaires</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if preview %}
+<div class="card" style="text-align:left;max-width:850px;margin-top:16px">
+  <h3>2. Comparer les informations</h3>
+  <p>Épreuve officielle sélectionnée : <strong>{{ preview.event.name }}</strong></p>
+  <div class="v2-sync-comparison">
+    <div>
+      <small>Date actuellement dans PronoGP</small>
+      <strong>{{ w.date or "Non renseignée" }}</strong>
+    </div>
+    <div>
+      <small>Date proposée par l'API (course MotoGP)</small>
+      <strong>{{ preview.event.date }}</strong>
+    </div>
+  </div>
+  <p><strong>Clôture actuelle :</strong> {{ deadline or "Manuelle / non renseignée" }} (Paris)</p>
+  <h4>Programme proposé — MotoGP uniquement</h4>
+  <div class="v2-sync-sessions">
+  {% for sess in preview.event.sessions %}
+    <div><strong>{{ sess.label }}</strong><span>{{ to_paris(sess.utc) | replace('T',' à ') }} · Paris</span></div>
+  {% endfor %}
+  </div>
+  {% if preview.event.sessions|length < 5 %}
+    <p class="notice">⚠️ L'API ne fournit que {{ preview.event.sessions|length }} séance(s) reconnue(s). Contrôle ce programme avant de l'appliquer.</p>
+  {% endif %}
+</div>
+
+<div class="card" style="text-align:left;max-width:850px;margin-top:16px">
+  <h3>3. Choisir ce que tu veux importer</h3>
+  <form method="post" action="{{ url_for('admin_sync_motogp',weekend_id=w.id) }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="action" value="apply">
+    <label style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" name="apply_date" value="1" style="width:auto">
+      <strong>Remplacer la date du GP par {{ preview.event.date }}</strong>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" name="apply_sessions" value="1" checked style="width:auto">
+      <strong>Importer les {{ preview.event.sessions|length }} séances MotoGP affichées</strong>
+    </label>
+    <p style="font-size:.84rem;opacity:.9">Les horaires existants de ce GP seront remplacés uniquement si tu laisses cette case cochée.</p>
+
+    <hr style="opacity:.25;margin:22px 0">
+    <h4>🔐 Heure de clôture des pronostics</h4>
+    <p><strong>Par défaut, on conserve la clôture actuelle.</strong> L'API n'a pas le droit de la changer automatiquement.</p>
+    <label for="deadline_mode">Gestion de la clôture</label>
+    <select name="deadline_mode" id="deadline_mode">
+      <option value="keep" selected>Conserver l'heure actuelle / la clôture manuelle</option>
+      <option value="session">Définir la clôture d'après une séance importée</option>
+    </select>
+    <div class="v2-sync-deadline-settings">
+      <label for="session_index">Séance de référence (MotoGP)</label>
+      <select name="session_index" id="session_index">
+        {% for sess in preview.event.sessions %}
+        <option value="{{ loop.index0 }}" {% if sess.label == 'Q1' %}selected{% endif %}>
+          {{ sess.label }} · {{ to_paris(sess.utc) | replace('T',' à ') }}
+        </option>
+        {% endfor %}
+      </select>
+      <label for="minutes_before">Fermer combien de minutes avant cette séance ?</label>
+      <select name="minutes_before" id="minutes_before">
+        <option value="0" selected>À l'heure de la séance</option>
+        <option value="15">15 minutes avant</option>
+        <option value="30">30 minutes avant</option>
+        <option value="60">1 heure avant</option>
+        <option value="120">2 heures avant</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" name="confirm_deadline" value="1" style="width:auto">
+        <strong>Je confirme expressément le changement de clôture.</strong>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" name="confirm_past" value="1" style="width:auto">
+        J'accepte que cette séance passée provoque une clôture immédiate.
+      </label>
+    </div>
+
+    <p class="notice">Si l'heure de clôture est déjà dépassée, l'import ne permet pas de rouvrir les pronostics. La publication automatique reste réglée séparément dans la page Horaires / clôture.</p>
+    <button type="submit" class="btn" onclick="return confirm('Appliquer UNIQUEMENT les modifications cochées à ce GP ?')">
+      💾 Confirmer et enregistrer les éléments choisis
+    </button>
+  </form>
+</div>
+{% endif %}
+<p><a class="btn btn-small" href="{{ url_for('admin_schedule', weekend_id=w.id) }}">← Retour aux horaires de {{ w.label }}</a></p>
+{% endblock %}

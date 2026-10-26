@@ -8,7 +8,7 @@ import re
 import secrets
 import hmac
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 from flask import request, session, flash, redirect, url_for, render_template, abort, Response, send_file
@@ -349,14 +349,16 @@ def register_v2(app, api):
                         raise ValueError("Horaire de séance obligatoire.")
                     sessions.append({"label": label, "utc": when.isoformat()})
                 sessions.sort(key=lambda row: row["utc"])
-                data = api["load_weekends_data"]()
-                for row in data["weekends"]:
-                    if row.get("id") == weekend_id:
-                        row["deadline_utc"] = deadline.isoformat() if deadline else ""
-                        row["sessions"] = sessions
-                        row["auto_publish"] = bool(request.form.get("auto_publish"))
-                        break
-                api["save_weekends_data"](data)
+                # Modification MANUELLE explicite : l'admin peut corriger
+                # une heure erronée, même si l'ancienne clôture est passée.
+                # L'import API garde, lui, une protection renforcée.
+                ok, message = api["update_weekend_config_fields"](weekend_id, {
+                    "deadline_utc": deadline.isoformat() if deadline else "",
+                    "sessions": sessions,
+                    "auto_publish": bool(request.form.get("auto_publish"))
+                })
+                if not ok:
+                    raise ValueError(message)
             except ValueError as exc:
                 flash("Horaires invalides : " + str(exc))
                 return redirect(url_for("admin_schedule", weekend_id=weekend_id))
@@ -369,6 +371,135 @@ def register_v2(app, api):
         return render_template("admin_schedule.html", w=weekend,
                                csrf=csrf_value(), deadline=paris_input(weekend.get("deadline_utc")),
                                sessions_text=sessions_lines, name=api["current_player"](request)[0])
+
+
+    @app.route("/admin/w/<weekend_id>/sync_motogp", methods=["GET", "POST"])
+    def admin_sync_motogp(weekend_id):
+        """Import volontaire : l'API ne peut modifier ni fermer un GP seule."""
+        from motogp_schedule import fetch_motogp_events, MotoGPAPIError
+        admin_only()
+        weekend = api["get_weekend"](weekend_id)
+        if not weekend:
+            abort(404)
+        year = int(api["weekend_season"](weekend))
+        if api["is_season_archived"](year):
+            abort(403)
+
+        preview = session.get("motogp_sync_preview")
+        if not isinstance(preview, dict) or preview.get("weekend_id") != weekend_id:
+            preview = None
+        else:
+            # Une proposition ne peut être confirmée que pendant 20 min.
+            age = datetime.now(UTC).timestamp() - float(preview.get("at") or 0)
+            if age < 0 or age > 1200:
+                session.pop("motogp_sync_preview", None)
+                preview = None
+
+        if request.method == "POST":
+            check_csrf()
+            action = request.form.get("action")
+            if action == "preview":
+                selected = str(request.form.get("external_id") or "").strip()
+                try:
+                    events = fetch_motogp_events(year)
+                    chosen = next((item for item in events
+                                   if item["external_id"] == selected), None)
+                    if chosen is None:
+                        raise ValueError("Sélectionne un Grand Prix de la liste.")
+                    preview = {
+                        "weekend_id": weekend_id,
+                        "event": chosen,
+                        "revision": api["weekend_config_revision"](weekend),
+                        "at": datetime.now(UTC).timestamp(),
+                    }
+                    session["motogp_sync_preview"] = preview
+                    flash("Aperçu préparé. Rien n'a encore été enregistré.")
+                except (MotoGPAPIError, ValueError) as error:
+                    flash(str(error))
+                return redirect(url_for("admin_sync_motogp", weekend_id=weekend_id))
+
+            if action == "apply":
+                if preview is None:
+                    flash("L'aperçu a expiré. Charge-le de nouveau.")
+                    return redirect(url_for("admin_sync_motogp", weekend_id=weekend_id))
+                proposed = preview["event"]
+                changes = {}
+                try:
+                    if str(request.form.get("apply_date") or "") == "1":
+                        day = datetime.fromisoformat(proposed["date"]).date()
+                        if day.year != year:
+                            raise ValueError("Date importée hors de la saison du GP.")
+                        changes["date"] = day.isoformat()
+                    if str(request.form.get("apply_sessions") or "") == "1":
+                        if not proposed.get("sessions"):
+                            raise ValueError("Aucune séance exploitable dans l'API.")
+                        changes["sessions"] = proposed["sessions"]
+
+                    mode = request.form.get("deadline_mode") or "keep"
+                    if mode == "session":
+                        if request.form.get("confirm_deadline") != "1":
+                            raise ValueError(
+                                "Coche la confirmation explicite de la nouvelle clôture."
+                            )
+                        try:
+                            choice = int(request.form.get("session_index") or "-1")
+                            offset = int(request.form.get("minutes_before") or "0")
+                        except ValueError as error:
+                            raise ValueError("Heure de clôture invalide.") from error
+                        if not 0 <= choice < len(proposed["sessions"]) or not 0 <= offset <= 120:
+                            raise ValueError("Séance ou avance de clôture invalide.")
+                        selected_session = proposed["sessions"][choice]
+                        when = datetime.fromisoformat(selected_session["utc"])
+                        new_deadline = when - timedelta(minutes=offset)
+                        old_deadline = deadline_from_weekend(weekend)
+                        now = datetime.now(UTC)
+                        if api["is_weekend_closed"](weekend_id):
+                            raise ValueError(
+                                "Le GP est déjà clôturé : aucune nouvelle heure de "
+                                "clôture ne peut être appliquée par import."
+                            )
+                        if new_deadline <= now and request.form.get("confirm_past") != "1":
+                            raise ValueError(
+                                "Cette heure est déjà passée et fermerait les pronostics. "
+                                "Confirme explicitement une clôture passée."
+                            )
+                        if old_deadline and old_deadline <= now and new_deadline > now:
+                            raise ValueError(
+                                "Refus de rouvrir une clôture passée via l'API."
+                            )
+                        changes["deadline_utc"] = new_deadline.isoformat()
+                    elif mode != "keep":
+                        raise ValueError("Mode de clôture inconnu.")
+
+                    if not changes:
+                        raise ValueError("Coche au moins une donnée à importer.")
+                    ok, message = api["update_weekend_config_fields"](
+                        weekend_id, changes, expected_revision=preview["revision"]
+                    )
+                    if not ok:
+                        raise ValueError(message)
+                    session.pop("motogp_sync_preview", None)
+                    flash("Import validé : " + ", ".join(changes) +
+                          ". Clôture et publication manuelles conservées sauf choix explicite.")
+                    return redirect(url_for("admin_schedule", weekend_id=weekend_id))
+                except (ValueError, KeyError, IndexError) as error:
+                    flash("Aucun changement appliqué : " + str(error))
+                    return redirect(url_for("admin_sync_motogp", weekend_id=weekend_id))
+            abort(400)
+
+        events = []
+        api_error = ""
+        try:
+            events = fetch_motogp_events(year)
+        except MotoGPAPIError as exc:
+            api_error = str(exc)
+        return render_template(
+            "admin_motogp_sync.html",
+            w=weekend, year=year, events=events, preview=preview,
+            api_error=api_error, csrf=csrf_value(),
+            deadline=paris_input(weekend.get("deadline_utc")),
+            name=api["current_player"](request)[0], to_paris=paris_input
+        )
 
     @app.route("/avatar/<int:participant_id>")
     def player_avatar(participant_id):

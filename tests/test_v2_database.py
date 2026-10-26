@@ -94,6 +94,129 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertLessEqual(html.count('class="v2-home-upcoming-card"'), 3)
         self.assertEqual(self.client.get("/results_by_race").status_code, 200)
 
+    def test_admin_schedule_saves_only_one_gp_and_api_import_requires_confirmation(self):
+        import json
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        from unittest.mock import patch
+        from app import get_weekend, weekend_config_revision
+        from motogp_schedule import MotoGPAPIError
+
+        wid = "test-motogp-sync-ci"
+        other_id = "test-motogp-other-ci"
+        initial = {
+            "id": wid, "label": "GP de Malaisie", "date": "2026-11-30",
+            "season_year": 2026, "sessions": [], "deadline_utc": "",
+            "auto_publish": False, "cancelled": False,
+        }
+        another = {
+            "id": other_id, "label": "GP non concerné", "date": "2026-12-01",
+            "season_year": 2026, "sessions": [], "deadline_utc": "",
+        }
+        with engine.begin() as connection:
+            for item in (initial, another):
+                connection.execute(text("""
+                    INSERT INTO weekends (weekend_id,config_json,updated_at)
+                    VALUES (:id,CAST(:json AS jsonb),NOW())
+                    ON CONFLICT (weekend_id)
+                    DO UPDATE SET config_json=EXCLUDED.config_json,updated_at=NOW()
+                """), {"id":item["id"],"json":json.dumps(item)})
+
+        admin = app.test_client()
+        with admin.session_transaction() as st:
+            st["is_admin"] = True
+        self.assertEqual(admin.get(f"/admin/w/{wid}/schedule").status_code, 200)
+        with admin.session_transaction() as st:
+            csrf = st["v2_csrf"]
+
+        tomorrow = datetime.now(ZoneInfo("Europe/Paris")) + timedelta(days=20)
+        manual_deadline = tomorrow.strftime("%Y-%m-%dT10:30")
+        with patch("app.save_json", side_effect=OSError("Render read-only filesystem")):
+            response = admin.post(f"/admin/w/{wid}/schedule", data={
+                "csrf": csrf, "deadline": manual_deadline,
+                "sessions": "Q1|" + manual_deadline, "auto_publish": "1"
+            })
+        self.assertEqual(response.status_code, 302)
+        saved = get_weekend(wid)
+        self.assertEqual(len(saved["sessions"]), 1)
+        self.assertEqual(saved["sessions"][0]["label"], "Q1")
+        self.assertTrue(saved["auto_publish"])
+        self.assertEqual(get_weekend(other_id)["date"], "2026-12-01")
+        saved_deadline = saved["deadline_utc"]
+
+        from motogp_schedule import normalise_event
+        candidate = normalise_event({
+            "id": "api-malaysia-test", "name": "Malaysian Grand Prix",
+            "kind": "GP", "season": {"year": 2026},
+            "broadcasts": [
+                {"shortname": "Q1", "type": "SESSION",
+                 "category": {"name": "MotoGP", "acronym": "MGP"},
+                 "date_start": "2026-10-31T10:50:00+0800"},
+                {"shortname": "RAC", "type": "SESSION",
+                 "category": {"name": "MotoGP", "acronym": "MGP"},
+                 "date_start": "2026-11-01T15:00:00+0800"},
+            ]
+        },2026)
+        self.assertEqual(candidate["date"], "2026-11-01")
+        endpoint = f"/admin/w/{wid}/sync_motogp"
+
+        visitor = app.test_client()
+        self.assertEqual(visitor.get(endpoint).status_code, 302)
+        self.assertEqual(admin.post(endpoint,data={
+            "action":"preview","external_id":candidate["external_id"]
+        }).status_code,403)
+
+        with patch("motogp_schedule.fetch_motogp_events",return_value=[candidate]):
+            self.assertEqual(admin.get(endpoint).status_code,200)
+            preview_resp = admin.post(endpoint,data={
+                "csrf":csrf,"action":"preview","external_id":candidate["external_id"]
+            })
+        self.assertEqual(preview_resp.status_code,302)
+        with admin.session_transaction() as st:
+            self.assertEqual(st["motogp_sync_preview"]["event"]["date"],"2026-11-01")
+        self.assertEqual(get_weekend(wid)["date"],"2026-11-30")  # preview read-only
+        with patch("motogp_schedule.fetch_motogp_events",return_value=[candidate]):
+            overview = admin.get(endpoint)
+        self.assertEqual(overview.status_code,200)
+        overview_text = overview.get_data(as_text=True)
+        self.assertIn("Comparer les informations",overview_text)
+        self.assertIn("Q1",overview_text)
+        self.assertIn("Conserver l'heure actuelle",overview_text)
+
+        response=admin.post(endpoint,data={
+            "csrf":csrf,"action":"apply", "apply_date":"1",
+            "apply_sessions":"1","deadline_mode":"keep"
+        })
+        self.assertEqual(response.status_code,302)
+        updated=get_weekend(wid)
+        self.assertEqual(updated["date"],"2026-11-01")
+        self.assertEqual(len(updated["sessions"]),2)
+        self.assertEqual(updated["deadline_utc"],saved_deadline)
+        self.assertEqual(updated["auto_publish"],True)
+        self.assertEqual(get_weekend(other_id)["date"],"2026-12-01")
+
+        # L'API en panne ne bloque pas la saisie manuelle et n'écrase rien.
+        with patch("motogp_schedule.fetch_motogp_events",
+                   side_effect=MotoGPAPIError("HTTP 503")):
+            offline=admin.get(endpoint)
+        self.assertEqual(offline.status_code,200)
+        self.assertIn("HTTP 503",offline.get_data(as_text=True))
+        self.assertEqual(get_weekend(wid)["date"],"2026-11-01")
+
+        # Une modification entre aperçu et validation invalide la confirmation.
+        with patch("motogp_schedule.fetch_motogp_events",return_value=[candidate]):
+            self.assertEqual(admin.post(endpoint,data={
+                "csrf":csrf,"action":"preview","external_id":candidate["external_id"]
+            }).status_code,302)
+        from app import update_weekend_config_fields
+        ok, _=update_weekend_config_fields(wid,{"label":"GP malaisien modifié"})
+        self.assertTrue(ok)
+        blocked=admin.post(endpoint,data={
+            "csrf":csrf,"action":"apply","apply_date":"1","deadline_mode":"keep"
+        })
+        self.assertEqual(blocked.status_code,302)
+        self.assertEqual(get_weekend(wid)["label"],"GP malaisien modifié")
+
     def test_unified_profile_and_legacy_dashboard_redirect(self):
         from urllib.parse import urlsplit, parse_qs
 
