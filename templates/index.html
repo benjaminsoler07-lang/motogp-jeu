@@ -1,42 +1,80 @@
 {% extends "base.html" %}
 {% block title %}Accueil — PronoGP{% endblock %}
 {% block content %}
-<div class="v2-intro">
-  <span>MOTOGP · PRONOSTICS ENTRE AMIS</span>
-  <h1>Une saison. Des Grands Prix. Ton podium.</h1>
-  <p>Les plus belles courses, tes pronostics et les points de la saison {{ season_year }}.</p>
-  {% if name %}<p>👋 Salut <strong>{{ name }}</strong></p>
-    <a href="{{ url_for('profile',season=season_year) }}" class="btn">👤 Mon profil</a>
+<div class="v2-home">
+
+  <div class="v2-home-heading">
+    <div>
+      <span class="v2-home-kicker">🏁 PRONOGP · MOTOGP</span>
+      <h1>Le prochain Grand Prix</h1>
+      {% if name %}<p>Bonjour <strong>{{ name }}</strong> ! Ton prochain pronostic est juste en dessous.</p>{% endif %}
+    </div>
+    <nav class="v2-season-picker v2-home-season-picker" aria-label="Choisir une saison">
+      {% for year in years %}
+        <a href="{{ url_for('home', season=year) }}"
+           class="v2-season-link{% if year == season_year %} is-current{% endif %}"
+           {% if year == season_year %}aria-current="page"{% endif %}>{{ year }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  {% if race_center %}
+    {% with rc=race_center %}{% include "_race_center.html" %}{% endwith %}
   {% else %}
-    <p>Connecte-toi pour pronostiquer et consulter ton espace personnel.</p>
-    <a href="{{ url_for('login') }}" class="btn">🔑 Se connecter</a>
+    <section class="v2-racecenter v2-racecenter-empty">
+      <span class="v2-eyebrow">🏁 RACE CENTER · SAISON {{ season_year }}</span>
+      <h2>Aucun Grand Prix en cours</h2>
+      <p>Les prochaines séances apparaîtront ici dès qu'un GP sera programmé.</p>
+      <a class="v2-race-main-action" href="{{ url_for('results_by_race') }}">Consulter les résultats passés</a>
+    </section>
   {% endif %}
-</div>
-{% if race_center %}{% with rc=race_center %}{% include "_race_center.html" %}{% endwith %}{% endif %}
-<section class="card">
-  <nav class="v2-season-picker" aria-label="Choix de la saison">
-  {% for year in years %}<a class="btn btn-small" href="{{ url_for('home', season=year) }}" {% if year == season_year %}aria-current="page"{% endif %}>{{ year }}</a>{% endfor %}
+
+  <nav class="v2-home-shortcuts" aria-label="Accès rapides">
+    <a href="{{ url_for('classement_general', season=season_year) }}">
+      <span aria-hidden="true">🏆</span><span>Classement général</span><span aria-hidden="true">›</span>
+    </a>
+    <a href="{{ url_for('championnat', season=season_year) }}">
+      <span aria-hidden="true">🏍️</span><span>Prono championnat</span><span aria-hidden="true">›</span>
+    </a>
+    <a href="{{ url_for('results_by_race') }}">
+      <span aria-hidden="true">📊</span><span>Résultats par GP</span><span aria-hidden="true">›</span>
+    </a>
   </nav>
-  <h2>🏆 Saison {{ season_year }}</h2>
-  <p>Retrouve tes pronostics du championnat et les Grands Prix programmés.</p>
-  {% if name %}<a class="btn btn-small" href="{{ url_for('championnat',season=season_year) }}">🏆 Prono championnat du monde</a>{% endif %}
-  <a class="btn btn-small" href="{{ url_for('classement_general',season=season_year) }}">Classement général</a>
-</section>
-<h2>🗓️ Calendrier MotoGP</h2>
-<div class="v2-event-grid">
-{% for w in weekends %}
-  <article class="v2-event">
-    <div><strong>{{ w.label }}</strong><small>{{ w.date or 'Date à confirmer' }}</small></div>
-    <span class="v2-pill">{% if w.status == 'cancelled' %}Annulé
-      {% elif w.closed_db %}🔒 Clôturé
-      {% elif w.status == 'past' %}🏁 Passé
-      {% elif w.status == 'open' %}🟢 Ouvert
-      {% else %}À venir{% endif %}</span>
-    {% if w.status != 'cancelled' %}
-      {% if name %}<a href="{{ url_for('pronos', weekend_id=w.id) }}">Pronostic →</a>{% endif %}
-      <a href="{{ url_for('results_by_race', gp=w.id) }}">Résultats →</a>
-    {% endif %}
-  </article>
-{% endfor %}
+
+  {% if upcoming %}
+  <section class="v2-home-upcoming" aria-labelledby="v2-home-upcoming-title">
+    <div class="v2-home-section-title">
+      <div>
+        <span class="v2-home-kicker">À VENIR</span>
+        <h2 id="v2-home-upcoming-title">🗓️ Prochains GP</h2>
+      </div>
+      <span class="v2-home-small-note">Les GP passés sont dans « Résultats par GP ».</span>
+    </div>
+    <div class="v2-home-upcoming-list">
+      {% for w in upcoming %}
+      <article class="v2-home-upcoming-card">
+        <div class="v2-home-upcoming-info">
+          <strong>{{ w.label }}</strong>
+          <span>{% if w.date_obj %}{{ w.date_obj.strftime('%d/%m/%Y') }}{% else %}Date à confirmer{% endif %}</span>
+        </div>
+        <div class="v2-home-upcoming-actions">
+          <span class="v2-home-status{% if w.closed %} is-closed{% elif w.played %} is-saved{% endif %}">
+            {% if w.closed %}Clôturé
+            {% elif w.played %}Prono enregistré
+            {% else %}À pronostiquer{% endif %}
+          </span>
+          {% if w.closed %}
+            <a href="{{ url_for('results_by_race', gp=w.id) }}">Voir les résultats</a>
+          {% else %}
+            <a href="{{ url_for('pronos', weekend_id=w.id) }}">
+              {{ 'Modifier mon prono' if w.played else 'Faire mon prono' }}
+            </a>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}
