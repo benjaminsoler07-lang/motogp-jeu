@@ -159,7 +159,15 @@ def register_v2(app, api):
                             INSERT INTO seasons(year, archived) VALUES (:y, FALSE)
                             ON CONFLICT (year) DO NOTHING
                         """), {"y": year})
-                    flash("Saison créée.")
+                        # Nouveau championnat : liste de départ modifiable, sans effet sur 2026.
+                        if year != 2026:
+                            conn.execute(text("""
+                                INSERT INTO season_riders(season_year, rider, active)
+                                SELECT :y, rider, active FROM season_riders
+                                WHERE season_year=2026
+                                ON CONFLICT(season_year,rider) DO NOTHING
+                            """), {"y": year})
+                    flash("Saison créée (liste de pilotes copiée, à vérifier).")
                 elif action == "archive":
                     with engine.begin() as conn:
                         conn.execute(text("UPDATE seasons SET archived=:a WHERE year=:y"),
@@ -202,6 +210,62 @@ def register_v2(app, api):
             counts[y] = counts.get(y,0)+1
         return render_template("admin_seasons.html", name=api["current_player"](request)[0],
                                seasons=rows, counts=counts, csrf=csrf_value())
+
+    @app.route("/admin/riders", methods=["GET", "POST"])
+    def admin_riders():
+        admin_only()
+        if not engine:
+            abort(503)
+        api["ensure_db_bootstrap"]()
+        try:
+            year = int(request.values.get("season") or api["get_season_year"]())
+            if year < 2026 or year > 2100:
+                abort(400)
+        except ValueError:
+            abort(400)
+        with engine.connect() as conn:
+            season=conn.execute(text("SELECT archived FROM seasons WHERE year=:year"),
+                                {"year":year}).fetchone()
+        if not season:
+            flash("Saison inconnue : crée-la d'abord.")
+            return redirect(url_for("admin_seasons"))
+        if request.method == "POST":
+            check_csrf()
+            if season[0]:
+                flash("Saison archivée : pilotes non modifiables.")
+                return redirect(url_for("admin_riders", season=year))
+            action=request.form.get("action") or ""
+            rider=(request.form.get("rider") or "").strip()
+            if action == "add":
+                if len(rider)>100 or not re.fullmatch(r"#[0-9]{1,3} [^\\s].{1,90}", rider):
+                    flash("Format requis : #49 Fabio Di Giannantonio")
+                    return redirect(url_for("admin_riders", season=year))
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        INSERT INTO season_riders(season_year,rider,active)
+                        VALUES (:year,:rider,TRUE)
+                        ON CONFLICT(season_year,rider) DO UPDATE SET active=TRUE
+                    """),{"year":year,"rider":rider})
+                flash("Pilote ajouté / réactivé.")
+            elif action == "toggle":
+                with engine.begin() as conn:
+                    changed=conn.execute(text("""
+                        UPDATE season_riders SET active=NOT active
+                        WHERE season_year=:year AND rider=:rider
+                    """),{"year":year,"rider":rider}).rowcount
+                flash("Présence du pilote mise à jour." if changed else "Pilote introuvable.")
+            else:
+                abort(400)
+            return redirect(url_for("admin_riders", season=year))
+        with engine.connect() as conn:
+            rows=conn.execute(text("""
+                SELECT rider, active FROM season_riders
+                WHERE season_year=:year ORDER BY rider
+            """),{"year":year}).mappings().all()
+            seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
+        return render_template("admin_riders.html",name=api["current_player"](request)[0],
+                               year=year,seasons=seasons,rows=rows,archived=bool(season[0]),
+                               csrf=csrf_value())
 
     @app.route("/admin/w/<weekend_id>/schedule", methods=["GET", "POST"])
     def admin_schedule(weekend_id):
