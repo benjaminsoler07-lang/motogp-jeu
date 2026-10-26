@@ -119,6 +119,30 @@ class DatabaseV2Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_paris_local("2026-03-29T02:30")
 
+    def test_season_teams_are_isolated(self):
+        from app import get_teams_for_season, OFFICIAL_TEAMS
+        with self.client.session_transaction() as st:
+            st["is_admin"] = True
+        self.client.post("/admin/seasons", data={
+            "csrf":self.csrf,"action":"add","year":"2046"
+        })
+        self.assertIn(OFFICIAL_TEAMS[0], get_teams_for_season(2046, kind="official"))
+        r=self.client.post("/admin/teams",data={
+            "csrf":self.csrf,"season":"2046","action":"add",
+            "team":"Integration Racing MotoGP","kind":"satellite"
+        })
+        self.assertEqual(r.status_code,302)
+        self.assertIn("Integration Racing MotoGP",get_teams_for_season(2046,kind="satellite"))
+        self.assertNotIn("Integration Racing MotoGP",get_teams_for_season(2026))
+        r=self.client.post("/admin/teams",data={
+            "csrf":self.csrf,"season":"2046","action":"toggle",
+            "team":"Integration Racing MotoGP"
+        })
+        self.assertEqual(r.status_code,302)
+        self.assertNotIn("Integration Racing MotoGP",get_teams_for_season(2046))
+        self.assertIn("Integration Racing MotoGP",
+                      get_teams_for_season(2046,active_only=False))
+
     def test_season_riders_are_isolated(self):
         from app import get_riders_for_season, RIDERS
         with self.client.session_transaction() as st:
