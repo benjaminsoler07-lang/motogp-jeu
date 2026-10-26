@@ -2044,6 +2044,7 @@ def home():
             cancelled=bool(w2.get("cancelled", False))
         )
         w2["closed_db"] = is_weekend_closed(w2.get("id", ""))
+        w2["public"] = is_pronos_public(w2.get("id", ""))
         weekends.append(w2)
 
     return render_template(
@@ -3401,6 +3402,7 @@ register_v2(app, {
     "load_bonus_reviews": load_bonus_reviews,
     "compute_points_breakdown": compute_points_breakdown,
     "is_weekend_closed": is_weekend_closed,
+    "is_pronos_public": is_pronos_public,
     "is_season_archived": is_season_archived,
     "weekend_season": weekend_season,
     "selected_season_year": selected_season_year,
