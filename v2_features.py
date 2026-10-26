@@ -164,13 +164,13 @@ def register_v2(app, api):
                             conn.execute(text("""
                                 INSERT INTO season_riders(season_year, rider, active)
                                 SELECT :y, rider, active FROM season_riders
-                                WHERE season_year=2026
+                                WHERE season_year=2026 AND removed=FALSE
                                 ON CONFLICT(season_year,rider) DO NOTHING
                             """), {"y": year})
                             conn.execute(text("""
                                 INSERT INTO season_teams(season_year,team,kind,active)
                                 SELECT :y,team,kind,active FROM season_teams
-                                WHERE season_year=2026
+                                WHERE season_year=2026 AND removed=FALSE
                                 ON CONFLICT(season_year,team) DO NOTHING
                             """), {"y": year})
                     flash("Saison créée (liste de pilotes copiée, à vérifier).")
@@ -250,14 +250,15 @@ def register_v2(app, api):
                     conn.execute(text("""
                         INSERT INTO season_riders(season_year,rider,active)
                         VALUES (:year,:rider,TRUE)
-                        ON CONFLICT(season_year,rider) DO UPDATE SET active=TRUE
+                        ON CONFLICT(season_year,rider)
+                        DO UPDATE SET active=TRUE,removed=FALSE
                     """),{"year":year,"rider":rider})
                 flash("Pilote ajouté / réactivé.")
             elif action == "toggle":
                 with engine.begin() as conn:
                     changed=conn.execute(text("""
                         UPDATE season_riders SET active=NOT active
-                        WHERE season_year=:year AND rider=:rider
+                        WHERE season_year=:year AND rider=:rider AND removed=FALSE
                     """),{"year":year,"rider":rider}).rowcount
                 flash("Visibilité du pilote mise à jour." if changed else "Pilote introuvable.")
             elif action == "remove":
@@ -265,8 +266,8 @@ def register_v2(app, api):
                 # déjà enregistrés / historiques ne sont jamais supprimés.
                 with engine.begin() as conn:
                     changed = conn.execute(text("""
-                        DELETE FROM season_riders
-                        WHERE season_year=:year AND rider=:rider
+                        UPDATE season_riders SET removed=TRUE, active=FALSE
+                        WHERE season_year=:year AND rider=:rider AND removed=FALSE
                     """), {"year":year,"rider":rider}).rowcount
                 flash("Pilote retiré de cette saison (historique conservé)." if changed
                       else "Pilote introuvable.")
@@ -276,7 +277,7 @@ def register_v2(app, api):
         with engine.connect() as conn:
             rows=conn.execute(text("""
                 SELECT rider, active FROM season_riders
-                WHERE season_year=:year ORDER BY rider
+                WHERE season_year=:year AND removed=FALSE ORDER BY rider
             """),{"year":year}).mappings().all()
             seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
         return render_template("admin_riders.html",name=api["current_player"](request)[0],
@@ -312,22 +313,22 @@ def register_v2(app, api):
                         INSERT INTO season_teams(season_year,team,kind,active)
                         VALUES (:year,:team,:kind,TRUE)
                         ON CONFLICT(season_year,team)
-                        DO UPDATE SET active=TRUE,kind=EXCLUDED.kind
+                        DO UPDATE SET active=TRUE,kind=EXCLUDED.kind,removed=FALSE
                     """),{"year":year,"team":team,"kind":kind})
                 flash("Équipe ajoutée / réactivée.")
             elif action=="toggle":
                 with engine.begin() as conn:
                     changed=conn.execute(text("""
                         UPDATE season_teams SET active=NOT active
-                        WHERE season_year=:year AND team=:team
+                        WHERE season_year=:year AND team=:team AND removed=FALSE
                     """),{"year":year,"team":team}).rowcount
                 flash("Visibilité de l'écurie mise à jour." if changed else "Écurie introuvable.")
             elif action=="remove":
                 # Pas de suppression de pronostics ou de résultats historiques.
                 with engine.begin() as conn:
                     changed=conn.execute(text("""
-                        DELETE FROM season_teams
-                        WHERE season_year=:year AND team=:team
+                        UPDATE season_teams SET removed=TRUE, active=FALSE
+                        WHERE season_year=:year AND team=:team AND removed=FALSE
                     """),{"year":year,"team":team}).rowcount
                 flash("Écurie retirée de cette saison (historique conservé)." if changed
                       else "Écurie introuvable.")
@@ -336,7 +337,8 @@ def register_v2(app, api):
             return redirect(url_for("admin_teams",season=year))
         with engine.connect() as conn:
             rows=conn.execute(text("""
-                SELECT team,kind,active FROM season_teams WHERE season_year=:year ORDER BY kind,team
+                SELECT team,kind,active FROM season_teams
+                WHERE season_year=:year AND removed=FALSE ORDER BY kind,team
             """),{"year":year}).mappings().all()
             seasons=conn.execute(text("SELECT year FROM seasons ORDER BY year DESC")).scalars().all()
         return render_template("admin_teams.html",name=api["current_player"](request)[0],
