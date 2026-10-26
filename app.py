@@ -2902,7 +2902,11 @@ def admin_results(weekend_id):
         for b in w.get("bonus_questions", []):
             bid = b["id"]
             answer = f.get(f"bonus_{bid}")
-            ok, err = validate_bonus_answer_for_question(b, answer)
+            official_question = dict(b)
+            if official_question.get("type") == "rider":
+                official_question["resolved_options"] = get_riders_for_season(
+                    weekend_season(w), active_only=False)
+            ok, err = validate_bonus_answer_for_question(official_question, answer)
             if not ok:
                 flash(f"Bonne réponse bonus invalide : {err}")
                 return redirect(url_for("admin_results", weekend_id=weekend_id))
