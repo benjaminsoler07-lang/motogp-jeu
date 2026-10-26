@@ -527,6 +527,171 @@ class DatabaseV2Tests(unittest.TestCase):
             "pseudo":"BadCsrf","secret":"password-long"
         }).status_code,403)
 
+    def test_delegated_admin_checkbox_grant_revoke_and_access(self):
+        from app import is_root_admin, get_participant_by_input
+        from urllib.parse import urlsplit
+
+        ok, message = add_participant("DelegatedAdminCI", "secure-admin-123")
+        self.assertTrue(ok, message)
+        account = get_participant_by_input("DelegatedAdminCI")
+        self.assertFalse(account["is_admin"])
+        pid = account["id"]
+
+        delegated = app.test_client()
+        login = delegated.post("/login", data={
+            "name": "DelegatedAdminCI", "secret": "secure-admin-123"
+        })
+        self.assertEqual(login.status_code, 302)
+        self.assertEqual(urlsplit(delegated.get("/admin").headers["Location"]).path,
+                         "/admin/login")
+        self.assertEqual(delegated.get("/admin/riders").status_code, 403)
+
+        primary = app.test_client()
+        with primary.session_transaction() as state:
+            state["is_admin"] = True
+        directory = primary.get("/admin/participants")
+        self.assertEqual(directory.status_code, 200)
+        html = directory.get_data(as_text=True)
+        self.assertIn("Accorder les droits admin à ce joueur", html)
+        self.assertIn("admin_role", html)
+        with primary.session_transaction() as state:
+            csrf = state["v2_csrf"]
+
+        endpoint = f"/admin/participants/{pid}/admin_role"
+        self.assertEqual(primary.post(endpoint, data={"grant_admin": "1"}).status_code, 403)
+        self.assertEqual(delegated.post(endpoint, data={
+            "grant_admin": "1", "csrf": csrf
+        }).status_code, 302)  # before permission, redirected to admin/login
+        self.assertFalse(get_participant_by_input("DelegatedAdminCI")["is_admin"])
+
+        promoted = primary.post(endpoint, data={"csrf": csrf, "grant_admin": "1"})
+        self.assertEqual(promoted.status_code, 302)
+        self.assertTrue(get_participant_by_input("DelegatedAdminCI")["is_admin"])
+        self.assertEqual(delegated.get("/admin").status_code, 200)
+        self.assertEqual(delegated.get("/admin/riders").status_code, 200)
+        self.assertEqual(delegated.get("/admin/teams").status_code, 200)
+        self.assertEqual(delegated.get("/admin/participants").status_code, 200)
+        rendered = delegated.get("/").get_data(as_text=True)
+        self.assertIn("Dashboard admin", rendered)
+        self.assertNotIn("Connexion Admin", rendered)
+
+        delegated_directory = delegated.get("/admin/participants").get_data(as_text=True)
+        self.assertNotIn("Accorder les droits admin à ce joueur", delegated_directory)
+        with delegated.session_transaction() as state:
+            delegated_csrf = state["v2_csrf"]
+        forbidden = delegated.post(endpoint, data={
+            "csrf": delegated_csrf
+        })
+        self.assertEqual(forbidden.status_code, 403)
+        self.assertTrue(get_participant_by_input("DelegatedAdminCI")["is_admin"])
+
+        # La révocation est immédiate, même si le joueur reste connecté au jeu.
+        removed = primary.post(endpoint, data={"csrf": csrf})
+        self.assertEqual(removed.status_code, 302)
+        self.assertFalse(get_participant_by_input("DelegatedAdminCI")["is_admin"])
+        self.assertEqual(delegated.get("/admin/riders").status_code, 403)
+        self.assertEqual(urlsplit(delegated.get("/admin").headers["Location"]).path,
+                         "/admin/login")
+        self.assertEqual(delegated.get("/profile").status_code, 200)
+
+        # Un utilisateur désactivé ne peut pas obtenir de privilèges délégués.
+        primary.post(f"/admin/participants/{pid}/toggle", data={"csrf": csrf})
+        refused = primary.post(endpoint, data={"csrf": csrf, "grant_admin": "1"})
+        self.assertEqual(refused.status_code, 302)
+        self.assertFalse(get_participant_by_input("DelegatedAdminCI",
+                        active_only=False)["is_admin"])
+
+    def test_rider_and_team_hide_reactivate_and_remove_preserve_history(self):
+        from app import get_riders_for_season, get_teams_for_season
+        year = 2026
+        rider = "#991 Integration Rider Test"
+        team = "Integration Factory Squad CI"
+        admin = app.test_client()
+        with admin.session_transaction() as state:
+            state["is_admin"] = True
+        self.assertEqual(admin.get(f"/admin/riders?season={year}").status_code, 200)
+        with admin.session_transaction() as state:
+            csrf = state["v2_csrf"]
+
+        cases = (
+            ("riders", "rider", rider, get_riders_for_season),
+            ("teams", "team", team, get_teams_for_season),
+        )
+        with engine.connect() as conn:
+            historical_before = conn.execute(
+                text("SELECT COUNT(*) FROM pronos_history")
+            ).scalar()
+
+        for category, field, value, getter in cases:
+            uri = f"/admin/{category}?season={year}"
+            base = {"csrf": csrf, "season": str(year), field: value}
+            if category == "teams":
+                base["kind"] = "official"
+            with self.subTest(category=category):
+                # Les non-admin ne peuvent pas modifier le catalogue.
+                self.assertEqual(self.client.post(uri, data={
+                    **base, "action": "remove"
+                }).status_code, 403)
+
+                self.assertEqual(admin.post(uri, data={
+                    **base, "action": "add"
+                }).status_code, 302)
+                self.assertIn(value, getter(year))
+
+                self.assertEqual(admin.post(uri, data={
+                    **base, "action": "toggle"
+                }).status_code, 302)
+                self.assertNotIn(value, getter(year))
+
+                page = admin.get(uri)
+                self.assertEqual(page.status_code, 200)
+                html = page.get_data(as_text=True)
+                self.assertIn("cliquer pour afficher", html)
+                self.assertIn(value, html)
+                self.assertIn("Réactiver", html)
+                self.assertIn("Retirer", html)
+
+                self.assertEqual(admin.post(uri, data={
+                    **base, "action": "toggle"
+                }).status_code, 302)
+                self.assertIn(value, getter(year))
+
+                self.assertEqual(admin.post(uri, data={
+                    **base, "action": "remove"
+                }).status_code, 302)
+                self.assertNotIn(value, getter(year))
+
+                # Retrait persistant mais NON destructif : la ligne catalogue
+                # garde removed=TRUE, les pronos/historiques ne bougent pas.
+                ensure_db_bootstrap()  # la réinjection des pilotes par défaut ne réactive rien
+                self.assertNotIn(value, getter(year))
+                with engine.connect() as connection:
+                    history_count = connection.execute(text(
+                        "SELECT COUNT(*) FROM pronos_history"
+                    )).scalar()
+                    if category == "riders":
+                        entry = connection.execute(text("""
+                            SELECT active, removed FROM season_riders
+                            WHERE season_year=:year AND rider=:name
+                        """), {"year":year,"name":value}).one()
+                    else:
+                        entry = connection.execute(text("""
+                            SELECT active, removed FROM season_teams
+                            WHERE season_year=:year AND team=:name
+                        """), {"year":year,"name":value}).one()
+                self.assertEqual(history_count,historical_before)
+                self.assertEqual(tuple(entry),(False,True))
+
+                # Réajouter une entrée retirée la remet explicitement dans les choix.
+                self.assertEqual(admin.post(uri,data={
+                    **base,"action":"add"
+                }).status_code,302)
+                self.assertIn(value,getter(year))
+                self.assertEqual(admin.post(uri,data={
+                    **base,"action":"remove"
+                }).status_code,302)
+                self.assertNotIn(value,getter(year))
+
     def test_photo_persists_in_database(self):
         picture=Image.new("RGB",(100,100),"blue")
         buffer=io.BytesIO()

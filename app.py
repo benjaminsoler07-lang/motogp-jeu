@@ -132,14 +132,30 @@ def admin_enabled():
     return bool(ADMIN_USER and ADMIN_PASS)
 
 
-def is_admin():
+def is_root_admin():
+    """Session principale préexistante (cookie Flask signé par le serveur)."""
     return session.get("is_admin") is True
+
+
+def is_admin():
+    """Droits délégués : revérification en base à chaque requête."""
+    if is_root_admin():
+        return True
+    if not engine:
+        return False
+    participant = get_current_participant(request)
+    return bool(participant and participant.get("is_admin") and participant.get("active"))
+
+
+@app.context_processor
+def inject_admin_access():
+    return {"viewer_is_admin": is_admin(), "viewer_is_root_admin": is_root_admin()}
 
 
 def require_admin(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if not admin_enabled():
+        if not admin_enabled() and not is_admin():
             return "Admin non configuré (ADMIN_USER/ADMIN_PASS manquants).", 500
         if not is_admin():
             return redirect(url_for("admin_login"))
@@ -496,7 +512,8 @@ def get_riders_for_season(year: int, *, active_only: bool = True) -> list:
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT rider FROM season_riders
-            WHERE season_year=:year AND (:active_only=FALSE OR active=TRUE)
+            WHERE season_year=:year AND removed=FALSE
+              AND (:active_only=FALSE OR active=TRUE)
             ORDER BY rider
         """), {"year": int(year), "active_only": bool(active_only)}).fetchall()
     return [r[0] for r in rows]
@@ -513,6 +530,7 @@ def get_teams_for_season(year: int, *, kind: str = None, active_only: bool = Tru
         rows=conn.execute(text("""
             SELECT team FROM season_teams WHERE season_year=:year
         """ + where_kind + """
+            AND removed=FALSE
             AND (:active_only=FALSE OR active=TRUE) ORDER BY team
         """), {"year":int(year),"kind":kind,"active_only":bool(active_only)}).fetchall()
     return [r[0] for r in rows]
@@ -612,6 +630,10 @@ def db_init():
         conn.execute(text("""
             ALTER TABLE participants
             ADD COLUMN IF NOT EXISTS secret_hash TEXT NULL;
+        """))
+        conn.execute(text("""
+            ALTER TABLE participants
+            ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
         """))
 
         conn.execute(text("""
@@ -729,6 +751,10 @@ def db_init():
             PRIMARY KEY (season_year, rider)
         );
         """))
+        conn.execute(text("""
+            ALTER TABLE season_riders
+            ADD COLUMN IF NOT EXISTS removed BOOLEAN NOT NULL DEFAULT FALSE;
+        """))
         for rider in RIDERS:
             conn.execute(text("""
                 INSERT INTO season_riders (season_year, rider, active)
@@ -744,6 +770,10 @@ def db_init():
             active BOOLEAN NOT NULL DEFAULT TRUE,
             PRIMARY KEY (season_year, team)
         );
+        """))
+        conn.execute(text("""
+            ALTER TABLE season_teams
+            ADD COLUMN IF NOT EXISTS removed BOOLEAN NOT NULL DEFAULT FALSE;
         """))
         for team in ALL_TEAMS:
             conn.execute(text("""
@@ -1374,13 +1404,13 @@ def get_all_participants(include_inactive=True):
         with engine.begin() as conn:
             if include_inactive:
                 rows = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at, is_admin
                     FROM participants
                     ORDER BY pseudo ASC
                 """)).fetchall()
             else:
                 rows = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at, is_admin
                     FROM participants
                     WHERE active = TRUE
                     ORDER BY pseudo ASC
@@ -1392,7 +1422,8 @@ def get_all_participants(include_inactive=True):
             "pseudo_normalized": r[2],
             "secret_hash": r[3],
             "active": bool(r[4]),
-            "created_at": str(r[5]) if r[5] else None
+            "created_at": str(r[5]) if r[5] else None,
+            "is_admin": bool(r[6])
         } for r in rows]
 
     items = load_participants_fallback()
@@ -1407,6 +1438,7 @@ def get_all_participants(include_inactive=True):
                 "secret_hash": p.get("secret_hash"),
                 "active": active,
                 "created_at": p.get("created_at"),
+                "is_admin": bool(p.get("is_admin", False)),
             })
     out.sort(key=lambda x: (x.get("pseudo") or "").lower())
     return out
@@ -1426,14 +1458,14 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
         with engine.begin() as conn:
             if active_only:
                 row = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at, is_admin
                     FROM participants
                     WHERE pseudo_normalized=:pn AND active=TRUE
                     LIMIT 1
                 """), {"pn": pseudo_norm}).fetchone()
             else:
                 row = conn.execute(text("""
-                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at
+                    SELECT id, pseudo, pseudo_normalized, secret_hash, active, created_at, is_admin
                     FROM participants
                     WHERE pseudo_normalized=:pn
                     LIMIT 1
@@ -1448,7 +1480,8 @@ def get_participant_by_input(pseudo_input: str, active_only=True):
             "pseudo_normalized": row[2],
             "secret_hash": row[3],
             "active": bool(row[4]),
-            "created_at": str(row[5]) if row[5] else None
+            "created_at": str(row[5]) if row[5] else None,
+            "is_admin": bool(row[6])
         }
 
     for p in get_all_participants(include_inactive=not active_only):
@@ -1524,10 +1557,45 @@ def add_participant(pseudo: str, secret: str):
         "pseudo_normalized": pseudo_norm,
         "secret_hash": secret_hash,
         "active": True,
+        "is_admin": False,
         "created_at": datetime.utcnow().isoformat()
     })
     save_participants_fallback(items)
     return True, "Joueur ajouté."
+
+
+def set_participant_admin_role(participant_id: int, enabled: bool):
+    """La route appelante vérifie les droits admin PRINCIPAUX."""
+    enabled = bool(enabled)
+    if engine:
+        ensure_db_bootstrap()
+        with engine.begin() as conn:
+            row = conn.execute(text("""
+                SELECT pseudo, active, is_admin
+                FROM participants WHERE id=:pid FOR UPDATE
+            """), {"pid": participant_id}).fetchone()
+            if not row:
+                return False, "Joueur introuvable."
+            if enabled and not row[1]:
+                return False, "Réactive d'abord ce joueur avant de lui donner les droits admin."
+            conn.execute(text("""
+                UPDATE participants SET is_admin=:enabled WHERE id=:pid
+            """), {"pid": participant_id, "enabled": enabled})
+        return True, (
+            "Droits administrateur activés pour " if enabled
+            else "Droits administrateur retirés à "
+        ) + str(row[0]) + "."
+
+    items = load_participants_fallback()
+    for p in items:
+        if str(p.get("id")) == str(participant_id):
+            if enabled and not p.get("active", True):
+                return False, "Réactive d'abord ce joueur avant de lui donner les droits admin."
+            p["is_admin"] = enabled
+            save_participants_fallback(items)
+            return True, ("Droits administrateur activés." if enabled
+                          else "Droits administrateur retirés.")
+    return False, "Joueur introuvable."
 
 
 def reset_participant_secret(participant_id: int, new_secret: str):
@@ -2832,6 +2900,9 @@ def admin_login():
     if not admin_enabled():
         return "Admin non configuré (ADMIN_USER/ADMIN_PASS manquants).", 500
 
+    if is_admin():
+        return redirect(url_for("admin_home"))
+
     if request.method == "POST":
         u = (request.form.get("username") or "").strip()
         p = (request.form.get("password") or "").strip()
@@ -2922,8 +2993,24 @@ def admin_participants():
     return render_template(
         "admin_participants.html",
         name=name,
-        participants=participants, csrf=session["v2_csrf"]
+        participants=participants, csrf=session["v2_csrf"],
+        can_manage_admin_roles=is_root_admin()
     )
+
+
+@app.route("/admin/participants/<int:participant_id>/admin_role", methods=["POST"])
+@require_admin
+def admin_participant_role(participant_id):
+    # Seul le compte administrateur principal accorde les délégations.
+    if not is_root_admin():
+        abort(403)
+    check_participant_admin_csrf()
+    requested = request.form.get("grant_admin")
+    if requested not in (None, "1"):
+        abort(400)
+    ok, message = set_participant_admin_role(participant_id, requested == "1")
+    flash(message)
+    return redirect(url_for("admin_participants"))
 
 
 @app.route("/admin/participants/<int:participant_id>/toggle", methods=["POST"])

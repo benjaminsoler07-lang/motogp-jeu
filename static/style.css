@@ -1527,3 +1527,21 @@ details.card[open] summary::after{
 .v2-bulk-final-confirm input{width:auto!important;margin-top:3px;accent-color:var(--accent)}
 .v2-bulk-final-confirm span{font-size:.87rem;line-height:1.45}
 @media(max-width:680px){.v2-bulk-match{grid-template-columns:1fr}.v2-bulk-preview-details{grid-template-columns:1fr;padding-left:0}.v2-bulk-provider,.v2-bulk-note{padding-left:0}.v2-bulk-preview-title{align-items:flex-start;flex-direction:column}}
+
+
+/* Admin — catalogues saison : disponibles, absents et retrait */
+.v2-catalog-card{max-width:900px;margin:18px auto;text-align:left}
+.v2-catalog-card>summary{cursor:pointer;font-size:1rem;line-height:1.5;padding:3px 0}
+.v2-catalog-card[open]>summary{margin-bottom:14px}
+.v2-catalog-table{width:100%;min-width:480px}
+.v2-catalog-actions{display:flex;flex-wrap:wrap;gap:7px}
+.v2-catalog-actions form{margin:0}
+.v2-catalog-actions .btn{white-space:nowrap}
+.v2-catalog-hidden{border-style:dashed}
+/* Admin — rôles délégués : visible uniquement pour l'administrateur principal */
+.v2-admin-role-box{margin:14px 0;padding:13px;border:1px solid rgba(255,214,10,.28);border-radius:11px;background:rgba(255,214,10,.045)}
+.v2-admin-role-box>strong{display:block;margin-bottom:8px}
+.v2-admin-role-label{display:flex!important;align-items:center!important;gap:12px!important;cursor:pointer}
+.v2-admin-role-label input[type=checkbox]{flex:0 0 auto;width:auto!important;margin:0;accent-color:var(--accent);min-width:19px;min-height:19px}
+.v2-admin-role-label span{font-weight:750}
+@media(max-width:600px){.v2-catalog-table{min-width:430px}.v2-catalog-actions{flex-direction:column;align-items:flex-start}}
