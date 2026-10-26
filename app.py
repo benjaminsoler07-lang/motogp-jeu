@@ -217,7 +217,7 @@ def get_bonus_options_for_type(qtype: str, question: dict = None):
     if qtype == "yes_no":
         return ["Oui", "Non"]
     if qtype == "rider":
-        return list(question.get("resolved_options") or RIDERS)
+        return list(question["resolved_options"]) if "resolved_options" in question else list(RIDERS)
     if qtype == "team":
         return list(ALL_TEAMS)
     if qtype == "official_team":
@@ -485,11 +485,7 @@ def get_riders_for_season(year: int, *, active_only: bool = True) -> list:
             WHERE season_year=:year AND (:active_only=FALSE OR active=TRUE)
             ORDER BY rider
         """), {"year": int(year), "active_only": bool(active_only)}).fetchall()
-    if rows:
-        return [r[0] for r in rows]
-    if not active_only:
-        return []
-    return list(RIDERS) if int(year) == 2026 else []
+    return [r[0] for r in rows]
 
 
 def weekend_sort_key(w: dict):
@@ -2939,7 +2935,7 @@ def admin_results(weekend_id):
         "admin_results.html",
         name=name,
         w=w,
-        riders=get_riders_for_season(weekend_season(w)),
+        riders=get_riders_for_season(weekend_season(w), active_only=False),
         all_teams=ALL_TEAMS,
         official_teams=OFFICIAL_TEAMS,
         satellite_teams=SATELLITE_TEAMS,
