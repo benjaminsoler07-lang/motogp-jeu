@@ -2263,7 +2263,7 @@ def championnat():
 
     return render_template(
         "championnat.html",
-        riders=RIDERS,
+        riders=get_riders_for_season(selected_season_year()),
         my=my,
         name=name,
         championnat_state=state,
@@ -2481,7 +2481,7 @@ def pronos(weekend_id):
     return render_template(
         "pronos.html",
         w=w,
-        riders=RIDERS,
+        riders=get_riders_for_season(weekend_season(w)),
         all_teams=ALL_TEAMS,
         official_teams=OFFICIAL_TEAMS,
         satellite_teams=SATELLITE_TEAMS,
@@ -2939,7 +2939,7 @@ def admin_results(weekend_id):
         "admin_results.html",
         name=name,
         w=w,
-        riders=RIDERS,
+        riders=get_riders_for_season(weekend_season(w)),
         all_teams=ALL_TEAMS,
         official_teams=OFFICIAL_TEAMS,
         satellite_teams=SATELLITE_TEAMS,
@@ -3442,6 +3442,7 @@ register_v2(app, {
     "weekend_season": weekend_season,
     "selected_season_year": selected_season_year,
     "get_season_year": get_season_year,
+    "get_riders_for_season": get_riders_for_season,
 })
 
 register_notifications(app, {
