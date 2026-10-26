@@ -349,15 +349,9 @@ def register_v2(app, api):
                         raise ValueError("Horaire de séance obligatoire.")
                     sessions.append({"label": label, "utc": when.isoformat()})
                 sessions.sort(key=lambda row: row["utc"])
-                old_deadline = deadline_from_weekend(weekend)
-                now = datetime.now(UTC)
-                if old_deadline and old_deadline <= now and (
-                    deadline is None or deadline > now
-                ):
-                    raise ValueError(
-                        "Cette clôture est déjà passée. Modifier son heure ne doit "
-                        "pas rouvrir automatiquement des pronostics."
-                    )
+                # Modification MANUELLE explicite : l'admin peut corriger
+                # une heure erronée, même si l'ancienne clôture est passée.
+                # L'import API garde, lui, une protection renforcée.
                 ok, message = api["update_weekend_config_fields"](weekend_id, {
                     "deadline_utc": deadline.isoformat() if deadline else "",
                     "sessions": sessions,
