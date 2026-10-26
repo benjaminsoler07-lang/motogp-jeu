@@ -1,8 +1,7 @@
 {% extends 'base.html' %}
-{% block title %}Pronostics — {{ w.label }}<script defer src="{{ url_for('static',filename='v2-rider-search.js') }}"></script>
-{% endblock %}
+{% block title %}Pronostics — {{ w.label }}{% endblock %}
 {% block content %}
-
+<script defer src="{{ url_for('static', filename='v2-rider-search.js') }}"></script>
   <h2>{{ w.label }}</h2>
   {% if w.deadline_utc %}
   <p class="notice">🔒 Clôture des pronostics : <strong data-countdown="{{ w.deadline_utc }}">Calcul…</strong></p>
@@ -14,7 +13,7 @@
 
     {% if not closed %}
       <p class="admin-tip">
-        💾 Ton pronostic est sauvegardé automatiquement. Tu peux le modifier jusqu’à la clôture des pronos.
+        💾 Enregistre ton pronostic avec le bouton en bas de page. Tu peux le modifier jusqu’à la clôture des pronos.
       </p>
 
       {% if my and my._updated_at %}
@@ -62,7 +61,7 @@
     <div class="card">
       <p>Accès rapide :</p>
       <div class="actions">
-        <a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Voir les pronos publics</a>
+        {% if is_public %}<a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Voir les pronos publics</a>{% endif %}
         <a class="btn" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">🏆 Voir le classement</a>
         <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats par course</a>
       </div>
