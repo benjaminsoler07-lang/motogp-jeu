@@ -85,11 +85,17 @@ class DatabaseV2Tests(unittest.TestCase):
         page = self.client.get("/profile")
         self.assertEqual(page.status_code, 200)
         html = page.get_data(as_text=True)
-        for label in ("Mon profil", "Enregistrer ma photo", "MES POINTS",
-                      "MON CLASSEMENT", "DERNIER RÉSULTAT", "Mes pronostics"):
+        for label in ("Mon profil", "Enregistrer ma photo", "Changer mon mot de passe",
+                      "MES POINTS", "MON CLASSEMENT", "GP CLASSÉS",
+                      "DERNIER RÉSULTAT", "Mon bilan"):
             with self.subTest(section=label):
                 self.assertIn(label, html)
         self.assertNotIn("Mon espace", html)
+        self.assertNotIn("Mes pronostics", html)
+        self.assertNotIn("v2-event-grid", html)
+        self.assertNotIn("Clôture des pronostics", html)
+        self.assertNotIn("v2-season-picker", html)
+        self.assertNotIn("Calendrier MotoGP", html)
 
         old_link = self.client.get("/me")
         self.assertEqual(old_link.status_code, 302)
