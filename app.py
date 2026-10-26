@@ -512,7 +512,8 @@ def get_riders_for_season(year: int, *, active_only: bool = True) -> list:
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT rider FROM season_riders
-            WHERE season_year=:year AND (:active_only=FALSE OR active=TRUE)
+            WHERE season_year=:year AND removed=FALSE
+              AND (:active_only=FALSE OR active=TRUE)
             ORDER BY rider
         """), {"year": int(year), "active_only": bool(active_only)}).fetchall()
     return [r[0] for r in rows]
@@ -529,6 +530,7 @@ def get_teams_for_season(year: int, *, kind: str = None, active_only: bool = Tru
         rows=conn.execute(text("""
             SELECT team FROM season_teams WHERE season_year=:year
         """ + where_kind + """
+            AND removed=FALSE
             AND (:active_only=FALSE OR active=TRUE) ORDER BY team
         """), {"year":int(year),"kind":kind,"active_only":bool(active_only)}).fetchall()
     return [r[0] for r in rows]
@@ -749,6 +751,10 @@ def db_init():
             PRIMARY KEY (season_year, rider)
         );
         """))
+        conn.execute(text("""
+            ALTER TABLE season_riders
+            ADD COLUMN IF NOT EXISTS removed BOOLEAN NOT NULL DEFAULT FALSE;
+        """))
         for rider in RIDERS:
             conn.execute(text("""
                 INSERT INTO season_riders (season_year, rider, active)
@@ -764,6 +770,10 @@ def db_init():
             active BOOLEAN NOT NULL DEFAULT TRUE,
             PRIMARY KEY (season_year, team)
         );
+        """))
+        conn.execute(text("""
+            ALTER TABLE season_teams
+            ADD COLUMN IF NOT EXISTS removed BOOLEAN NOT NULL DEFAULT FALSE;
         """))
         for team in ALL_TEAMS:
             conn.execute(text("""
