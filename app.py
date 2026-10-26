@@ -458,11 +458,25 @@ def weekend_season(w: dict) -> int:
 
 
 def selected_season_year() -> int:
-    try:
-        year = int(request.values.get("season") or get_season_year())
-        return year if 2020 <= year <= 2100 else get_season_year()
-    except (ValueError, TypeError):
-        return get_season_year()
+    """La saison courante évolue sans reclasser les anciens GP de 2026."""
+    chosen = request.values.get("season")
+    if chosen:
+        try:
+            year = int(chosen)
+            return year if 2020 <= year <= 2100 else get_season_year()
+        except (ValueError, TypeError):
+            return get_season_year()
+    legacy_year = get_season_year()
+    if engine:
+        ensure_db_bootstrap()
+        with engine.connect() as conn:
+            current = conn.execute(text("""
+                SELECT MAX(year) FROM seasons
+                WHERE archived=FALSE AND year<=:today
+            """), {"today": date.today().year}).scalar()
+        if current:
+            return max(int(current), legacy_year)
+    return legacy_year
 
 
 def is_season_archived(year: int) -> bool:
