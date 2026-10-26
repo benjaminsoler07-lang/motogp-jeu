@@ -861,6 +861,16 @@ def db_init():
         );
         """))
 
+        # PostgreSQL est accessible exclusivement par le backend Flask.
+        # Les nouvelles tables ne doivent pas être publiées via l'API Supabase.
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.bonus_reviews FROM anon, authenticated"))
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.player_photos FROM anon, authenticated"))
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.push_messages FROM anon, authenticated"))
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.web_push_subscriptions FROM anon, authenticated"))
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.seasons FROM anon, authenticated"))
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.season_riders FROM anon, authenticated"))
+        conn.execute(text("REVOKE ALL PRIVILEGES ON TABLE public.season_teams FROM anon, authenticated"))
+
         conn.execute(text("""
             UPDATE pronos
             SET player_norm = LOWER(BTRIM(player_name))
