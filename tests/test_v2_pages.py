@@ -83,6 +83,85 @@ class V2PagesTests(unittest.TestCase):
             self.assertNotIn("<h2>", html.split("</title>")[0])
             self.assertIn("Mon bilan", html.split("</title>")[1])
 
+    def test_home_selection_excludes_past_cancelled_and_duplicate_gp(self):
+        from datetime import date
+        from app import home_upcoming_weekends
+
+        today = date(2026, 10, 26)
+        fixtures = [
+            {"id":"past", "label":"GP passé", "date_obj":date(2026,10,10)},
+            {"id":"cancelled", "label":"GP annulé", "date_obj":date(2026,11,3),"cancelled":True},
+            {"id":"race", "label":"GP actuel", "date_obj":date(2026,10,30)},
+            {"id":"future1", "label":"GP Portugal", "date_obj":date(2026,11,8)},
+            {"id":"future2", "label":"GP Valence", "date_obj":date(2026,11,15)},
+            {"id":"future3", "label":"GP en décembre", "date_obj":date(2026,12,1)},
+            {"id":"future4", "label":"GP janvier", "date_obj":date(2027,1,12)},
+            {"id":"no_date", "label":"Date inconnue", "date_obj":None},
+        ]
+        selected = home_upcoming_weekends(fixtures,today=today,exclude_id="race",limit=3)
+        self.assertEqual([w["id"] for w in selected],["future1","future2","future3"])
+
+    def test_home_race_first_and_no_past_gp_on_page(self):
+        from datetime import date, timedelta
+        from unittest.mock import patch
+
+        today = date.today()
+        year = today.year
+        make_gp = lambda i, label, delta: {
+            "id":i, "label":label, "date":(today+timedelta(days=delta)).isoformat(),
+            "date_obj":today+timedelta(days=delta), "season_year":year,
+            "cancelled":False, "sessions":[]
+        }
+        fixtures = [
+            make_gp("past","GP passé qui ne doit pas apparaître",-14),
+            make_gp("race","GP principal",7),
+            make_gp("future1","GP suivant 1",14),
+            make_gp("future2","GP suivant 2",21),
+            make_gp("future3","GP suivant 3",28),
+            make_gp("future4","GP suivant 4 caché",35),
+        ]
+        with self.client.session_transaction() as st:
+            st["is_admin"]=True
+        with (patch("app.get_sorted_weekends",return_value=fixtures),
+              patch("app.is_weekend_closed",return_value=False),
+              patch("app.is_pronos_public",return_value=False)):
+            response = self.client.get(f"/?season={year}")
+        self.assertEqual(response.status_code,200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Le prochain Grand Prix",html)
+        self.assertIn("GP principal",html)
+        self.assertEqual(html.count("GP principal"),2) # titre + aria-label
+        for label in ("GP suivant 1","GP suivant 2","GP suivant 3"):
+            self.assertIn(label,html)
+        self.assertNotIn("GP passé qui ne doit pas apparaître",html)
+        self.assertNotIn("GP suivant 4 caché",html)
+        self.assertNotIn("Une saison. Des Grands Prix",html)
+        self.assertNotIn("Calendrier MotoGP",html)
+        self.assertIn("Faire mon pronostic",html)
+        self.assertIn("Clôture des pronostics",html)
+        self.assertIn("Classement général",html)
+        self.assertIn("Prono championnat",html)
+        self.assertIn("Résultats par GP",html)
+
+    def test_race_center_closed_or_open_action_does_not_mislead(self):
+        from flask import render_template
+        with app.test_request_context("/"):
+            rc = {
+                "id":"test","name":"GP Test","closed":True,"public":False,"played":True,
+                "deadline_iso":None,"session_iso":None,"session_label":None
+            }
+            html=render_template("_race_center.html",rc=rc)
+            self.assertIn("Pronostics fermés",html)
+            self.assertNotIn("Faire mon pronostic",html)
+            self.assertIn("Ton pronostic est enregistré",html)
+            rc["public"]=True
+            html=render_template("_race_center.html",rc=rc)
+            self.assertIn("Voir les pronostics publics",html)
+            rc["closed"]=False
+            rc["public"]=False
+            html=render_template("_race_center.html",rc=rc)
+            self.assertIn("Modifier mon pronostic",html)
+
     def test_local_time_paris_in_utc(self):
         utc=parse_paris_local("2026-10-25T11:30")
         self.assertEqual(utc.utcoffset(),timedelta())
