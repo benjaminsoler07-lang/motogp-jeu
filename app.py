@@ -185,8 +185,9 @@ def slugify(value: str) -> str:
 def normalize_text_free(value: str) -> str:
     value = (value or "").strip().lower()
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    value = re.sub(r"\s+", " ", value).strip()
-    return value
+    # Tolère ponctuation, tirets, apostrophes et espaces sans accepter d'autres mots.
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def parse_range_options(raw: str):
