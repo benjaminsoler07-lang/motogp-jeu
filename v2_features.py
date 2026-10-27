@@ -115,13 +115,26 @@ def register_v2(app, api):
     def inject_v2_avatars():
         try:
             players = api["get_all_participants"](include_inactive=True)
-            return {"v2_avatar_ids": {
+            avatar_ids = {
                 api["normalize_pseudo"](p["pseudo"]): p["id"]
                 for p in players if p.get("id") and p.get("pseudo")
-            }}
+            }
+            # Versionner l'URL de chaque photo pour afficher immédiatement les changements,
+            # même quand une ancienne URL d'avatar est encore en cache sur le téléphone.
+            avatar_versions = {}
+            if engine:
+                with engine.connect() as conn:
+                    for participant_id, updated_at in conn.execute(text(
+                        "SELECT participant_id, updated_at FROM player_photos"
+                    )):
+                        avatar_versions[participant_id] = int(
+                            updated_at.timestamp() * 1_000_000
+                        )
+            return {"v2_avatar_ids": avatar_ids,
+                    "v2_avatar_versions": avatar_versions}
         except Exception:
             app.logger.exception("Unable to load V2 avatar identifiers")
-            return {"v2_avatar_ids": {}}
+            return {"v2_avatar_ids": {}, "v2_avatar_versions": {}}
 
     def connected():
         return api["get_current_participant"](request)
@@ -543,7 +556,10 @@ def register_v2(app, api):
                 {"id": participant_id}).fetchone()
         if not row:
             abort(404)
-        response = send_file(io.BytesIO(bytes(row[0])), mimetype="image/jpeg", max_age=3600)
+        response = send_file(io.BytesIO(bytes(row[0])), mimetype="image/jpeg")
+        # Une photo privée peut être remplacée/supprimée à tout moment :
+        # ne pas garder une ancienne version pendant une heure sur les appareils.
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
