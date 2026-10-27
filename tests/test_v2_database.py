@@ -693,17 +693,43 @@ class DatabaseV2Tests(unittest.TestCase):
                 self.assertNotIn(value,getter(year))
 
     def test_photo_persists_in_database(self):
-        picture=Image.new("RGB",(100,100),"blue")
-        buffer=io.BytesIO()
-        picture.save(buffer,format="PNG")
-        buffer.seek(0)
-        r=self.client.post("/profile",data={"csrf":self.csrf,"photo":(buffer,"demo.png")},
-                           content_type="multipart/form-data")
-        self.assertEqual(r.status_code,302)
-        pid=get_participant_by_input("IntegrationTest")["id"]
-        avatar=self.client.get("/avatar/"+str(pid))
-        self.assertEqual(avatar.status_code,200)
-        self.assertEqual(avatar.mimetype,"image/jpeg")
+        import re
+
+        pid = get_participant_by_input("IntegrationTest")["id"]
+
+        def upload(color):
+            image = Image.new("RGB", (100, 100), color)
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            buffer.seek(0)
+            response = self.client.post(
+                "/profile",
+                data={"csrf": self.csrf, "operation": "upload_photo",
+                      "photo": (buffer, "demo.png")},
+                content_type="multipart/form-data"
+            )
+            self.assertEqual(response.status_code, 302)
+
+        def photo_url_version():
+            html = self.client.get("/profile").get_data(as_text=True)
+            match = re.search(rf"/avatar/{pid}\\?v=(\\d+)", html)
+            self.assertIsNotNone(match, "La photo doit avoir une URL versionnée")
+            return match.group(1)
+
+        upload("blue")
+        first_version = photo_url_version()
+        avatar = self.client.get(f"/avatar/{pid}?v={first_version}")
+        self.assertEqual(avatar.status_code, 200)
+        self.assertEqual(avatar.mimetype, "image/jpeg")
+        self.assertIn("no-store", avatar.headers.get("Cache-Control", ""))
+        first_photo = avatar.data
+
+        upload("red")
+        new_version = photo_url_version()
+        self.assertNotEqual(new_version, first_version)
+        updated = self.client.get(f"/avatar/{pid}?v={new_version}")
+        self.assertEqual(updated.status_code, 200)
+        self.assertNotEqual(updated.data, first_photo)
 
     def test_schema_and_notification_delivery_queue(self):
         for name in ("seasons","bonus_reviews","player_photos","push_messages","web_push_subscriptions"):
