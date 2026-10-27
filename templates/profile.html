@@ -1,21 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Mon profil — PronoGP{% endblock %}
+{% block title %}Mon profil — PronoGP<script defer src="{{ url_for('static', filename='profile-photo.js') }}"></script>
+{% endblock %}
 {% block content %}
 <h2>👤 Mon profil</h2>
 
 <div class="card profile-v2">
   <div class="avatar-v2 avatar-lg">
-    <img src="{{ url_for('player_avatar', participant_id=person.id) }}" alt="" onerror="this.style.display='none'">
+    <img src="{{ url_for('player_avatar', participant_id=person.id, v=v2_avatar_versions.get(person.id, 0)) }}" alt="" onerror="this.style.display='none'">
     <span>{{ person.pseudo[:1]|upper }}</span>
   </div>
   <h3>{{ person.pseudo }}</h3>
   <p>Cette photo suivra ton pseudo dans les classements et les saisons.</p>
-  <form method="post" enctype="multipart/form-data">
+  <form id="profile-photo-form" method="post" action="{{ url_for('profile') }}" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input type="hidden" name="operation" value="upload_photo">
-    <label for="photo">Choisir une photo (JPG, PNG ou WebP ; jusqu'à 10 Mo)</label>
-    <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
-    <p><button class="btn" type="submit">📸 Enregistrer ma photo</button></p>
+    <label for="photo">Choisir une photo (JPG, PNG ou WebP ; jusqu'à 10 Mo après préparation)</label>
+    <input id="photo" name="photo" type="file" accept="image/*">
+    <img id="profile-photo-preview" class="profile-photo-preview" alt="Aperçu de la nouvelle photo" hidden>
+    <p id="profile-photo-feedback" class="profile-photo-feedback" role="status" aria-live="polite">Sélectionne une photo, puis appuie sur Enregistrer.</p>
+    <p><button id="profile-photo-save" class="btn" type="submit">📸 Enregistrer ma photo</button></p>
   </form>
   <form method="post">
     <input type="hidden" name="csrf" value="{{ csrf }}">

@@ -1545,3 +1545,12 @@ details.card[open] summary::after{
 .v2-admin-role-label input[type=checkbox]{flex:0 0 auto;width:auto!important;margin:0;accent-color:var(--accent);min-width:19px;min-height:19px}
 .v2-admin-role-label span{font-weight:750}
 @media(max-width:600px){.v2-catalog-table{min-width:430px}.v2-catalog-actions{flex-direction:column;align-items:flex-start}}
+
+/* Profil : aperçu clair et retour immédiat lors de l'envoi depuis un téléphone. */
+.profile-photo-preview{display:block;width:118px;height:118px;object-fit:cover;border-radius:50%;border:2px solid #ffd60a;margin:14px 0 4px}
+.profile-photo-preview[hidden]{display:none}
+.profile-photo-feedback{font-size:.9rem;margin:12px 0;color:inherit}
+.profile-photo-feedback[data-state="error"]{color:#ffab9f}
+.profile-photo-feedback[data-state="success"]{color:#a7f3d0}
+.profile-photo-feedback[data-state="sending"]{opacity:.82}
+#profile-photo-save:disabled{opacity:.65;cursor:progress}

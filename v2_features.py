@@ -115,13 +115,26 @@ def register_v2(app, api):
     def inject_v2_avatars():
         try:
             players = api["get_all_participants"](include_inactive=True)
-            return {"v2_avatar_ids": {
+            avatar_ids = {
                 api["normalize_pseudo"](p["pseudo"]): p["id"]
                 for p in players if p.get("id") and p.get("pseudo")
-            }}
+            }
+            # Versionner l'URL de chaque photo pour afficher immédiatement les changements,
+            # même quand une ancienne URL d'avatar est encore en cache sur le téléphone.
+            avatar_versions = {}
+            if engine:
+                with engine.connect() as conn:
+                    for participant_id, updated_at in conn.execute(text(
+                        "SELECT participant_id, updated_at FROM player_photos"
+                    )):
+                        avatar_versions[participant_id] = int(
+                            updated_at.timestamp() * 1_000_000
+                        )
+            return {"v2_avatar_ids": avatar_ids,
+                    "v2_avatar_versions": avatar_versions}
         except Exception:
             app.logger.exception("Unable to load V2 avatar identifiers")
-            return {"v2_avatar_ids": {}}
+            return {"v2_avatar_ids": {}, "v2_avatar_versions": {}}
 
     def connected():
         return api["get_current_participant"](request)
@@ -543,7 +556,10 @@ def register_v2(app, api):
                 {"id": participant_id}).fetchone()
         if not row:
             abort(404)
-        response = send_file(io.BytesIO(bytes(row[0])), mimetype="image/jpeg", max_age=3600)
+        response = send_file(io.BytesIO(bytes(row[0])), mimetype="image/jpeg")
+        # Une photo privée peut être remplacée/supprimée à tout moment :
+        # ne pas garder une ancienne version pendant une heure sur les appareils.
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response
 
@@ -627,24 +643,31 @@ def register_v2(app, api):
                 flash("Photo supprimée.")
             else:
                 upload = request.files.get("photo")
-                if not upload:
-                    abort(400)
+                if not upload or not upload.filename:
+                    flash("Choisis d'abord une photo avant de l'enregistrer.")
+                    return redirect(url_for("profile"))
                 # Lecture bornée (10 Mo maximum) ; ne pas faire confiance à l'extension du fichier.
                 blob = upload.stream.read(MAX_PHOTO_SIZE + 1)
-                if len(blob) > MAX_PHOTO_SIZE or not blob:
-                    abort(413)
+                if not blob:
+                    flash("Le fichier sélectionné est vide. Choisis une autre photo.")
+                    return redirect(url_for("profile"))
+                if len(blob) > MAX_PHOTO_SIZE:
+                    flash("Photo trop volumineuse : 10 Mo maximum. Réduis-la avant l'envoi.")
+                    return redirect(url_for("profile"))
                 try:
                     image = Image.open(io.BytesIO(blob))
                     image.verify()
                     image = Image.open(io.BytesIO(blob))
                     image = ImageOps.exif_transpose(image)
                     if image.width * image.height > 45_000_000:
-                        abort(413)
+                        flash("Résolution trop élevée. Réduis la photo puis réessaie.")
+                        return redirect(url_for("profile"))
                     image.thumbnail((512, 512), Image.Resampling.LANCZOS)
                     buf = io.BytesIO()
                     image.convert("RGB").save(buf, "JPEG", quality=82, optimize=True)
                 except (UnidentifiedImageError, OSError, ValueError):
-                    abort(400)
+                    flash("Format non pris en charge. Utilise une photo JPG, PNG ou WebP.")
+                    return redirect(url_for("profile"))
                 with engine.begin() as conn:
                     conn.execute(text("""
                         INSERT INTO player_photos (participant_id, photo_data, updated_at)
