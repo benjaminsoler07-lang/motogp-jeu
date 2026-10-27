@@ -504,7 +504,12 @@ class DatabaseV2Tests(unittest.TestCase):
         }).status_code,302)
         self.assertEqual(get_participant_by_input("AdminRecoveryCI")["secret_hash"],old_hash)
 
-        self.assertEqual(admin.post(url, data=request_data).status_code,302)
+        response = admin.post(url, data=request_data)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"#participant-{pid}", response.headers["Location"])
+        feedback_html = admin.get("/admin/participants").get_data(as_text=True)
+        self.assertIn("Mot de passe mis à jour pour AdminRecoveryCI.", feedback_html)
+        self.assertIn('role="status"', feedback_html)
         new_hash = get_participant_by_input("AdminRecoveryCI")["secret_hash"]
         self.assertNotEqual(new_hash,old_hash)
         self.assertTrue(check_password_hash(new_hash,"recovery-secret-456"))
