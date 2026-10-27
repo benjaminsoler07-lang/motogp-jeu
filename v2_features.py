@@ -643,24 +643,31 @@ def register_v2(app, api):
                 flash("Photo supprimée.")
             else:
                 upload = request.files.get("photo")
-                if not upload:
-                    abort(400)
+                if not upload or not upload.filename:
+                    flash("Choisis d'abord une photo avant de l'enregistrer.")
+                    return redirect(url_for("profile"))
                 # Lecture bornée (10 Mo maximum) ; ne pas faire confiance à l'extension du fichier.
                 blob = upload.stream.read(MAX_PHOTO_SIZE + 1)
-                if len(blob) > MAX_PHOTO_SIZE or not blob:
-                    abort(413)
+                if not blob:
+                    flash("Le fichier sélectionné est vide. Choisis une autre photo.")
+                    return redirect(url_for("profile"))
+                if len(blob) > MAX_PHOTO_SIZE:
+                    flash("Photo trop volumineuse : 10 Mo maximum. Réduis-la avant l'envoi.")
+                    return redirect(url_for("profile"))
                 try:
                     image = Image.open(io.BytesIO(blob))
                     image.verify()
                     image = Image.open(io.BytesIO(blob))
                     image = ImageOps.exif_transpose(image)
                     if image.width * image.height > 45_000_000:
-                        abort(413)
+                        flash("Résolution trop élevée. Réduis la photo puis réessaie.")
+                        return redirect(url_for("profile"))
                     image.thumbnail((512, 512), Image.Resampling.LANCZOS)
                     buf = io.BytesIO()
                     image.convert("RGB").save(buf, "JPEG", quality=82, optimize=True)
                 except (UnidentifiedImageError, OSError, ValueError):
-                    abort(400)
+                    flash("Format non pris en charge. Utilise une photo JPG, PNG ou WebP.")
+                    return redirect(url_for("profile"))
                 with engine.begin() as conn:
                     conn.execute(text("""
                         INSERT INTO player_photos (participant_id, photo_data, updated_at)
