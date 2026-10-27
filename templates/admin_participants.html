@@ -71,7 +71,7 @@
   {% if participants %}
     <ul class="gp-list admin-list" style="margin-top: 12px;">
       {% for p in participants %}
-      <li class="gp-item admin-item">
+      <li class="gp-item admin-item" id="participant-{{ p.id }}">
 
         <div class="admin-left">
           <div class="admin-title">
@@ -126,10 +126,15 @@
           </div>
 
           <div style="margin-top: 12px;">
+            {% if reset_notice and reset_notice.participant_id == p.id %}
+              <p role="status" style="padding:12px; border-radius:10px; border:1px solid {{ '#46be86' if reset_notice.ok else '#eb8989' }}; color:{{ '#aaf7cf' if reset_notice.ok else '#ffc0c0' }}; font-weight:800;">
+                {{ '✅' if reset_notice.ok else '⚠️' }} {{ reset_notice.message }}
+              </p>
+            {% endif %}
             <form method="post" action="{{ url_for('admin_reset_participant_secret', participant_id=p.id) }}">
               <input type="hidden" name="csrf" value="{{ csrf }}">
               <label for="secret_{{ p.id }}"><strong>🔐 Réinitialiser le mot de passe</strong></label>
-              <p class="admin-tip">En cas d'oubli, attribue un nouveau mot de passe sans connaître l'ancien. Le joueur devra se reconnecter.</p>
+              <p class="admin-tip">En cas d'oubli, attribue un nouveau mot de passe sans connaître l'ancien. Après validation, le résultat s'affichera ici. Les anciennes sessions du joueur seront déconnectées.</p>
               <input
                 type="password"
                 id="secret_{{ p.id }}"
