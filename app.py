@@ -1609,24 +1609,19 @@ def reset_participant_secret(participant_id: int, new_secret: str):
 
     if engine:
         ensure_db_bootstrap()
+        # Mise à jour atomique : ne jamais annoncer une réussite si aucune ligne
+        # n'a réellement été modifiée (notamment si le joueur a été supprimé).
         with engine.begin() as conn:
             row = conn.execute(text("""
-                SELECT id, pseudo
-                FROM participants
-                WHERE id=:pid
-                LIMIT 1
-            """), {"pid": participant_id}).fetchone()
-
-            if not row:
-                return False, "Joueur introuvable."
-
-            conn.execute(text("""
                 UPDATE participants
                 SET secret_hash=:sh
                 WHERE id=:pid
-            """), {"sh": secret_hash, "pid": participant_id})
+                RETURNING pseudo
+            """), {"sh": secret_hash, "pid": participant_id}).fetchone()
 
-        return True, f"Code secret mis à jour pour {row[1]}."
+        if not row:
+            return False, "Joueur introuvable."
+        return True, f"Mot de passe mis à jour pour {row[0]}."
 
     items = load_participants_fallback()
     found = None
@@ -1640,7 +1635,7 @@ def reset_participant_secret(participant_id: int, new_secret: str):
         return False, "Joueur introuvable."
 
     save_participants_fallback(items)
-    return True, f"Code secret mis à jour pour {found.get('pseudo', '??')}."
+    return True, f"Mot de passe mis à jour pour {found.get('pseudo', '??')}."
 
 
 def change_participant_secret(participant: dict, current_secret: str, new_secret: str):
@@ -2990,11 +2985,13 @@ def admin_participants():
     if not session.get("v2_csrf"):
         session["v2_csrf"] = secrets.token_urlsafe(32)
     name, _ = current_player(request)
+    reset_notice = session.pop("admin_password_reset_notice", None)
     return render_template(
         "admin_participants.html",
         name=name,
         participants=participants, csrf=session["v2_csrf"],
-        can_manage_admin_roles=is_root_admin()
+        can_manage_admin_roles=is_root_admin(),
+        reset_notice=reset_notice
     )
 
 
@@ -3029,11 +3026,23 @@ def admin_reset_participant_secret(participant_id):
     new_secret = request.form.get("new_secret") or ""
     confirmation = request.form.get("new_secret_confirm") or ""
     if new_secret != confirmation:
-        flash("Les deux nouveaux mots de passe ne correspondent pas.")
+        ok, msg = False, "Les deux nouveaux mots de passe ne correspondent pas."
     else:
-        ok, msg = reset_participant_secret(participant_id, new_secret)
-        flash(msg)
-    return redirect(url_for("admin_participants"))
+        try:
+            ok, msg = reset_participant_secret(participant_id, new_secret)
+        except Exception:
+            # Ne jamais journaliser les mots de passe fournis.
+            app.logger.exception("ADMIN_PASSWORD_RESET_ERROR participant_id=%s", participant_id)
+            ok, msg = False, "Réinitialisation impossible. Réessaie ou consulte les journaux du serveur."
+    # Afficher le résultat juste à côté du joueur concerné : sur téléphone,
+    # un simple flash tout en haut de la longue liste passe inaperçu.
+    session["admin_password_reset_notice"] = {
+        "participant_id": participant_id,
+        "ok": bool(ok),
+        "message": msg
+    }
+    flash(msg)
+    return redirect(url_for("admin_participants") + f"#participant-{participant_id}")
 
 
 @app.route("/admin/participants/<int:participant_id>/delete", methods=["POST"])
