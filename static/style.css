@@ -1545,3 +1545,27 @@ details.card[open] summary::after{
 .v2-admin-role-label input[type=checkbox]{flex:0 0 auto;width:auto!important;margin:0;accent-color:var(--accent);min-width:19px;min-height:19px}
 .v2-admin-role-label span{font-weight:750}
 @media(max-width:600px){.v2-catalog-table{min-width:430px}.v2-catalog-actions{flex-direction:column;align-items:flex-start}}
+
+/* Signature PronoGP, uniquement sur la page d'accueil */
+.v2-home-brand{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  max-width:700px;
+  margin:0 auto 20px;
+  overflow:hidden;
+  border-radius:16px;
+  background:#021322;
+  border:1px solid rgba(255,214,10,.18);
+  box-shadow:0 7px 24px rgba(0,0,0,.2);
+}
+.v2-home-brand img{
+  display:block;
+  width:100%;
+  height:auto;
+  object-fit:contain;
+}
+@media(max-width:600px){
+  .v2-home-brand{margin-bottom:16px;border-radius:12px}
+}
