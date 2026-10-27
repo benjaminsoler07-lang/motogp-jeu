@@ -712,7 +712,7 @@ class DatabaseV2Tests(unittest.TestCase):
 
         def photo_url_version():
             html = self.client.get("/profile").get_data(as_text=True)
-            match = re.search(rf"/avatar/{pid}\\?v=(\\d+)", html)
+            match = re.search(rf"/avatar/{pid}\?v=(\d+)", html)
             self.assertIsNotNone(match, "La photo doit avoir une URL versionnée")
             return match.group(1)
 
