@@ -1,19 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Accueil — PronoGP{% endblock %}
+{% block body_class %}is-pronogp-home{% endblock %}
 {% block content %}
 <div class="v2-home">
 
-  <div class="v2-home-brand">
-    <img src="{{ url_for('static', filename='pronogp-signature.webp') }}"
-         alt="PronoGP — MotoGP, jeu de pronostics"
-         width="520" height="173" loading="eager" fetchpriority="high">
-  </div>
-
   <div class="v2-home-heading">
     <div>
-      <span class="v2-home-kicker">🏁 PRONOGP · MOTOGP</span>
       <h1>Le prochain Grand Prix</h1>
-      {% if name %}<p>Bonjour <strong>{{ name }}</strong> ! Ton prochain pronostic est juste en dessous.</p>{% endif %}
     </div>
     <nav class="v2-season-picker v2-home-season-picker" aria-label="Choisir une saison">
       {% for year in years %}

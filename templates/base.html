@@ -11,7 +11,7 @@
     <script defer src="{{ url_for('static',filename='v2-pwa.js') }}"></script>
   </head>
 
-  <body>
+  <body class="{% block body_class %}{% endblock %}">
     <header class="checkerbar">
       <h1 class="header-title">PRONOGP · MOTOGP</h1>
 
