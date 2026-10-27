@@ -5,7 +5,7 @@
 
 <div class="card profile-v2">
   <div class="avatar-v2 avatar-lg">
-    <img src="{{ url_for('player_avatar', participant_id=person.id) }}" alt="" onerror="this.style.display='none'">
+    <img src="{{ url_for('player_avatar', participant_id=person.id, v=v2_avatar_versions.get(person.id, 0)) }}" alt="" onerror="this.style.display='none'">
     <span>{{ person.pseudo[:1]|upper }}</span>
   </div>
   <h3>{{ person.pseudo }}</h3>
