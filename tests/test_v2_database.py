@@ -731,6 +731,34 @@ class DatabaseV2Tests(unittest.TestCase):
         self.assertEqual(updated.status_code, 200)
         self.assertNotEqual(updated.data, first_photo)
 
+    def test_profile_photo_has_feedback_and_rejects_invalid_files_cleanly(self):
+        profile = self.client.get("/profile")
+        self.assertEqual(profile.status_code, 200)
+        page = profile.get_data(as_text=True)
+        self.assertIn('id="profile-photo-form"', page)
+        self.assertIn('id="profile-photo-preview"', page)
+        self.assertIn("profile-photo.js", page)
+
+        response = self.client.post(
+            "/profile",
+            data={"csrf": self.csrf, "operation": "upload_photo",
+                  "photo": (io.BytesIO(b"not an actual image"), "broken.jpg")},
+            content_type="multipart/form-data"
+        )
+        self.assertEqual(response.status_code, 302)
+        message = self.client.get("/profile").get_data(as_text=True)
+        self.assertIn("Format non pris en charge", message)
+
+        response = self.client.post(
+            "/profile",
+            data={"csrf": self.csrf, "operation": "upload_photo",
+                  "photo": (io.BytesIO(b"x" * (10 * 1024 * 1024 + 1)), "large.jpg")},
+            content_type="multipart/form-data"
+        )
+        self.assertEqual(response.status_code, 302)
+        message = self.client.get("/profile").get_data(as_text=True)
+        self.assertIn("10 Mo maximum", message)
+
     def test_schema_and_notification_delivery_queue(self):
         for name in ("seasons","bonus_reviews","player_photos","push_messages","web_push_subscriptions"):
             with engine.connect() as c:
