@@ -1546,34 +1546,34 @@ details.card[open] summary::after{
 .v2-admin-role-label span{font-weight:750}
 @media(max-width:600px){.v2-catalog-table{min-width:430px}.v2-catalog-actions{flex-direction:column;align-items:flex-start}}
 
-/* Signature PronoGP intégrée derrière les boutons du bandeau sur l'accueil.
-   Le filtre bleu maintient le contraste des commandes, sur mobile comme sur PC. */
-body.is-pronogp-home .checkerbar{
+/* Signature PronoGP sur toutes les pages, derrière le menu.
+   L'image reste discrète sous le voile bleu, sans atténuer les boutons jaunes. */
+.checkerbar{
   isolation:isolate;
   background-color:#071f36;
 }
-body.is-pronogp-home .checkerbar::before{
+.checkerbar::before{
   opacity:.035;
 }
-body.is-pronogp-home .checkerbar::after{
+.checkerbar::after{
   content:"";
   position:absolute;
   inset:0;
   z-index:0;
   pointer-events:none;
   background-image:
-    linear-gradient(180deg, rgba(7,28,50,.52),rgba(8,35,59,.40) 48%,rgba(8,35,59,.58)),
+    linear-gradient(180deg, rgba(7,28,50,.66),rgba(8,35,59,.55) 48%,rgba(8,35,59,.70)),
     url("/static/pronogp-signature.webp");
   background-repeat:no-repeat,no-repeat;
   background-position:center,center 55%;
   background-size:cover,min(96vw,760px) auto;
 }
-body.is-pronogp-home .checkerbar > *{
+.checkerbar > *{
   position:relative;
   z-index:1;
 }
 @media(max-width:600px){
-  body.is-pronogp-home .checkerbar::after{
+  .checkerbar::after{
     background-position:center, center 58%;
     background-size:cover,105% auto;
   }
