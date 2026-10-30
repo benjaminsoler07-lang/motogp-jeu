@@ -49,7 +49,7 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 
 BONUS_POINTS_PER_QUESTION = 0.5
 
-DATA_DIR = "data"
+DATA_DIR = os.path.join("/tmp", "pronogp") if os.getenv("VERCEL") else "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
 PARTICIPANTS_FILE = os.path.join(DATA_DIR, "participants.json")
