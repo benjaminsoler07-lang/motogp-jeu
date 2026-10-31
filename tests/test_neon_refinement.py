@@ -34,7 +34,7 @@ class RaceCenterRefinementTests(unittest.TestCase):
             "Q1", "/w/malaisie/pronos", "Faire mon pronostic"
         ):
             self.assertIn(expected, html)
-        self.assertIn("v3-race-track", html)
+        self.assertIn("v3-session-countdowns", html)
         self.assertIn("v3-stage-qualif", html)
         self.assertIn("v3-stage-sprint", html)
         self.assertIn("v3-stage-gp", html)
