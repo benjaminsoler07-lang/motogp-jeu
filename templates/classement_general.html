@@ -147,7 +147,7 @@
               <tbody>
                 {% for event in championship_analysis.recent %}
                   <tr><th scope="row">{{ event.label }}</th>
-                    {% for result in event.values %}
+                    {% for result in event['values'] %}
                       <td>{{ result.pts if result.pts is not none else '—' }}</td>
                     {% endfor %}
                   </tr>
