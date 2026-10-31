@@ -48,6 +48,30 @@ class StatisticsTests(unittest.TestCase):
             self.assertIn(b"Comparatif des", response.data)
             self.assertIn(b"/statistiques", response.data)
 
+    def test_transposed_table_renders_players_as_rows(self):
+        from app import app
+        from flask import render_template, session
+
+        pronos = {
+            "Alex810": {"pole": "#93 Marc Marquez", "gp_p1": "#72 Marco Bezzecchi"},
+            "Benjam": {"pole": "#72 Marco Bezzecchi", "gp_p1": "#93 Marc Marquez"},
+        }
+        comparison = build_comparison(pronos, [])
+        with app.test_request_context("/statistiques"):
+            session["is_admin"] = True
+            html = render_template(
+                "statistics.html", name="", weekends=[{"id": "test", "label": "GP de test"}],
+                seasons=[2026], season_year=2026,
+                selected={"id": "test", "label": "GP de test"},
+                published=True, comparison=comparison,
+            )
+        self.assertIn('scope="col" class="stats-player-head">Joueur</th>', html)
+        self.assertIn('scope="row" class="stats-player-name">Alex810</th>', html)
+        self.assertIn('scope="row" class="stats-player-name">Benjam</th>', html)
+        self.assertIn("Pole position", html)
+        self.assertLess(html.index('class="stats-player-head"'), html.index('class="stats-player-name"'))
+        self.assertIn("#93 Marc Marquez", html)
+
     def test_missing_answers_are_not_consensus(self):
         pronos = {"Alpha": {"pole": "#63"}, "Beta": {"pole": ""}}
         c = build_comparison(pronos, [])
