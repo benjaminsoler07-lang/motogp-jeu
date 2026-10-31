@@ -162,6 +162,51 @@ class V2PagesTests(unittest.TestCase):
             html=render_template("_race_center.html",rc=rc)
             self.assertIn("Modifier mon pronostic",html)
 
+    def test_results_gp_picker_search_navigation_and_season_links(self):
+        from datetime import date
+        from flask import render_template
+
+        weekends = [
+            {"id": "qatar-2026", "label": "GP du Qatar",
+             "season_year": 2026, "date_obj": date(2026, 4, 12), "cancelled": False},
+            {"id": "italie-2026", "label": "GP d'Italie",
+             "season_year": 2026, "date_obj": date(2026, 5, 31), "cancelled": False},
+            {"id": "france-2026", "label": "GP de France",
+             "season_year": 2026, "date_obj": date(2026, 6, 14), "cancelled": False},
+        ]
+        with app.test_request_context("/results_by_race?season=2026"):
+            html = render_template("results_by_race.html", name="Alex",
+                                   weekends=weekends, selected=weekends[1],
+                                   results=None, rows=[], notice=None)
+
+        self.assertIn('id="results-gp-search"', html)
+        self.assertIn('data-gp-label="GP du Qatar"', html)
+        self.assertIn('aria-current="page"', html)
+        self.assertIn("GP précédent", html)
+        self.assertIn("GP suivant", html)
+        self.assertIn("GP du Qatar", html)
+        self.assertIn("GP de France", html)
+        self.assertIn("season=2026", html)
+        self.assertNotIn('name="gp" onchange=', html)
+
+    def test_results_gp_direct_link_keeps_archived_season(self):
+        from datetime import date
+        from unittest.mock import patch
+
+        old = {"id": "italie-2025", "label": "GP Italie 2025",
+               "season_year": 2025, "date_obj": date(2025, 6, 15), "cancelled": True}
+        current = {"id": "france-2026", "label": "GP France 2026",
+                   "season_year": 2026, "date_obj": date(2026, 6, 14), "cancelled": False}
+        with self.client.session_transaction() as state:
+            state["is_admin"] = True
+        with (patch("app.get_weekend", return_value=old),
+              patch("app.get_sorted_weekends", return_value=[old, current])):
+            response = self.client.get("/results_by_race?gp=italie-2025")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('data-gp-label="GP Italie 2025"', html)
+        self.assertNotIn('data-gp-label="GP France 2026"', html)
+
     def test_local_time_paris_in_utc(self):
         utc=parse_paris_local("2026-10-25T11:30")
         self.assertEqual(utc.utcoffset(),timedelta())
