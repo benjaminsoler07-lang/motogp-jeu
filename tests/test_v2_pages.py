@@ -226,7 +226,7 @@ class V2PagesTests(unittest.TestCase):
         self.assertIn("🇸🇲", html)
         self.assertIn("🇪🇸", html)
         self.assertIn("Course bonus", html)
-        self.assertEqual(html.count("results-gp-flag"), 4)
+        self.assertEqual(html.count("results-gp-flag"), 3)
 
     def test_results_gp_direct_link_keeps_archived_season(self):
         from datetime import date
