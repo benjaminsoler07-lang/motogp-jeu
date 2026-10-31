@@ -3,28 +3,104 @@
 
 {% block content %}
   <h2>📊 Résultats par course</h2>
-  <p class="muted">Sélectionne un GP pour voir le détail des points de chaque joueur.</p>
+  <p class="muted">Retrouve rapidement les résultats d'un Grand Prix, sur ordinateur comme sur téléphone.</p>
 
-  <div class="card" style="margin-bottom:16px;">
-    <form method="get" action="{{ url_for('results_by_race') }}">
-      <label>Choisir un Grand Prix :</label>
-      <select name="gp" onchange="this.form.submit()">
-        <option value="">-- Sélectionner --</option>
-        {% for w in weekends %}
-          <option value="{{ w.id }}" {% if selected and selected.id == w.id %}selected{% endif %}>
-            {{ w.label }}
-          </option>
-        {% endfor %}
-      </select>
+  {% set picker_season = request.args.get('season') or (selected.season_year if selected and selected.season_year else none) %}
+  {% set gp_nav = namespace(previous=none, next=none) %}
+  {% for w in weekends %}
+    {% if selected and w.id == selected.id %}
+      {% if not loop.first %}{% set gp_nav.previous = weekends[loop.index0 - 1] %}{% endif %}
+      {% if not loop.last %}{% set gp_nav.next = weekends[loop.index0 + 1] %}{% endif %}
+    {% endif %}
+  {% endfor %}
 
-      <div class="row" style="justify-content:center; margin-top:12px;">
-        <button class="btn btn-small" type="submit">Afficher</button>
-        {% if selected %}
-          <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=selected.id) }}">Voir classement</a>
-        {% endif %}
+  <section class="card results-picker-card" aria-labelledby="results-picker-title">
+    <div class="results-picker-head">
+      <div>
+        <div class="results-picker-kicker">🏁 Navigation des Grands Prix</div>
+        <h3 id="results-picker-title">{{ selected.label if selected else 'Choisir un Grand Prix' }}</h3>
       </div>
-    </form>
-  </div>
+      {% if selected %}
+        <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=selected.id) }}">🏆 Voir le classement</a>
+      {% endif %}
+    </div>
+
+    {% if weekends %}
+      {% if selected %}
+        <nav class="results-gp-nav" aria-label="Parcourir les Grands Prix">
+          {% if gp_nav.previous %}
+            <a class="results-gp-nav-link" href="{{ url_for('results_by_race', gp=gp_nav.previous.id, season=picker_season) }}">
+              <small>← GP précédent</small><strong>{{ gp_nav.previous.label }}</strong>
+            </a>
+          {% else %}
+            <span class="results-gp-nav-link results-gp-nav-disabled"><small>← GP précédent</small><strong>Début de saison</strong></span>
+          {% endif %}
+          {% if gp_nav.next %}
+            <a class="results-gp-nav-link" href="{{ url_for('results_by_race', gp=gp_nav.next.id, season=picker_season) }}">
+              <small>GP suivant →</small><strong>{{ gp_nav.next.label }}</strong>
+            </a>
+          {% else %}
+            <span class="results-gp-nav-link results-gp-nav-disabled"><small>GP suivant →</small><strong>Fin de saison</strong></span>
+          {% endif %}
+        </nav>
+      {% endif %}
+
+      <details class="results-gp-details" {% if not selected %}open{% endif %}>
+        <summary class="results-gp-summary">
+          <span>🔎 {{ 'Changer de Grand Prix' if selected else 'Afficher les Grands Prix' }}</span>
+        </summary>
+        <div class="results-gp-menu">
+          <label class="results-gp-search-label" for="results-gp-search">Rechercher un Grand Prix</label>
+          <input class="results-gp-search" id="results-gp-search" type="search"
+                 placeholder="Ex. France, Italie, Qatar…" autocomplete="off"
+                 aria-controls="results-gp-list" hidden>
+          <div class="results-gp-list" id="results-gp-list">
+            {% for w in weekends|reverse %}
+              <a class="results-gp-option {% if selected and selected.id == w.id %}is-current{% endif %}"
+                 href="{{ url_for('results_by_race', gp=w.id, season=picker_season) }}"
+                 data-gp-label="{{ w.label }}"
+                 {% if selected and selected.id == w.id %}aria-current="page"{% endif %}>
+                <span class="results-gp-option-name">{{ w.label }}</span>
+                <span class="results-gp-option-meta">
+                  {% if w.date_obj %}{{ w.date_obj.strftime('%d/%m/%Y') }}{% endif %}
+                  {% if w.cancelled %}<span class="results-gp-cancelled">Annulé</span>{% endif %}
+                </span>
+              </a>
+            {% endfor %}
+          </div>
+          <p class="results-gp-no-match" id="results-gp-no-match" hidden role="status">Aucun Grand Prix trouvé.</p>
+        </div>
+      </details>
+    {% else %}
+      <p class="muted">Aucun Grand Prix disponible pour cette saison.</p>
+    {% endif %}
+  </section>
+
+  <script>
+    (() => {
+      const field = document.getElementById('results-gp-search');
+      const list = document.getElementById('results-gp-list');
+      const noMatch = document.getElementById('results-gp-no-match');
+      if (!field || !list || !noMatch) return;
+      const links = Array.from(list.querySelectorAll('.results-gp-option'));
+      const normalize = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      field.hidden = false;
+      field.addEventListener('input', () => {
+        const query = normalize(field.value);
+        let visible = 0;
+        links.forEach(link => {
+          const match = normalize(link.dataset.gpLabel || '').includes(query);
+          link.hidden = !match;
+          if (match) visible++;
+        });
+        noMatch.hidden = visible !== 0;
+      });
+      const details = field.closest('details');
+      details.addEventListener('toggle', () => {
+        if (details.open && document.activeElement === details.querySelector('summary')) field.focus();
+      });
+    })();
+  </script>
 
   {% if notice %}
     <p class="notice">{{ notice }}</p>
