@@ -90,10 +90,33 @@
 .stats-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: .8rem; }
 .stats-table th,.stats-table td { padding: 9px 8px; border-bottom: 1px solid rgba(116, 162, 197, .13); text-align: left; vertical-align: middle; }
 .stats-table thead th { background-color: #123557; color: #dcf8ff; font-size: .76rem; font-weight: 800; white-space: nowrap; }
-.stats-table thead th:first-child, .stats-table tbody th { position: sticky; left: 0; z-index: 2; min-width: 150px; max-width: 205px; }
+.stats-table thead th:first-child, .stats-table tbody th { position: sticky; left: 0; z-index: 2; width: 118px; min-width: 118px; max-width: 118px; }
 .stats-table thead th:first-child { z-index: 3; background-color: #123557; }
 .stats-table tbody th { color: #e5f5ff; background-color: #0d2b4b; font-weight: 750; }
-.stats-table td { min-width: 150px; background-color: rgba(7, 27, 52, .7); }
+.stats-table td { min-width: 155px; background-color: rgba(7, 27, 52, .7); }
+.stats-table-transposed .stats-column-heading {
+  min-width: 155px;
+  max-width: 195px;
+  white-space: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+.stats-table-transposed .stats-player-head {
+  color: #eaf8ff;
+  font-size: .74rem;
+  letter-spacing: .01em;
+}
+.stats-table-transposed .stats-player-name {
+  font-size: .78rem;
+  line-height: 1.25;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  box-shadow: 5px 0 9px rgba(0, 0, 0, .15);
+}
+.stats-table-transposed tbody tr:nth-child(even) .stats-player-name {
+  background-color: #123556;
+}
 .stats-choice { display: block; padding: 9px 10px; min-height: 35px; border-radius: 8px; background: rgba(30, 76, 112, .32); border: 1px solid rgba(120, 180, 219, .16); overflow-wrap: anywhere; line-height: 1.28; }
 .stats-choice-consensus { color: #adf6d7; background: rgba(7, 127, 87, .22); border-color: rgba(52, 237, 160, .65); }
 .stats-choice-majority { color: #bff3ff; background: rgba(11, 119, 166, .20); border-color: rgba(36, 201, 239, .55); }
@@ -166,7 +189,16 @@
   .stats-kpi small { font-size: .64rem; }
   .stats-panel { padding: 13px; }
   .stats-votes, .stats-similarities { grid-template-columns: minmax(0,1fr); }
-  .stats-table thead th:first-child,.stats-table tbody th { min-width: 122px; max-width: 145px; }
-  .stats-table td { min-width: 130px; }
+  .stats-table thead th:first-child,.stats-table tbody th {
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
+  }
+  .stats-table-transposed .stats-player-name { font-size: .72rem; padding: 8px 5px; }
+  .stats-table-transposed .stats-player-head { font-size: .69rem; padding: 8px 5px; }
+  .stats-table-transposed .stats-column-heading { min-width: 137px; max-width: 162px; font-size: .73rem; padding: 8px 7px; }
+  .stats-table td { min-width: 137px; }
+  .stats-table td { padding: 7px 6px; }
+  .stats-table .stats-choice { padding: 8px 7px; font-size: .76rem; }
   .stats-page h3 { font-size: 1rem; }
 }
