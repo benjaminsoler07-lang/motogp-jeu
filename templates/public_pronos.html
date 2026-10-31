@@ -2,70 +2,120 @@
 {% block title %}Pronos publics — {{ w.label }}{% endblock %}
 
 {% block content %}
-  <h2>👀 Pronos publics — {{ w.label }}</h2>
+<div class="gp-public-page">
+  <header class="gp-public-heading">
+    <div>
+      <span class="gp-mini-kicker">👀 PRONOGP · COMPARATIF</span>
+      <h2>Pronos publics — {{ w.label }}</h2>
+      <p class="muted">Compare les choix de tous les participants, les tendances et les pronostics audacieux au même endroit.</p>
+    </div>
+    <span class="gp-public-live">🔓 {{ insights.count }} pronostic(s) publiés</span>
+  </header>
 
-  {# Valeurs envoyées par la route. Si pas envoyées, on met false par défaut #}
-  {% set is_closed = closed|default(false) %}
-  {% set is_public = public|default(false) %}
-
-  <div style="margin:10px 0 12px;">
-    {% if is_closed %}
-      <span class="status-closed">🔒 GP fermé</span>
-    {% else %}
-      <span class="status-open">🟢 GP ouvert</span>
-    {% endif %}
-
-    {% if is_closed or is_public %}
-      <span class="status-public" style="margin-left:12px;">👀 Public</span>
-    {% else %}
-      <span class="status-private" style="margin-left:12px;">🙈 Non public</span>
-    {% endif %}
-  </div>
-
-  {% if is_closed or is_public %}
-    <p style="opacity:.9">✅ Les pronos deviennent visibles dès que tu mets le GP en <strong>OFF</strong> (fermé) dans l’admin.</p>
+  {% if not pronos %}
+    <div class="card"><p>Aucun pronostic enregistré pour ce GP.</p></div>
   {% else %}
-    <p style="opacity:.9">Les pronos deviennent visibles dès la clôture (début Q1).</p>
-  {% endif %}
+    <section class="gp-public-section" aria-labelledby="gp-comparison-title">
+      <div class="gp-public-section-heading">
+        <h3 id="gp-comparison-title">🏁 Comparaison des pronostics</h3>
+        <span class="muted">Joueurs en haut · Sélections à gauche</span>
+      </div>
+      <p class="gp-scroll-hint">Sur téléphone, fais glisser le tableau horizontalement pour comparer les joueurs.</p>
+      <div class="gp-comparison-scroll" role="region" aria-label="Tableau comparatif des pronostics" tabindex="0">
+        <table class="gp-comparison-table">
+          <thead>
+            <tr>
+              <th scope="col" class="gp-comparison-label">Pronostic</th>
+              {% for player in insights.players %}
+                <th scope="col" class="gp-comparison-player">
+                  <span class="avatar-v2 avatar-sm"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(player.name|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ player.name[:1]|upper }}</span></span>
+                  <span>{{ player.name }}</span>
+                </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set state = namespace(group='') %}
+            {% for line in insights.matrix %}
+              {% if line.group != state.group %}
+                {% set state.group = line.group %}
+                <tr class="gp-comparison-group"><th scope="rowgroup" colspan="{{ insights.players|length + 1 }}">{{ line.group }}</th></tr>
+              {% endif %}
+              <tr>
+                <th scope="row" class="gp-comparison-label">{{ line.label }}</th>
+                {% for cell in line.cells %}
+                  <td {% if cell.popular %}class="is-popular"{% endif %}>{{ cell.value }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="gp-comparison-legend"><span class="gp-popular-dot"></span> Les cases cyan signalent les choix les plus fréquents (au moins deux joueurs).</p>
+    </section>
 
-  <div class="card">
-    {% if not pronos %}
-      <p>Aucun prono enregistré.</p>
-    {% else %}
-      <ul class="gp-list">
+    <section class="gp-public-section" aria-labelledby="gp-pre-analysis-title">
+      <div class="gp-public-section-heading">
+        <h3 id="gp-pre-analysis-title">🔎 Analyse pré-course</h3>
+        <span class="muted">Basée sur les pronostics publiés, sans tenir compte des résultats</span>
+      </div>
+      {% if insights.distributions %}
+        <div class="gp-vote-grid">
+          {% for distribution in insights.distributions %}
+            <article class="gp-vote-card">
+              <h4>{{ distribution.title }}</h4>
+              <span class="muted">{{ distribution.count }} réponse(s) renseignée(s)</span>
+              {% for vote in distribution.bars %}
+                <div class="gp-vote-line">
+                  <div class="gp-vote-label"><span>{{ vote.name }}</span><strong>{{ vote.votes }} / {{ insights.count }}</strong></div>
+                  <div class="gp-vote-track"><span style="width:{{ vote.percent }}%"></span></div>
+                </div>
+              {% endfor %}
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <div class="gp-analysis-grid">
+        {% for item in insights.comments %}
+          <article class="gp-analysis-item">
+            <div class="gp-analysis-heading"><span aria-hidden="true">{{ item.icon }}</span><strong>{{ item.title }}</strong></div>
+            <p>{{ item.text }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <details class="gp-public-section gp-public-details">
+      <summary>📋 Voir les fiches individuelles et dates d’enregistrement</summary>
+      <div class="gp-public-player-list">
         {% for row in pronos %}
           {% set p = row.p or {} %}
           {% set bonus = p.get('bonus', {}) or {} %}
-
-          <li class="gp-item" style="text-align:left;">
-            <strong>{{ row.player }}</strong>
-            <div style="opacity:.85; font-size:13px;">Dernière mise à jour : {{ row.updated_at }}</div>
-
-            <div style="margin-top:8px; font-size:14px; line-height:1.45;">
-              <div><strong>Pole :</strong> {{ p.get('pole') or "—" }}</div>
-              <div><strong>Q1 :</strong> {{ p.get('q1_1') or "—" }} / {{ p.get('q1_2') or "—" }}</div>
-              <div><strong>Sprint :</strong> {{ p.get('sprint_p1') or "—" }} — {{ p.get('sprint_p2') or "—" }} — {{ p.get('sprint_p3') or "—" }}</div>
-              <div><strong>GP :</strong> {{ p.get('gp_p1') or "—" }} — {{ p.get('gp_p2') or "—" }} — {{ p.get('gp_p3') or "—" }}</div>
-
-              {% if w.bonus_questions and w.bonus_questions|length > 0 %}
-                <div style="margin-top:6px;">
-                  <strong>Bonus :</strong>
-                  <ul style="margin:6px 0 0 18px;">
-                    {% for b in w.bonus_questions %}
-                      <li>{{ b.label }} : <strong>{{ bonus.get(b.id) or "—" }}</strong></li>
-                    {% endfor %}
-                  </ul>
-                </div>
-              {% endif %}
-            </div>
-          </li>
+          <article class="card gp-public-player-card">
+            <h4>{{ row.player }}</h4>
+            <small class="muted">Dernière modification : {{ row.updated_at or 'Non renseignée' }}</small>
+            <p><strong>Pole :</strong> {{ p.get('pole') or '—' }}</p>
+            <p><strong>Q1 :</strong> {{ p.get('q1_1') or '—' }} / {{ p.get('q1_2') or '—' }}</p>
+            <p><strong>Sprint :</strong> {{ p.get('sprint_p1') or '—' }} — {{ p.get('sprint_p2') or '—' }} — {{ p.get('sprint_p3') or '—' }}</p>
+            <p><strong>GP :</strong> {{ p.get('gp_p1') or '—' }} — {{ p.get('gp_p2') or '—' }} — {{ p.get('gp_p3') or '—' }}</p>
+            {% if w.bonus_questions %}
+              <p><strong>Bonus :</strong></p>
+              <ul>
+                {% for b in w.bonus_questions %}
+                  <li>{{ b.label }} : <strong>{{ bonus.get(b.id) or '—' }}</strong></li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </article>
         {% endfor %}
-      </ul>
-    {% endif %}
-  </div>
+      </div>
+    </details>
+  {% endif %}
 
-  <div style="margin-top:16px;">
-    <a class="btn btn-small" href="{{ url_for('home') }}">⬅ Retour accueil</a>
-    <a class="btn btn-small" style="margin-left:8px;" href="{{ url_for('pronos', weekend_id=w.id) }}">📝 Retour GP</a>
-  </div>
+  <nav class="gp-public-actions" aria-label="Retour">
+    <a class="btn btn-small" href="{{ url_for('home') }}">← Accueil</a>
+    <a class="btn btn-small" href="{{ url_for('pronos', weekend_id=w.id) }}">🏍️ Grand Prix</a>
+    <a class="btn btn-small" href="{{ url_for('results_by_race', gp=w.id) }}">🏁 Résultats du GP</a>
+  </nav>
+</div>
 {% endblock %}
