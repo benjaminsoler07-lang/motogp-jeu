@@ -3614,10 +3614,14 @@ def public_pronos(weekend_id):
 def results_by_race():
     name, _ = current_player(request)
 
-    weekends = [w for w in get_sorted_weekends() if weekend_season(w) == selected_season_year()]
     gp_id = (request.args.get("gp") or "").strip()
-
     selected = get_weekend(gp_id) if gp_id else None
+
+    # Un lien direct vers un GP archivé doit afficher le sélecteur de sa saison.
+    season_year = selected_season_year()
+    if selected and not request.args.get("season"):
+        season_year = weekend_season(selected)
+    weekends = [w for w in get_sorted_weekends() if weekend_season(w) == season_year]
 
     if not selected:
         return render_template(
