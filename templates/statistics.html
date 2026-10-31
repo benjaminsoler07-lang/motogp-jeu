@@ -78,7 +78,7 @@
         <div class="stats-panel-heading">
           <div>
             <h3>📊 Comparatif des joueurs</h3>
-            <p>Fais défiler horizontalement pour voir tous les participants.</p>
+            <p>Les joueurs sont à gauche, les pronostics en haut. Fais défiler horizontalement pour comparer les catégories.</p>
           </div>
           <div class="stats-legend">
             <span><i class="stats-dot stats-dot-green"></i> Unanimité</span>
@@ -87,27 +87,29 @@
           </div>
         </div>
         <div class="stats-table-scroll" tabindex="0" aria-label="Tableau comparatif des pronostics, défilement horizontal">
-          <table class="stats-table">
+          <table class="stats-table stats-table-transposed">
             <thead>
               <tr>
-                <th scope="col">Résultat pronostiqué</th>
-                {% for player in c.players %}
-                  <th scope="col">{{ player }}</th>
+                <th scope="col" class="stats-player-head">Joueur</th>
+                {% for field in c.matrix %}
+                  <th scope="col" class="stats-column-heading stats-column-{{ field.category }}">
+                    {% if field.category == 'pole' %}⏱️
+                    {% elif field.category == 'q1' %}🚦
+                    {% elif field.category == 'sprint' %}⚡
+                    {% elif field.category == 'gp' %}🏆
+                    {% else %}🎯{% endif %}
+                    {{ field.label }}
+                  </th>
                 {% endfor %}
               </tr>
             </thead>
             <tbody>
-              {% for row in c.matrix %}
+              {% for player in c.players %}
+                {% set player_index = loop.index0 %}
                 <tr>
-                  <th scope="row">
-                    {% if row.category == 'pole' %}⏱️
-                    {% elif row.category == 'q1' %}🚦
-                    {% elif row.category == 'sprint' %}⚡
-                    {% elif row.category == 'gp' %}🏆
-                    {% else %}🎯{% endif %}
-                    {{ row.label }}
-                  </th>
-                  {% for cell in row.cells %}
+                  <th scope="row" class="stats-player-name">{{ player }}</th>
+                  {% for field in c.matrix %}
+                    {% set cell = field.cells[player_index] %}
                     <td><span class="stats-choice stats-choice-{{ cell.state }}">{{ cell.value }}</span></td>
                   {% endfor %}
                 </tr>
