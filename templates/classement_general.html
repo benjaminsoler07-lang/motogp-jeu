@@ -241,17 +241,10 @@
       </table>
     </div>
 
-    {# ========== LIENS RESULTATS PAR COURSE ========== #}
-    {% if weekends and weekends|length > 0 %}
-      <div style="margin-top:16px;">
-        <div class="muted" style="margin-bottom:10px;">Voir le détail par course :</div>
-        <div class="row" style="justify-content:center;">
-          {% for w in weekends %}
-            <a class="btn btn-small" href="{{ url_for('results_by_race', gp=w.id) }}">📊 {{ w.label }}</a>
-          {% endfor %}
-        </div>
-      </div>
-    {% endif %}
+    {# Accès unique aux classements des GP ; la sélection se fait sur la page dédiée. #}
+    <nav class="row" style="justify-content:center; margin:24px 0 8px;" aria-label="Accéder aux classements par Grand Prix">
+      <a class="btn" href="{{ url_for('results_by_race', season=season_year) }}">🏁 Classement par GP →</a>
+    </nav>
 
   {% endif %}
 {% endblock %}
