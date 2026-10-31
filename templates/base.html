@@ -17,9 +17,8 @@
   <body class="neon-v3 {% block body_class %}{% endblock %}">
     <header class="checkerbar checkerbar-compact">
       <div class="gp-header-top">
-        <a class="gp-header-brand" href="{{ url_for('home') }}" aria-label="Accueil PronoGP">
-          <span class="gp-header-flag" aria-hidden="true">▧</span>
-          <span>PRONO<span class="gp-header-accent">GP</span></span>
+        <a class="gp-header-brand gp-header-brand-art" href="{{ url_for('home') }}" aria-label="Accueil PronoGP">
+          <img class="gp-header-neon-logo" src="{{ url_for('static', filename='pronogp-header-logo.webp') }}" width="420" height="97" alt="PronoGP" decoding="async" fetchpriority="high">
         </a>
         <div class="gp-header-tools">
           {% if name %}
