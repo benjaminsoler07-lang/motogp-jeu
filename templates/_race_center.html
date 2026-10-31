@@ -49,8 +49,7 @@
     {% else %}
       <span>Pronos publics après publication</span>
     {% endif %}
-    <a href="{{ url_for('results_by_race', gp=rc.id) }}">Résultats du GP</a>
-    <a href="{{ url_for('classement_weekend', weekend_id=rc.id) }}">Classement du GP</a>
+    <a href="{{ url_for('results_by_race', gp=rc.id) }}">Résultats et classement du GP</a>
   </div>
 </section>
 <script defer src="{{ url_for('static',filename='v2-countdown.js') }}"></script>
