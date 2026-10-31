@@ -2,6 +2,7 @@
 {% block title %}Accueil — PronoGP{% endblock %}
 {% block body_class %}is-pronogp-home{% endblock %}
 {% block content %}
+{% set personal_summary = personal_summary|default({'points': 0, 'rank': none}) %}
 <div class="v2-home">
 
   <div class="v2-home-heading">
