@@ -39,6 +39,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from v2_features import register_v2, race_center, deadline_from_weekend
 from v2_notifications import register_notifications
 from v2_bulk_import import register_bulk_import
+from v2_statistics import register_statistics
 
 
 app = Flask(__name__)
@@ -3936,6 +3937,16 @@ register_notifications(app, {
     "normalize_pseudo": normalize_pseudo,
     "deadline_from_weekend": deadline_from_weekend,
     "is_weekend_closed": is_weekend_closed,
+})
+
+register_statistics(app, {
+    "get_sorted_weekends": get_sorted_weekends,
+    "weekend_season": weekend_season,
+    "selected_season_year": selected_season_year,
+    "get_weekend": get_weekend,
+    "is_pronos_public": is_pronos_public,
+    "get_latest_pronos_by_player_for_weekend": get_latest_pronos_by_player_for_weekend,
+    "current_player": current_player,
 })
 
 print("APP FLASK DEMARREE", flush=True)
