@@ -117,8 +117,8 @@
   {% endif %}
 
   {% if not cancelled %}
-    <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">
-      📊 Voir classement
+    <a class="btn btn-small" href="{{ url_for('results_by_race', gp=w.id) }}">
+      📊 Résultats et classement
     </a>
   {% else %}
     <span class="btn btn-small btn-disabled">📊 Voir classement</span>
