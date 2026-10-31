@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}Résultats par course — MotoGP{% endblock %}
+{% block title %}Résultats par GP — MotoGP{% endblock %}
 
 {% block content %}
-  <h2>📊 Résultats par course</h2>
+  <h2>📊 Résultats par GP</h2>
   <p class="muted">Retrouve rapidement les résultats d'un Grand Prix, sur ordinateur comme sur téléphone.</p>
 
   {% set picker_season = request.args.get('season') or (selected.season_year if selected and selected.season_year else none) %}
@@ -37,9 +37,6 @@
         <div class="results-picker-kicker">🏁 Navigation des Grands Prix</div>
         <h3 id="results-picker-title">{% if selected %}{{ flag_for(selected) }} {{ selected.label }}{% else %}Choisir un Grand Prix{% endif %}</h3>
       </div>
-      {% if selected %}
-        <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=selected.id) }}">🏆 Voir le classement</a>
-      {% endif %}
     </div>
 
     {% if weekends %}
@@ -172,36 +169,84 @@
       {% endif %}
     </div>
 
-    <h3 style="margin-top:18px;">👥 Détail des points par joueur</h3>
+    <section class="gp-fusion-section" aria-labelledby="gp-podium-title">
+      <h3 id="gp-podium-title">🏆 Podium des joueurs</h3>
+      {% if rows %}
+        <div class="podium-wrap">
+          <div class="podium">
+            {% for rank in [2, 1, 3] %}
+              {% set r = rows[rank - 1] if rows|length >= rank else none %}
+              <div class="podium-card podium-{{ rank }}">
+                {% if r %}
+                  <div class="podium-rank">{{ {1: '🥇', 2: '🥈', 3: '🥉'}[rank] }} {{ rank }}</div>
+                  <div class="podium-name">{{ r.player }}</div>
+                  <div class="podium-points"><strong>{{ r.pts.total }}</strong> pts</div>
+                  <div class="podium-breakdown">
+                    <span>Q : {{ r.pts.qualif.total }}</span>
+                    <span>S : {{ r.pts.sprint.total }}</span>
+                    <span>GP : {{ r.pts.gp.total }}</span>
+                    <span>B : {{ r.pts.bonus.total }}</span>
+                  </div>
+                {% else %}
+                  <div class="podium-empty">—</div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
+        <p class="muted">Le podium apparaîtra lorsque les points des joueurs seront disponibles.</p>
+      {% endif %}
+    </section>
+
+    <section class="gp-fusion-section" aria-labelledby="gp-analysis-title">
+      <h3 id="gp-analysis-title">🔎 Analyse du GP</h3>
+      <p class="muted">Débrief automatique à partir des résultats et des pronostics enregistrés. Les scores restent calculés avec le barème actuel.</p>
+      {% if analysis|default([], true) %}
+        <div class="gp-analysis-grid">
+          {% for item in analysis %}
+            <article class="gp-analysis-item">
+              <div class="gp-analysis-heading"><span aria-hidden="true">{{ item.icon }}</span><strong>{{ item.title }}</strong></div>
+              <p>{{ item.text }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">L’analyse sera disponible lorsque les résultats officiels et les pronostics permettront une comparaison.</p>
+      {% endif %}
+    </section>
+
+    <section class="gp-fusion-section" aria-labelledby="gp-details-title">
+    <h3 id="gp-details-title">👥 Détail des points par joueur</h3>
 
     {% if rows|length == 0 %}
       <p class="muted">Aucun pronostic trouvé pour ce GP.</p>
     {% else %}
 
       <!-- Tableau rapide (classement total) -->
-      <div class="card" style="padding:0; overflow:auto; text-align:left;">
-        <table class="classement">
+      <div class="card gp-results-scroller" style="padding:0; overflow:auto; text-align:left;">
+        <table class="classement gp-results-detail">
           <thead>
             <tr>
               <th>#</th>
-              <th>Joueur</th>
+              <th class="player-col">Joueur</th>
               <th>Qualif</th>
               <th>Sprint</th>
               <th>GP</th>
               <th>Bonus</th>
-              <th>Total</th>
+              <th class="total-col">Total</th>
             </tr>
           </thead>
           <tbody>
             {% for r in rows %}
               <tr class="{% if loop.index==1 %}row-gold{% elif loop.index==2 %}row-silver{% elif loop.index==3 %}row-bronze{% endif %}">
                 <td><strong>{{ loop.index }}</strong></td>
-                <td style="text-align:left;"><span class="avatar-v2 avatar-sm"><img src="{{ url_for('player_avatar',participant_id=v2_avatar_ids.get(r.player|lower|trim,0)) }}" alt="" onerror="this.style.display='none'"><span>{{ r.player[:1]|upper }}</span></span><strong>{{ r.player }}</strong></td>
+                <td class="player-col" style="text-align:left;"><span class="avatar-v2 avatar-sm"><img src="{{ url_for('player_avatar',participant_id=v2_avatar_ids.get(r.player|lower|trim,0)) }}" alt="" onerror="this.style.display='none'"><span>{{ r.player[:1]|upper }}</span></span><strong>{{ r.player }}</strong></td>
                 <td>{{ r.pts.qualif.total }}</td>
                 <td>{{ r.pts.sprint.total }}</td>
                 <td>{{ r.pts.gp.total }}</td>
                 <td>{{ r.pts.bonus.total }}</td>
-                <td><strong>{{ r.pts.total }}</strong></td>
+                <td class="total-col"><strong>{{ r.pts.total }}</strong></td>
               </tr>
             {% endfor %}
           </tbody>
@@ -305,5 +350,6 @@
         {% endfor %}
       </div>
     {% endif %}
+    </section>
   {% endif %}
 {% endblock %}

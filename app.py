@@ -2234,6 +2234,89 @@ def compute_points_breakdown(prono: dict, results: dict, w: dict, *, player_name
     }
 
 
+def build_gp_analysis(rows: list, results: dict) -> list:
+    """Débrief factuel du GP, sans modifier le barème ou les pronostics."""
+    if not rows or not results:
+        return []
+
+    official_gp = results.get("gp") or []
+    official_sprint = results.get("sprint") or []
+    pole = results.get("pole")
+    has_gp = len(official_gp) >= 3 and all(official_gp[:3])
+    has_sprint = len(official_sprint) >= 3 and all(official_sprint[:3])
+    if not (has_gp or has_sprint or pole):
+        return []
+
+    count = len(rows)
+    comments = []
+    top_score = rows[0]["pts"]["total"]
+    leaders = [r["player"] for r in rows if r["pts"]["total"] == top_score]
+    if len(leaders) == 1:
+        gap = round(top_score - rows[1]["pts"]["total"], 2) if count > 1 else None
+        detail = f" avec {top_score:g} points"
+        if gap is not None:
+            detail += f", soit {gap:g} point(s) d'avance sur {rows[1]['player']}"
+        comments.append({"icon": "🏆", "title": "Performance du GP",
+                         "text": f"{leaders[0]} mène le classement calculé{detail}."})
+    else:
+        comments.append({"icon": "🏆", "title": "Duel au sommet",
+                         "text": f"{', '.join(leaders)} sont à égalité en tête avec {top_score:g} points."})
+
+    if has_gp:
+        winner = official_gp[0]
+        predicted = sum(normalize(r["p"].get("gp_p1")) == normalize(winner)
+                        for r in rows)
+        if predicted == 0:
+            outcome = f"Victoire surprise de {winner} : aucun des {count} joueurs ne l'avait placé P1."
+        else:
+            outcome = f"{predicted} joueur(s) sur {count} avaient annoncé la victoire de {winner}."
+        comments.append({"icon": "🏁", "title": "Lecture de la course", "text": outcome})
+
+        exact = sum(all(normalize(r["p"].get(f"gp_p{i+1}")) == normalize(official_gp[i])
+                        for i in range(3)) for r in rows)
+        if exact:
+            names = [r["player"] for r in rows
+                     if all(normalize(r["p"].get(f"gp_p{i+1}")) == normalize(official_gp[i])
+                            for i in range(3))]
+            outcome = f"Podium GP parfait pour {', '.join(names)} : les trois positions exactes !"
+        else:
+            outcome = "Le podium GP dans l'ordre exact a échappé à tous les joueurs."
+        comments.append({"icon": "🎯", "title": "Podium du dimanche", "text": outcome})
+
+    if has_sprint:
+        exact = [r["player"] for r in rows
+                 if all(normalize(r["p"].get(f"sprint_p{i+1}")) == normalize(official_sprint[i])
+                        for i in range(3))]
+        if exact:
+            outcome = f"{', '.join(exact)} ont trouvé le podium Sprint parfait."
+        else:
+            winner = official_sprint[0]
+            winner_picks = sum(normalize(r["p"].get("sprint_p1")) == normalize(winner)
+                               for r in rows)
+            outcome = (f"Personne n'a trouvé le podium Sprint exact ; "
+                       f"{winner_picks} joueur(s) avaient toutefois annoncé {winner} vainqueur.")
+        comments.append({"icon": "⚡", "title": "Débrief du Sprint", "text": outcome})
+
+    if pole:
+        correct = [r["player"] for r in rows
+                   if normalize(r["p"].get("pole")) == normalize(pole)]
+        if correct:
+            outcome = f"La pole de {pole} a été trouvée par {len(correct)} joueur(s) sur {count}."
+        else:
+            outcome = f"La pole de {pole} a déjoué tous les pronostics."
+        comments.append({"icon": "⏱️", "title": "Qualifications", "text": outcome})
+
+    bonus_answers = results.get("bonus") or {}
+    if any(value is not None and str(value).strip() for value in bonus_answers.values()):
+        success = sum(sum(bool(item["ok"]) for item in r["pts"]["bonus"]["items"])
+                      for r in rows)
+        outcome = (f"{success} bonne(s) réponse(s) aux questions bonus "
+                   f"pour l'ensemble des {count} joueurs.")
+        comments.append({"icon": "✨", "title": "Questions bonus", "text": outcome})
+
+    return comments[:6]
+
+
 # ------------------ Fichiers fallback ------------------
 def pronos_path(weekend_id):
     return os.path.join(PRONOS_DIR, f"{weekend_id}.json")
@@ -3728,6 +3811,7 @@ def results_by_race():
         selected=selected,
         results=results,
         rows=rows,
+        analysis=build_gp_analysis(rows, results),
         notice=None,
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
@@ -3736,57 +3820,10 @@ def results_by_race():
 
 @app.route("/w/<weekend_id>/classement")
 def classement_weekend(weekend_id):
-    w = get_weekend(weekend_id)
-    if not w:
+    """Compatibilité des anciens liens : une seule page résultats et classement."""
+    if not get_weekend(weekend_id):
         return "Week-end inconnu", 404
-
-    if w.get("cancelled"):
-        return "Ce GP est annulé.", 403
-
-    closed = is_weekend_closed(weekend_id) if engine else False
-    pronos_by_player = get_latest_pronos_by_player_for_weekend(weekend_id)
-
-    results = load_results(weekend_id)
-    if not results:
-        name, _ = current_player(request)
-        return render_template(
-            "classement.html",
-            name=name,
-            w=w,
-            rows=[],
-            notice="Entre d’abord les résultats officiels (Admin).",
-            closed=closed,
-            admin_enabled=admin_enabled(),
-            is_admin=is_admin()
-        )
-
-    reviews = load_bonus_reviews(weekend_id)
-    rows = []
-    for player_name, p in pronos_by_player.items():
-        pts = compute_points_breakdown(
-            p, results, w, player_name=player_name, reviews=reviews)
-        rows.append({
-            "player": player_name,
-            "q": pts["qualif"]["total"],
-            "s": pts["sprint"]["total"],
-            "gp": pts["gp"]["total"],
-            "bonus": pts["bonus"]["total"],
-            "total": pts["total"]
-        })
-
-    rows.sort(key=lambda r: r["total"], reverse=True)
-
-    name, _ = current_player(request)
-    return render_template(
-        "classement.html",
-        name=name,
-        w=w,
-        rows=rows,
-        notice=None,
-        closed=closed,
-        admin_enabled=admin_enabled(),
-        is_admin=is_admin()
-    )
+    return redirect(url_for("results_by_race", gp=weekend_id))
 
 
 @app.route("/classement")

@@ -62,8 +62,7 @@
       <p>Accès rapide :</p>
       <div class="actions">
         {% if is_public %}<a class="btn" href="{{ url_for('public_pronos', weekend_id=w.id) }}">👀 Voir les pronos publics</a>{% endif %}
-        <a class="btn" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">🏆 Voir le classement</a>
-        <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats par course</a>
+        <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats et classement GP</a>
       </div>
     </div>
 
@@ -244,8 +243,7 @@
     <div class="card">
       <p>Accès rapide :</p>
       <div class="actions">
-        <a class="btn" href="{{ url_for('classement_weekend', weekend_id=w.id) }}">🏆 Voir le classement</a>
-        <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats par course</a>
+        <a class="btn" href="{{ url_for('results_by_race', gp=w.id) }}">📊 Résultats et classement GP</a>
       </div>
     </div>
 
