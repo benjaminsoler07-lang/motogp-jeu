@@ -41,6 +41,7 @@ from v2_notifications import register_notifications
 from v2_bulk_import import register_bulk_import
 from gp_insights import build_public_insights, build_championship_insights
 from season_standings import build_season_standings, individual_season_summary
+from results_selection import default_results_weekend
 from sqlalchemy.pool import NullPool
 
 
@@ -3738,6 +3739,15 @@ def results_by_race():
         season_year = weekend_season(selected)
     weekends = [w for w in get_sorted_weekends() if weekend_season(w) == season_year]
 
+    # Depuis le menu Résultats, afficher immédiatement le GP du week-end
+    # ou, hors week-end de course, le dernier terminé.
+    # Un lien explicite ?gp=... n'est jamais modifié.
+    if not gp_id:
+        suggested = default_results_weekend(weekends)
+        if suggested:
+            gp_id = suggested["id"]
+            selected = get_weekend(gp_id) or suggested
+
     if not selected:
         return render_template(
             "results_by_race.html",
@@ -3773,7 +3783,7 @@ def results_by_race():
             selected=selected,
             results=None,
             rows=[],
-            notice="Entre d’abord les résultats officiels (Admin).",
+            notice="Les résultats officiels de ce Grand Prix ne sont pas encore disponibles.",
             admin_enabled=admin_enabled(),
             is_admin=is_admin()
         )
