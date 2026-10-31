@@ -36,6 +36,18 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual({best["left"], best["right"]}, {"Benjam", "Alex810"})
         self.assertEqual(best["percent"], 100)
 
+    def test_route_and_template_smoke_for_unpublished_gp(self):
+        # Vérifie le rendu HTML, le menu et le verrouillage sans base de production.
+        from app import app
+        with app.test_client() as client:
+            with client.session_transaction() as sess:
+                sess["is_admin"] = True
+            response = client.get("/statistiques")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Statistiques", response.data)
+            self.assertIn(b"Comparatif des", response.data)
+            self.assertIn(b"/statistiques", response.data)
+
     def test_missing_answers_are_not_consensus(self):
         pronos = {"Alpha": {"pole": "#63"}, "Beta": {"pole": ""}}
         c = build_comparison(pronos, [])
