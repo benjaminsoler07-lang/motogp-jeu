@@ -31,34 +31,33 @@
   {% endif %}
 
 
-  <div class="neon-home-summary" aria-label="Accès à mon tableau de bord">
+  <div class="neon-home-summary" aria-label="Mon tableau de bord">
     <a class="neon-summary-card" href="{{ url_for('profile', season=season_year) }}">
       <span class="neon-summary-icon" aria-hidden="true">🏆</span>
-      <span class="neon-summary-copy"><small>MES POINTS</small><strong>Mon bilan</strong><span>Consulter mes performances →</span></span>
+      <span class="neon-summary-copy">
+        <small>MES POINTS</small>
+        <strong class="neon-summary-value">{{ personal_summary.points|default(0, true)|string|replace('.', ',') }} pts</strong>
+        <span>Mon bilan de saison →</span>
+      </span>
     </a>
     <a class="neon-summary-card" href="{{ url_for('classement_general', season=season_year) }}">
       <span class="neon-summary-icon" aria-hidden="true">📊</span>
-      <span class="neon-summary-copy"><small>MON CLASSEMENT</small><strong>Classement général</strong><span>Position et écarts →</span></span>
+      <span class="neon-summary-copy">
+        <small>MON CLASSEMENT</small>
+        <strong class="neon-summary-value">{% if personal_summary.rank %}{{ personal_summary.rank }}<sup>e</sup>{% else %}—{% endif %}</strong>
+        <span>Classement général →</span>
+      </span>
     </a>
-    <a class="neon-summary-card" href="{{ url_for('results_by_race') }}">
-      <span class="neon-summary-icon" aria-hidden="true">🏁</span>
-      <span class="neon-summary-copy"><small>RÉSULTATS DE COURSE</small><strong>Résultats par GP</strong><span>Podiums et analyses →</span></span>
+    <a class="neon-summary-card" href="{{ url_for('championnat', season=season_year) }}">
+      <span class="neon-summary-icon" aria-hidden="true">🏍️</span>
+      <span class="neon-summary-copy">
+        <small>SAISON {{ season_year }}</small>
+        <strong>Prono championnat</strong>
+        <span>Mon podium final →</span>
+      </span>
     </a>
   </div>
 
-  <nav class="v2-home-shortcuts" aria-label="Accès rapides">
-    <a href="{{ url_for('classement_general', season=season_year) }}">
-      <span aria-hidden="true">🏆</span><span>Classement général</span><span aria-hidden="true">›</span>
-    </a>
-    <a href="{{ url_for('championnat', season=season_year) }}">
-      <span aria-hidden="true">🏍️</span><span>Prono championnat</span><span aria-hidden="true">›</span>
-    </a>
-    <a href="{{ url_for('results_by_race') }}">
-      <span aria-hidden="true">📊</span><span>Résultats par GP</span><span aria-hidden="true">›</span>
-    </a>
-  </nav>
-
-  <div class="neon-home-panels">
   {% if upcoming %}
   <section class="v2-home-upcoming" aria-labelledby="v2-home-upcoming-title">
     <div class="v2-home-section-title">
@@ -94,12 +93,5 @@
     </div>
   </section>
   {% endif %}
-  <aside class="neon-feature-card">
-    <span class="neon-feature-label">◈ VOTRE COMPÉTITION</span>
-    <h3>À chacun son pronostic.</h3>
-    <p>Retrouve les meilleurs pronostiqueurs, les écarts au classement et les analyses de course dans une seule interface.</p>
-    <a href="{{ url_for('classement_general', season=season_year) }}">Découvrir le classement →</a>
-  </aside>
-  </div>
 </div>
 {% endblock %}
