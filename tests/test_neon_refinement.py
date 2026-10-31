@@ -30,7 +30,7 @@ class RaceCenterRefinementTests(unittest.TestCase):
         for expected in (
             "GP de Malaisie", "RACE CENTER", "Clôture des pronostics",
             "data-countdown=\"2026-11-01T02:00:00+00:00\"",
-            "Compte à rebours dans « Le week-end »",
+            "data-countdown=\"2026-10-31T09:00:00+00:00\"",
             "Q1", "/w/malaisie/pronos", "Faire mon pronostic"
         ):
             self.assertIn(expected, html)
@@ -40,6 +40,23 @@ class RaceCenterRefinementTests(unittest.TestCase):
         self.assertIn("v3-stage-gp", html)
         self.assertNotIn("neon-hero-art", html)
         self.assertNotIn("neon-race-bike.svg", html)
+
+    def test_next_session_countdown_is_kept_even_with_identical_weekend_timer(self):
+        session_time = "2026-11-01T10:00:00+00:00"
+        slots = [
+            {"key": "qualif", "title": "Qualifications", "iso": session_time,
+             "date_label": "01/11 · 11h00"},
+            {"key": "sprint", "title": "Sprint", "iso": None, "date_label": None},
+            {"key": "gp", "title": "Grand Prix", "iso": None, "date_label": None},
+        ]
+        html = self.render_race_center(
+            session_iso=session_time, session_label="Q1",
+            deadline_iso=None, session_cards=slots,
+        )
+        self.assertEqual(html.count(f'data-countdown="{session_time}"'), 2)
+        self.assertIn("v2-race-session-timer", html)
+        self.assertIn("v3-session-countdowns", html)
+        self.assertIn("01/11 · 11h00", html)
 
     def test_missing_schedule_stays_unknown_not_invented(self):
         html = self.render_race_center(deadline_iso=None, session_iso=None, session_label=None)
