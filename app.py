@@ -39,6 +39,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from v2_features import register_v2, race_center, deadline_from_weekend
 from v2_notifications import register_notifications
 from v2_bulk_import import register_bulk_import
+from gp_insights import build_public_insights, build_championship_insights
 
 
 app = Flask(__name__)
@@ -3670,7 +3671,8 @@ def public_pronos(weekend_id):
     if w.get("cancelled"):
         return "Ce GP est annulé.", 403
 
-    if not is_pronos_public(weekend_id):
+    # Ne dévoiler aucune comparaison avant la clôture ET la publication.
+    if not is_weekend_closed(weekend_id) or not is_pronos_public(weekend_id):
         return "Les pronostics de ce GP ne sont pas encore rendus publics.", 403
 
     with engine.begin() as conn:
@@ -3699,6 +3701,9 @@ def public_pronos(weekend_id):
         name=name,
         w=w,
         pronos=pronos_list,
+        insights=build_public_insights(pronos_list, w),
+        closed=True,
+        public=True,
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
     )
@@ -3844,6 +3849,7 @@ def classement_general():
 
     totals = {}
     gp_scored = []
+    gp_rounds = []
 
     for w in weekends:
         if w.get("cancelled"):
@@ -3861,6 +3867,7 @@ def classement_general():
 
         pronos_by_player = get_latest_pronos_by_player_for_weekend(wid)
         reviews = load_bonus_reviews(wid)
+        round_scores = {}
 
         for player_name, p in pronos_by_player.items():
             pts = compute_points_breakdown(
@@ -3870,6 +3877,7 @@ def classement_general():
             g_score = pts["gp"]["total"]
             bonus_score = pts["bonus"]["total"]
             total_gp = pts["total"]
+            round_scores[player_name] = total_gp
 
             cur = totals.get(player_name)
             if not cur:
@@ -3891,6 +3899,9 @@ def classement_general():
             cur["total"] = round(cur["total"] + total_gp, 2)
             cur["gps"] += 1
 
+        gp_rounds.append({"id": wid, "label": w.get("label", wid),
+                          "scores": round_scores})
+
     rows = list(totals.values())
     rows.sort(key=lambda r: (r["total"], r["gps"]), reverse=True)
 
@@ -3903,6 +3914,9 @@ def classement_general():
         name=name,
         rows=rows,
         gp_scored=gp_scored,
+        weekends=gp_scored,
+        season_year=selected_season_year(),
+        championship_analysis=build_championship_insights(rows, gp_rounds),
         notice=notice,
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
