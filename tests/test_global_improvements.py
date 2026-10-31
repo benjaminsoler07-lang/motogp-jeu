@@ -69,11 +69,12 @@ class GlobalImprovementsTests(unittest.TestCase):
         with self.client.session_transaction() as state:
             state["is_admin"] = True
         for closed, published in ((False, False), (False, True), (True, False)):
-            with self.subTest(closed=closed, published=published), (
+            with (
+                self.subTest(closed=closed, published=published),
                 patch("app.engine", object()),
                 patch("app.get_weekend", return_value=self.weekend),
                 patch("app.is_weekend_closed", return_value=closed),
-                patch("app.is_pronos_public", return_value=published)
+                patch("app.is_pronos_public", return_value=published),
             ):
                 r = self.client.get("/w/gp-test/public/pronos")
                 self.assertEqual(r.status_code, 403)
