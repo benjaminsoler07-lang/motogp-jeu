@@ -12,39 +12,47 @@
   </head>
 
   <body class="{% block body_class %}{% endblock %}">
-    <header class="checkerbar">
-      <h1 class="header-title">PRONOGP · MOTOGP</h1>
-
-      <div class="header-auth">
-        {% if name %}
-          <span class="status">✅ Connecté{% if viewer_is_admin %} — 🛠️ Admin{% endif %}</span>
-          <span class="status">Bonjour <strong>{{ name }}</strong> 👋</span>
-          <a class="btn" href="{{ url_for('logout') }}">Changer / Déconnexion</a>
-        {% elif viewer_is_admin %}
-          <span class="status">🛠️ Administrateur connecté</span>
-        {% else %}
-          <span class="status">❌ Non connecté</span>
-          <a class="btn" href="{{ url_for('login') }}">Connexion</a>
-        {% endif %}
-
-        {% if viewer_is_admin %}
-          <a class="btn" href="{{ url_for('admin_home') }}">Dashboard admin</a>
-          {% if viewer_is_root_admin %}
-            <a class="btn btn-warning" href="{{ url_for('admin_logout') }}">Logout admin</a>
+    <header class="checkerbar checkerbar-compact">
+      <div class="gp-header-top">
+        <a class="gp-header-brand" href="{{ url_for('home') }}" aria-label="Accueil PronoGP">
+          <span class="gp-header-flag" aria-hidden="true">🏁</span>
+          <span>PRONO<span class="gp-header-accent">GP</span></span>
+        </a>
+        <div class="gp-header-tools">
+          {% if name %}
+            <a class="gp-header-notify" href="{{ url_for('notifications') }}" aria-label="Mes notifications" title="Notifications">🔔</a>
           {% endif %}
-        {% else %}
-          <a class="btn" href="{{ url_for('admin_login') }}">Connexion Admin</a>
-        {% endif %}
+          <details class="gp-user-menu">
+            <summary>
+              <span class="gp-user-menu-icon" aria-hidden="true">👤</span>
+              <span class="gp-user-menu-name">{{ name if name else ('Admin' if viewer_is_admin else 'Connexion') }}</span>
+              <span class="gp-user-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="gp-user-menu-panel">
+              {% if name %}
+                <span class="gp-user-menu-caption">Connecté : {{ name }}</span>
+                <a href="{{ url_for('profile') }}">👤 Mon profil</a>
+                <a href="{{ url_for('notifications') }}">🔔 Mes notifications</a>
+                <a href="{{ url_for('logout') }}">↪ Déconnexion / changer de joueur</a>
+              {% else %}
+                <a href="{{ url_for('login') }}">🔐 Connexion joueur</a>
+              {% endif %}
+              {% if viewer_is_admin %}
+                <a href="{{ url_for('admin_home') }}">🛠️ Administration</a>
+                {% if viewer_is_root_admin %}<a href="{{ url_for('admin_logout') }}">Déconnexion admin</a>{% endif %}
+              {% else %}
+                <a href="{{ url_for('admin_login') }}">🛠️ Connexion admin</a>
+              {% endif %}
+            </div>
+          </details>
+        </div>
       </div>
-
       {% if name or viewer_is_admin %}
-      <nav class="header-nav">
-        <a class="btn" href="{{ url_for('home') }}">Accueil</a>
-        {% if name %}<a class="btn" href="{{ url_for('profile') }}">Mon profil</a>
-        <a class="btn" href="{{ url_for('notifications') }}">🔔 Notifications</a>{% endif %}
-        <a class="btn" href="{{ url_for('classement_general') }}">Classement</a>
-        <a class="btn" href="{{ url_for('results_by_race') }}">Résultats par GP</a>
-        <a class="btn" href="{{ url_for('championnat',season=request.args.get('season') or 2026) }}">Championnat</a>
+      <nav class="header-nav gp-header-nav" aria-label="Navigation principale">
+        <a class="btn{% if request.endpoint == 'home' %} gp-header-active{% endif %}" href="{{ url_for('home') }}">Accueil</a>
+        <a class="btn{% if request.endpoint == 'classement_general' %} gp-header-active{% endif %}" href="{{ url_for('classement_general') }}">Classement</a>
+        <a class="btn{% if request.endpoint == 'results_by_race' %} gp-header-active{% endif %}" href="{{ url_for('results_by_race') }}">Résultats GP</a>
+        <a class="btn{% if request.endpoint == 'championnat' %} gp-header-active{% endif %}" href="{{ url_for('championnat',season=request.args.get('season') or 2026) }}">Championnat</a>
       </nav>
       {% endif %}
     </header>
