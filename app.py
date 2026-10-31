@@ -40,6 +40,8 @@ from v2_features import register_v2, race_center, deadline_from_weekend
 from v2_notifications import register_notifications
 from v2_bulk_import import register_bulk_import
 from gp_insights import build_public_insights, build_championship_insights
+from season_standings import build_season_standings, individual_season_summary
+from sqlalchemy.pool import NullPool
 
 
 app = Flask(__name__)
@@ -366,11 +368,14 @@ _DB_BOOTSTRAP_LOCK = Lock()
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300
-    )
+    # Vercel creates many independent warm instances. The default QueuePool
+    # retains idle server connections and can exhaust Supabase session-mode's
+    # 15-client limit. Close connections immediately after each transaction.
+    engine_options = {"pool_pre_ping": True, "pool_recycle": 300}
+    if IS_VERCEL:
+        engine_options["poolclass"] = NullPool
+        engine_options["connect_args"] = {"connect_timeout": 8}
+    engine = create_engine(DATABASE_URL, **engine_options)
 
 
 # ------------------ Weekends sanitize/helpers ------------------
@@ -2571,13 +2576,24 @@ def home():
         item["played"] = player_has_prono(item["id"])
         upcoming_cards.append(item)
 
+    # Exactly the same scoring and rank as the general standings page.
+    season_rows = []
+    if name:
+        season_rows, _, _ = build_season_standings(
+            season_weekends, load_results,
+            get_latest_pronos_by_player_for_weekend, load_bonus_reviews,
+            compute_points_breakdown,
+        )
+    personal_summary = individual_season_summary(season_rows, name, normalize_pseudo)
+
     return render_template(
         "index.html",
         name=name,
         upcoming=upcoming_cards,
         race_center=active_gp,
         season_year=season_year,
-        years=years
+        years=years,
+        personal_summary=personal_summary,
     )
 
 
@@ -3847,63 +3863,10 @@ def classement_general():
             is_admin=is_admin()
         )
 
-    totals = {}
-    gp_scored = []
-    gp_rounds = []
-
-    for w in weekends:
-        if w.get("cancelled"):
-            continue
-
-        wid = (w.get("id") or "").strip()
-        if not wid:
-            continue
-
-        results = load_results(wid)
-        if not results:
-            continue
-
-        gp_scored.append({"id": wid, "label": w.get("label", wid)})
-
-        pronos_by_player = get_latest_pronos_by_player_for_weekend(wid)
-        reviews = load_bonus_reviews(wid)
-        round_scores = {}
-
-        for player_name, p in pronos_by_player.items():
-            pts = compute_points_breakdown(
-                p, results, w, player_name=player_name, reviews=reviews)
-            q_score = pts["qualif"]["total"]
-            s_score = pts["sprint"]["total"]
-            g_score = pts["gp"]["total"]
-            bonus_score = pts["bonus"]["total"]
-            total_gp = pts["total"]
-            round_scores[player_name] = total_gp
-
-            cur = totals.get(player_name)
-            if not cur:
-                totals[player_name] = {
-                    "player": player_name,
-                    "q": 0.0,
-                    "s": 0.0,
-                    "gp": 0.0,
-                    "bonus": 0.0,
-                    "total": 0.0,
-                    "gps": 0
-                }
-                cur = totals[player_name]
-
-            cur["q"] = round(cur["q"] + q_score, 2)
-            cur["s"] = round(cur["s"] + s_score, 2)
-            cur["gp"] = round(cur["gp"] + g_score, 2)
-            cur["bonus"] = round(cur["bonus"] + bonus_score, 2)
-            cur["total"] = round(cur["total"] + total_gp, 2)
-            cur["gps"] += 1
-
-        gp_rounds.append({"id": wid, "label": w.get("label", wid),
-                          "scores": round_scores})
-
-    rows = list(totals.values())
-    rows.sort(key=lambda r: (r["total"], r["gps"]), reverse=True)
+    rows, gp_scored, gp_rounds = build_season_standings(
+        weekends, load_results, get_latest_pronos_by_player_for_weekend,
+        load_bonus_reviews, compute_points_breakdown,
+    )
 
     notice = None
     if not gp_scored:
