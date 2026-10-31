@@ -91,14 +91,13 @@ class GlobalImprovementsTests(unittest.TestCase):
         ], key=lambda row: -row["total"])
         insights = build_championship_insights(
             ranking, [{"id": "gp-test", "label": "GP de test", "scores": scores}])
-        self.assertEqual(insights["cards"][0]["value"], 1)
-        self.assertEqual(insights["cards"][1]["value"], 2)
-        self.assertEqual(insights["bars"][0]["percent"], 100)
-        self.assertEqual(sum(x["total"] for x in insights["bars"]), sum(pts))
-        self.assertEqual(insights["recent"][0]["label"], "GP de test")
-        self.assertEqual(build_championship_insights([], []), {
-            "cards": [], "comments": [], "bars": [], "recent": []
-        })
+        self.assertTrue(insights["comments"])
+        self.assertTrue(any("Bob" in item["text"] or "Alice" in item["text"]
+                            for item in insights["comments"]))
+        self.assertTrue(any("GP de test" in item["text"]
+                            for item in insights["comments"]))
+        self.assertEqual(set(insights), {"comments"})
+        self.assertEqual(build_championship_insights([], []), {"comments": []})
 
     def test_compact_header_keeps_navigation_and_account_controls(self):
         with self.client.session_transaction() as state:

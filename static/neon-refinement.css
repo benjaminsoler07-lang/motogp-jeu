@@ -420,3 +420,60 @@ body.neon-v3 .results-picker-card .results-gp-details {margin-top:12px}
   body.neon-v3 .v3-session-countdowns .v3-race-stage {grid-template-columns:24px minmax(0,1fr)}
   body.neon-v3 .v3-session-clock {grid-column:2;grid-row:3;justify-self:start}
 }
+
+
+/* Débrief de championnat : commentaires éditoriaux, plus de tableau statistique. */
+body.neon-v3 .gp-championship-debrief {
+  padding:clamp(17px,2.7vw,27px);
+  margin-bottom:24px;
+  border:1px solid rgba(44,144,186,.49);
+  background:linear-gradient(145deg,rgba(11,43,67,.77),rgba(5,22,38,.92));
+  border-radius:17px;
+  box-shadow:0 9px 28px rgba(2,8,20,.22);
+}
+body.neon-v3 .gp-championship-eyebrow {
+  color:#8be9f2;
+  font-size:.69rem;
+  font-weight:750;
+  letter-spacing:.14em;
+}
+body.neon-v3 .gp-championship-debrief .gp-public-section-heading {
+  align-items:flex-end;
+  gap:10px 22px;
+  margin-bottom:18px;
+}
+body.neon-v3 .gp-championship-debrief .gp-public-section-heading h3 {
+  margin:5px 0 0;
+  font-size:clamp(1.18rem,2.3vw,1.6rem);
+}
+body.neon-v3 .gp-championship-editorial {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:13px;
+}
+body.neon-v3 .gp-championship-note {
+  padding:18px 20px;
+  border:1px solid #285e79 !important;
+  border-left:3px solid #48d6eb !important;
+  border-radius:13px;
+  background:linear-gradient(155deg,#10314a,#091e31) !important;
+  min-width:0;
+}
+body.neon-v3 .gp-championship-note:nth-child(4n+2) {border-left-color:#c2a2ff !important}
+body.neon-v3 .gp-championship-note:nth-child(4n+3) {border-left-color:#ffb28c !important}
+body.neon-v3 .gp-championship-note:nth-child(4n+4) {border-left-color:#75e3b0 !important}
+body.neon-v3 .gp-championship-note .gp-analysis-heading {
+  display:flex;gap:10px;align-items:center;
+}
+body.neon-v3 .gp-championship-note .gp-analysis-heading strong {
+  color:#f4fbff;
+  font:700 .97rem/1.4 "Plus Jakarta Sans","DM Sans",sans-serif;
+}
+body.neon-v3 .gp-championship-note p {
+  margin:10px 0 0;color:#d4e6f2;
+  line-height:1.65;font-size:.91rem;
+}
+@media(max-width:720px) {
+  body.neon-v3 .gp-championship-editorial {grid-template-columns:1fr}
+  body.neon-v3 .gp-championship-note {padding:15px 16px}
+}

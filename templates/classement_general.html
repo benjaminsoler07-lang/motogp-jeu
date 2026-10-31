@@ -104,58 +104,25 @@
     <p class="notice">{{ notice }}</p>
   {% endif %}
 
-  {% if championship_analysis is defined and championship_analysis.cards %}
-    <section class="gp-season-analysis" aria-labelledby="season-analysis-title">
+  {% if championship_analysis is defined and championship_analysis.comments %}
+    <section class="gp-season-analysis gp-championship-debrief" aria-labelledby="season-analysis-title">
       <div class="gp-public-section-heading">
-        <h3 id="season-analysis-title">📈 Analyse du championnat</h3>
-        <span class="muted">Analyse automatique à partir des points officiels déjà calculés</span>
+        <div>
+          <span class="gp-championship-eyebrow">LE DÉBRIEF DE LA SAISON</span>
+          <h3 id="season-analysis-title">🎙️ Le championnat sous la loupe</h3>
+        </div>
+        <span class="muted">Les faits marquants, les rivalités et les tendances du moment</span>
       </div>
-      <div class="gp-season-cards">
-        {% for stat in championship_analysis.cards %}
-          <article class="gp-season-card">
-            <small>{{ stat.label }}</small>
-            <strong>{{ stat.value }}</strong>
-            <span>{{ stat.detail }}</span>
-          </article>
-        {% endfor %}
-      </div>
-      <div class="gp-analysis-grid">
+      <div class="gp-analysis-grid gp-championship-editorial">
         {% for item in championship_analysis.comments %}
-          <article class="gp-analysis-item">
-            <div class="gp-analysis-heading"><span aria-hidden="true">{{ item.icon }}</span><strong>{{ item.title }}</strong></div>
+          <article class="gp-analysis-item gp-championship-note">
+            <div class="gp-analysis-heading">
+              <span aria-hidden="true">{{ item.icon }}</span>
+              <strong>{{ item.title }}</strong>
+            </div>
             <p>{{ item.text }}</p>
           </article>
         {% endfor %}
-      </div>
-      <div class="gp-season-charts">
-        <div class="gp-season-chart">
-          <h4>Écart de points entre les cinq premiers</h4>
-          {% for player in championship_analysis.bars %}
-            <div class="gp-vote-line">
-              <div class="gp-vote-label"><span>{{ player.name }}</span><strong>{{ player.total }} pts</strong></div>
-              <div class="gp-vote-track"><span style="width:{{ player.percent }}%"></span></div>
-            </div>
-          {% endfor %}
-        </div>
-        <div class="gp-season-chart">
-          <h4>Performances sur les 5 derniers GP</h4>
-          <div class="gp-season-recent-scroll">
-            <table class="gp-season-recent-table">
-              <thead>
-                <tr><th scope="col">GP</th>{% for player in championship_analysis.top_players %}<th scope="col">{{ player }}</th>{% endfor %}</tr>
-              </thead>
-              <tbody>
-                {% for event in championship_analysis.recent %}
-                  <tr><th scope="row">{{ event.label }}</th>
-                    {% for result in event['values'] %}
-                      <td>{{ result.pts if result.pts is not none else '—' }}</td>
-                    {% endfor %}
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </section>
   {% endif %}

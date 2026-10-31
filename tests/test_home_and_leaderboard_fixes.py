@@ -97,8 +97,10 @@ class HomepageAndLeaderboardRegressionTests(unittest.TestCase):
             response = self.client.get("/classement?season=2026")
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[-900:])
         html = response.get_data(as_text=True)
-        self.assertIn("Analyse du championnat", html)
-        self.assertIn("Performances sur les 5 derniers GP", html)
+        self.assertIn("Le championnat sous la loupe", html)
+        self.assertIn("gp-championship-note", html)
+        self.assertNotIn("Performances sur les 5 derniers GP", html)
+        self.assertNotIn("gp-season-charts", html)
         self.assertIn("Alice", html)
 
     def test_result_gp_picker_is_unique_and_podium_photos_are_visible(self):
