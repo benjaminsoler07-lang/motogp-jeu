@@ -63,11 +63,55 @@ def build_public_insights(pronos, weekend):
                    for p in pronos]
         counts = Counter(_key(c) for c in choices if c != "—")
         top = max(counts.values()) if counts else 0
-        cells = [{"value": value,
-                  "popular": value != "—" and top >= 2 and counts[_key(value)] == top}
-                 for value in choices]
+        filled_count = sum(counts.values())
+        # Same choice => same color *within the row*. Different answers receive
+        # different colors; missing answers remain neutral. This is NOT a
+        # prediction of who will score points.
+        ordered_keys = sorted(counts, key=lambda key: (-counts[key], key))
+        palette = ("cyan", "coral", "violet", "lime", "gold", "rose")
+        choice_colors = {key: palette[i % len(palette)]
+                         for i, key in enumerate(ordered_keys)}
+        unanimous = filled_count >= 2 and len(counts) == 1
+        cells = []
+        for value in choices:
+            key = _key(value)
+            count = counts.get(key, 0) if value != "—" else 0
+            if not count:
+                status = "missing"
+                signal = "Non renseigné"
+            elif unanimous:
+                status = "unanimous"
+                signal = "Unanimité"
+            elif count == 1 and filled_count >= 2:
+                status = "solo"
+                signal = "Choix isolé"
+            elif count >= 2 and count == top:
+                status = "popular"
+                signal = "Choix fréquent"
+            else:
+                status = "alternative"
+                signal = "Autre tendance"
+            cells.append({
+                "value": value,
+                "popular": count >= 2 and count == top,
+                "tone": choice_colors.get(key, "neutral"),
+                "status": status,
+                "signal": signal,
+                "votes": count,
+            })
+        if unanimous:
+            verdict = "Unanimité"
+        elif filled_count < 2:
+            verdict = "À compléter"
+        elif len(counts) == filled_count:
+            verdict = "Tous différents"
+        else:
+            verdict = f"{len(counts)} choix différents"
         matrix.append({"group": group, "label": label, "cells": cells,
-                       "unique": len(counts)})
+                       "unique": len(counts), "verdict": verdict,
+                       "unanimous": unanimous,
+                       "group_key": {"Qualifications": "qualif", "Sprint": "sprint",
+                                     "Grand Prix": "gp", "Questions bonus": "bonus"}[group]})
 
     focus = [
         _distribution(pronos, "pole", "La pole"),
@@ -107,8 +151,14 @@ def build_public_insights(pronos, weekend):
             different = len(set(complete_gp))
             comments.append({"icon": "🏁", "title": "Podiums imaginés",
                              "text": f"{different} podium(s) GP distinct(s) proposés parmi {len(complete_gp)} pronostics complets."})
+    comparison = {
+        "unanimous": sum(line["unanimous"] for line in matrix),
+        "contested": sum(line["unique"] > 1 for line in matrix),
+        "isolated": sum(cell["status"] == "solo" for line in matrix
+                        for cell in line["cells"]),
+    }
     return {"players": players, "matrix": matrix, "distributions": focus,
-            "comments": comments, "count": n}
+            "comments": comments, "count": n, "comparison": comparison}
 
 
 def build_championship_insights(standings, rounds):
