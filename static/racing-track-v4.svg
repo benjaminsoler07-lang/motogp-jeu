@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 720" role="img" aria-label="Tracé de circuit et lumières de course stylisées">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#031020"/><stop offset=".47" stop-color="#09233c"/><stop offset="1" stop-color="#050d1e"/></linearGradient>
+    <linearGradient id="hot" x1="0" x2="1"><stop stop-color="#fa3562" stop-opacity="0"/><stop offset=".4" stop-color="#ff3860"/><stop offset="1" stop-color="#ffb04b"/></linearGradient>
+    <linearGradient id="cold" x1="0" x2="1"><stop stop-color="#02ddff" stop-opacity=".02"/><stop offset=".4" stop-color="#33e7ff"/><stop offset="1" stop-color="#a5f9ff" stop-opacity=".42"/></linearGradient>
+    <linearGradient id="trackstroke" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#14a6f1"/><stop offset=".5" stop-color="#53f1ff"/><stop offset=".86" stop-color="#25c5f5"/><stop offset="1" stop-color="#ff4b77"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#0d79d3" stop-opacity=".38"/><stop offset="1" stop-color="#0b3761" stop-opacity="0"/></radialGradient>
+    <filter id="neon" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="soft"/>
+      <feMerge><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="52" height="52" patternUnits="userSpaceOnUse"><path d="M52 0H0V52" fill="none" stroke="#1a76a8" stroke-width=".8" opacity=".23"/></pattern>
+    <pattern id="flag" width="32" height="32" patternUnits="userSpaceOnUse"><path fill="#b8efff" opacity=".18" d="M0 0h16v16H0zm16 16h16v16H16z"/></pattern>
+  </defs>
+  <rect width="1440" height="720" fill="url(#sky)"/>
+  <rect width="1440" height="720" fill="url(#grid)"/>
+  <ellipse cx="1085" cy="335" rx="470" ry="300" fill="url(#glow)"/>
+  <g opacity=".6">
+    <path d="M0 670Q360 538 640 612T1440 360" stroke="url(#hot)" stroke-width="6" fill="none" filter="url(#neon)"/>
+    <path d="M-50 694Q375 588 670 654T1500 434" stroke="#ff6486" stroke-width="3" fill="none" opacity=".7"/>
+    <path d="M480 12L1440 14M585 31L1440 31" stroke="url(#cold)" stroke-width="3" filter="url(#neon)"/>
+  </g>
+  <!-- original neon track contour, not a claim of the circuit's exact layout -->
+  <g transform="translate(800 105) rotate(-7 250 220)">
+    <path d="M115 329C-10 303 7 225 65 207C102 197 129 227 160 200C204 157 173 93 249 90C304 88 306 157 350 166C399 176 415 71 471 80C516 87 549 116 543 155C536 198 475 206 482 261C489 316 610 285 633 340C653 384 597 421 547 409C500 397 453 351 410 379C375 402 377 460 320 456C258 453 235 383 199 388C154 394 157 337 115 329Z" fill="none" stroke="#0ad0ff" stroke-opacity=".17" stroke-width="46"/>
+    <path d="M115 329C-10 303 7 225 65 207C102 197 129 227 160 200C204 157 173 93 249 90C304 88 306 157 350 166C399 176 415 71 471 80C516 87 549 116 543 155C536 198 475 206 482 261C489 316 610 285 633 340C653 384 597 421 547 409C500 397 453 351 410 379C375 402 377 460 320 456C258 453 235 383 199 388C154 394 157 337 115 329Z" fill="none" stroke="url(#trackstroke)" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" filter="url(#neon)"/>
+    <path d="M115 329C-10 303 7 225 65 207C102 197 129 227 160 200C204 157 173 93 249 90C304 88 306 157 350 166C399 176 415 71 471 80C516 87 549 116 543 155C536 198 475 206 482 261C489 316 610 285 633 340C653 384 597 421 547 409C500 397 453 351 410 379C375 402 377 460 320 456C258 453 235 383 199 388C154 394 157 337 115 329Z" fill="none" stroke="#d3fdff" stroke-width="1.4" stroke-dasharray="16 42" opacity=".7"/>
+    <circle cx="239" cy="90" r="18" fill="#07172c" stroke="#6bf3ff" stroke-width="2" filter="url(#neon)"/>
+    <circle cx="469" cy="80" r="17" fill="#07172c" stroke="#b499ff" stroke-width="2" filter="url(#neon)"/>
+    <circle cx="549" cy="409" r="17" fill="#07172c" stroke="#ff9e73" stroke-width="2" filter="url(#neon)"/>
+    <g font-family="Arial,sans-serif" font-size="16" font-weight="800" text-anchor="middle">
+      <text x="239" y="96" fill="#9bf9ff">S1</text>
+      <text x="469" y="86" fill="#d9caff">S2</text>
+      <text x="549" y="415" fill="#ffc3a0">S3</text>
+    </g>
+  </g>
+  <path d="M1200 0L1440 0V165L1250 165Z" fill="url(#flag)" opacity=".3"/>
+  <g opacity=".75">
+    <path d="M1160 589L1440 526M1080 621L1440 544" stroke="#ff355f" stroke-width="4" filter="url(#neon)"/>
+    <path d="M1100 654L1440 612" stroke="#30d7ff" stroke-width="2" filter="url(#neon)"/>
+  </g>
+  <g fill="#7feeff" opacity=".8"><circle cx="1344" cy="95" r="3"/><circle cx="1376" cy="95" r="3"/><circle cx="1408" cy="95" r="3"/></g>
+</svg>
