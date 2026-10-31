@@ -1,0 +1,359 @@
+/* PronoGP 3.0 — Dark neon visual system
+   Purely presentational. Loaded after the legacy stylesheet.
+   Centralized so old pages and admin pages inherit the same visual language. */
+:root {
+  color-scheme: dark;
+  --bg: #030c17;
+  --text: #f0f9ff;
+  --muted: #98b9d0;
+  --card: #071b2e;
+  --card2: #0b263b;
+  --border: rgba(39,189,247,.30);
+  --border2: rgba(53,226,255,.48);
+  --accent: #2fe3ff;
+  --danger: #ff627e;
+  --ok: #48eeaa;
+  --neon-bg: #030c17;
+  --neon-surface: #071c2f;
+  --neon-surface-2: #0b2941;
+  --neon-stroke: #12618b;
+  --neon-cyan: #2de4ff;
+  --neon-light: #dffaff;
+  --neon-gold: #ffcd58;
+  --neon-shadow: 0 0 0 1px rgba(19,164,227,.21),0 4px 23px rgba(0,170,255,.13),inset 0 1px rgba(102,234,255,.11);
+}
+html {scroll-behavior:smooth}
+body.neon-v3 {
+  background:
+    radial-gradient(ellipse 67% 36% at 50% -10%,rgba(2,137,207,.24),transparent 84%),
+    radial-gradient(circle at 99% 45%,rgba(14,76,134,.12),transparent 38%),
+    #030c17;
+  color:var(--text);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  line-height:1.5;
+}
+body.neon-v3 main {max-width:1280px;padding:26px clamp(13px,3vw,32px) 90px}
+body.neon-v3 h1,body.neon-v3 h2,body.neon-v3 h3,body.neon-v3 h4 {color:#f0faff;letter-spacing:-.025em}
+body.neon-v3 h2 {font-size:clamp(1.43rem,2.7vw,2.05rem)}
+body.neon-v3 .muted {color:#9bbdd3}
+body.neon-v3 p {line-height:1.6}
+body.neon-v3 a {text-underline-offset:3px}
+body.neon-v3 :is(a,button,summary,input,select,textarea):focus-visible {
+  outline:2px solid #6ff3ff;outline-offset:3px;
+}
+body.neon-v3 .checkerbar-compact {
+  padding:0 max(14px,calc((100% - 1220px)/2));
+  background:linear-gradient(180deg,#041629,#051b30);
+  border-bottom:1px solid #106a95;
+  box-shadow:0 4px 25px #00bfff10;
+}
+body.neon-v3 .checkerbar-compact:before {opacity:.018}
+body.neon-v3 .gp-header-top {min-height:60px;gap:18px}
+body.neon-v3 .gp-header-brand {font-size:clamp(1.1rem,2.3vw,1.65rem);font-style:italic;letter-spacing:-.055em;font-weight:950;transform:skew(-5deg)}
+body.neon-v3 .gp-header-accent {color:#31eaff;text-shadow:0 0 16px #12bfff7a}
+body.neon-v3 .gp-header-flag {font-size:1.8rem;filter:drop-shadow(0 0 8px #31eaff77)}
+body.neon-v3 .gp-user-menu summary,body.neon-v3 .gp-header-notify {
+  background:#0c2941;border:1px solid #1b6e96;border-radius:12px;
+}
+body.neon-v3 .gp-user-menu summary:hover,body.neon-v3 .gp-header-notify:hover {
+  border-color:#45dcff;box-shadow:0 0 15px #20bafc35;
+}
+body.neon-v3 .gp-user-menu-panel {background:#081b2d;border-color:#2186ad;box-shadow:0 10px 40px #000b1adb}
+body.neon-v3 .gp-header-nav {margin:0;gap:5px;justify-content:center;padding:0 0 7px;scrollbar-width:none}
+body.neon-v3 .gp-header-nav .btn {
+  background:transparent;color:#bfdae8;border:1px solid transparent;
+  font-size:.84rem;padding:8px clamp(9px,1.5vw,17px);border-radius:10px;min-height:40px;
+  font-weight:750;text-decoration:none;
+}
+body.neon-v3 .gp-header-nav .btn:hover,body.neon-v3 .gp-header-nav .gp-header-active {
+  color:#5ef5ff;background:linear-gradient(#0d4562,#092a43);
+  border-color:#158bb9;box-shadow:0 0 18px #00b4ff30,inset 0 1px #ffffff15;
+}
+body.neon-v3 .gp-header-active:after {content:"";display:block;height:2px;margin:3px auto -5px;width:70%;border-radius:3px;background:#2de4ff;box-shadow:0 0 10px #2de4ff}
+body.neon-v3 .neon-footer {font-size:.7rem;letter-spacing:.09em;color:#7297b2;text-align:center;padding:15px 0 25px}
+body.neon-v3 .neon-bottom-nav {display:none}
+body.neon-v3 :is(.card,.v2-stats article,.v2-event,.v2-home-upcoming-card,.gp-public-section,.gp-season-analysis,.gp-vote-card,.gp-season-chart,.gp-season-card,.gp-analysis-item,.results-picker-card,.podium-card) {
+  color:#eef9ff;
+  background:linear-gradient(145deg,rgba(10,40,64,.98),rgba(4,19,35,.98)) !important;
+  border:1px solid #125d84 !important;
+  box-shadow:var(--neon-shadow);
+  border-radius:15px;
+}
+body.neon-v3 :is(.card,.gp-vote-card,.gp-season-chart,.gp-public-section,.gp-season-analysis){text-align:left}
+body.neon-v3 .card {padding:clamp(15px,2.2vw,23px);margin-bottom:18px}
+body.neon-v3 :is(.card,.gp-public-section,.gp-season-analysis) h3 {color:#f3fcff}
+body.neon-v3 .card:hover {border-color:#1675a0 !important}
+body.neon-v3 .btn,body.neon-v3 button.btn {
+  border:1px solid #1c87b5;border-radius:11px;
+  background:linear-gradient(140deg,#0a344f,#072039);
+  box-shadow:inset 0 1px #ffffff14,0 2px 10px #00b9ff16;
+  color:#effaff;font-weight:780;
+  text-decoration:none;transition:background .18s,border-color .18s,box-shadow .18s,transform .18s;
+}
+body.neon-v3 .btn:hover:not(:disabled),body.neon-v3 button.btn:hover:not(:disabled) {
+  background:linear-gradient(150deg,#0d5676,#0b3251);border-color:#3fe7ff;
+  color:#fff;box-shadow:0 0 16px #15c8ff57,inset 0 1px #b8fbff33;
+  transform:translateY(-1px);
+}
+body.neon-v3 .btn-warning {border-color:#c18f37 !important;color:#ffe6a2 !important}
+body.neon-v3 .btn-disabled,body.neon-v3 button:disabled {filter:saturate(.4);opacity:.65;box-shadow:none}
+body.neon-v3 :is(.v2-race-main-action,.neon-cta,.sticky-save .btn,.gp-phone-main-action) {
+  display:inline-flex;justify-content:center;align-items:center;gap:9px;
+  color:#032235 !important;background:linear-gradient(180deg,#6af5ff,#08c8ec) !important;
+  border:1px solid #9ffaff !important;border-radius:12px;
+  padding:12px 22px;font-weight:900;text-decoration:none;
+  box-shadow:0 0 0 1px #35e7ff55,0 0 23px #00d3ff80,inset 0 2px #ffffff99 !important;
+}
+body.neon-v3 :is(.v2-race-main-action,.neon-cta,.sticky-save .btn):hover:not(:disabled) {
+  background:linear-gradient(180deg,#9cfdff,#36def5) !important;
+  transform:translateY(-1px);box-shadow:0 0 28px #00d9ffee !important;
+}
+body.neon-v3 .v2-race-main-action.is-inactive {background:#234158 !important;color:#a8c3d0 !important;border-color:#375d70 !important;box-shadow:none !important}
+body.neon-v3 :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) {
+  background:#081b2d;color:#f4fdff;
+  border:1px solid #266d90;border-radius:10px;
+  padding:11px 12px;min-height:44px;max-width:100%;
+}
+body.neon-v3 :is(input,select,textarea)::placeholder {color:#81a7bc}
+body.neon-v3 :is(input:not([type="checkbox"]),select,textarea):focus {
+  border-color:#43e6ff;box-shadow:0 0 0 3px #16c9ff1c,0 0 18px #00daff30;outline:0;
+}
+body.neon-v3 select option {background:#071b2d;color:#fff}
+body.neon-v3 label {color:#c9e5f4;font-weight:650}
+body.neon-v3 input[type="checkbox"],body.neon-v3 input[type="radio"] {accent-color:#28dffe}
+body.neon-v3 .notice,body.neon-v3 .flash {
+  background:#0e3650;color:#e8f9ff;border:1px solid #228cb2;border-left:4px solid #2ce4ff;
+  border-radius:10px;padding:13px 15px;box-shadow:0 0 17px #00cfff21;
+}
+body.neon-v3 .pill,body.neon-v3 :is(.status-open,.status-closed,.status-public,.status-private) {
+  border-radius:999px;border:1px solid #1d7094;background:#0e3149;padding:6px 10px;color:#d9f4ff;
+}
+body.neon-v3 .status-open,body.neon-v3 .status-public{border-color:#1d9b92;color:#6cfbc4}
+body.neon-v3 .status-closed {border-color:#bd7c6a;color:#ffc29d}
+body.neon-v3 .v2-admin-tabs{max-width:unset;justify-content:flex-start;background:#081d30;border-color:#19618a;box-shadow:var(--neon-shadow);text-align:left}
+body.neon-v3 .v2-admin-tabs a{color:#d4ecfa;background:#0c2a42;border-color:#1b567b}
+body.neon-v3 .v2-admin-tabs a:hover,body.neon-v3 .v2-admin-tabs a.active{background:#075e7a;color:#a5fbff;border-color:#40dfff;box-shadow:0 0 13px #00dfff4c}
+body.neon-v3 .gp-user-menu-panel a:focus-visible {outline-offset:0}
+/* Dashboard */
+body.neon-v3 .v2-home {max-width:1220px}
+body.neon-v3 .v2-home-heading {align-items:center;margin:3px 0 18px}
+body.neon-v3 .v2-home-heading h1 {font-size:clamp(1.5rem,3.5vw,2.35rem);margin:4px 0}
+body.neon-v3 .v2-home-heading p{color:#a5c9df}
+body.neon-v3 .v2-home-kicker,body.neon-v3 .v2-eyebrow,body.neon-v3 .gp-mini-kicker {color:#4de8fb}
+body.neon-v3 .v2-season-link {
+  background:#0a263d;color:#b5d2e4;border-color:#1b668d;
+  box-shadow:inset 0 1px #ffffff0a
+}
+body.neon-v3 .v2-season-link.is-current,body.neon-v3 .v2-season-link:hover {
+  color:#062238;background:#31e7fc;border-color:#9afaff;box-shadow:0 0 16px #00dfff7a
+}
+body.neon-v3 .v2-home .v2-home-racecenter,body.neon-v3 .v2-home .v2-racecenter-empty {
+  margin:0 0 18px;
+  border:1px solid #198ab9 !important;border-radius:22px !important;
+  box-shadow:0 0 0 1px #12a5c52b,0 0 38px #00bcff22,inset 0 0 35px #00aaff12;
+  background:
+    radial-gradient(ellipse 60% 80% at 84% 30%,rgba(2,168,224,.13),transparent),
+    linear-gradient(115deg,#0b2339 0%,#06192d 70%,#041222 100%) !important;
+  min-height:310px;text-align:left;position:relative;overflow:hidden;
+}
+body.neon-v3 .v2-racecenter h2 {font-size:clamp(1.9rem,4.3vw,3.15rem);line-height:1.08;max-width:650px;margin:12px 0 14px;font-style:italic;text-shadow:0 0 20px #20cfff39}
+body.neon-v3 .v2-home .v2-home-racecenter {padding:clamp(18px,3.5vw,34px) !important}
+body.neon-v3 .neon-hero-art {
+  position:absolute;inset:0 0 0 auto;width:58%;height:100%;
+  background-image:linear-gradient(90deg,#0b2339 1%,rgba(4,20,35,.4) 40%,rgba(4,15,27,.42)),url("/static/neon-race-bike.svg");
+  background-repeat:no-repeat;background-position:center right;background-size:cover;
+  pointer-events:none;opacity:.9;
+}
+body.neon-v3 .v2-racecenter-top,body.neon-v3 .v2-racecenter h2,body.neon-v3 .v2-race-saved,body.neon-v3 .v2-race-metrics,body.neon-v3 .v2-race-actions,body.neon-v3 .v2-race-links,body.neon-v3 .neon-race-overline{position:relative;z-index:1}
+body.neon-v3 .neon-race-overline {font-size:.79rem;letter-spacing:.17em;font-weight:850;color:#85eefe;margin:16px 0 3px}
+body.neon-v3 .v2-race-state{background:#082e37;border:1px solid #139c87;color:#53eab2}
+body.neon-v3 .v2-race-state.is-closed{background:#402b2c;border-color:#a9585e;color:#ffbfaa}
+body.neon-v3 .v2-race-metrics {grid-template-columns:repeat(2,minmax(0,180px));justify-content:flex-start;gap:10px;margin:14px 0;max-width:480px}
+body.neon-v3 .v2-race-metric{
+  background:#061b2dbb;border:1px solid #1b698a;border-radius:11px;
+  box-shadow:inset 0 1px #ffffff14;text-align:left;
+  min-height:95px;padding:13px;
+}
+body.neon-v3 .v2-race-metric span{color:#b4d6e8}
+body.neon-v3 .v2-race-metric strong{color:#f0fbff;text-shadow:0 0 13px #25dfff39;font-size:clamp(1rem,2.3vw,1.25rem);line-height:1.35}
+body.neon-v3 .v2-race-actions {justify-content:flex-start;margin:15px 0 10px}
+body.neon-v3 .v2-race-links {justify-content:flex-start;gap:20px;margin-top:15px}
+body.neon-v3 .v2-race-links a {color:#71f2ff;text-decoration:none}
+body.neon-v3 .v2-race-links a:hover {text-shadow:0 0 12px #19e8ff}
+body.neon-v3 .neon-hero-sessionboard {
+  position:absolute;right:20px;top:45px;width:min(245px,26%);
+  z-index:2;border-radius:14px;border:1px solid #1e91bc;
+  background:#061a2beb;box-shadow:0 0 25px #00bfff30;
+  padding:13px;
+}
+body.neon-v3 .neon-hero-sessionboard h3 {font-size:.77rem;letter-spacing:.12em;color:#8cf3ff;margin:0 0 10px}
+body.neon-v3 .neon-hero-sessionboard .neon-hero-session{
+  display:flex;justify-content:space-between;align-items:center;gap:6px;
+  font-size:.75rem;background:#0a2b43;border:1px solid #1a6486;
+  border-radius:9px;margin-top:7px;padding:10px;color:#d6f1fc;
+}
+body.neon-v3 .neon-hero-sessionboard .neon-hero-session:first-of-type{
+  border-color:#36dfff;box-shadow:0 0 10px #00bfff30;
+}
+body.neon-v3 .neon-hero-sessionboard .neon-hero-session small{color:#71daf0;font-size:.62rem}
+body.neon-v3 .neon-home-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:18px 0}
+body.neon-v3 .neon-summary-card {
+  display:flex;align-items:center;gap:13px;min-width:0;padding:20px;
+  text-align:left;color:#eafaff;text-decoration:none;
+  background:linear-gradient(145deg,#0b2b47,#05192d);border:1px solid #188bbb;
+  border-radius:15px;box-shadow:var(--neon-shadow);transition:transform .18s,border-color .18s,box-shadow .18s;
+}
+body.neon-v3 .neon-summary-card:hover {transform:translateY(-2px);border-color:#4eefff;box-shadow:0 0 24px #00d3ff44}
+body.neon-v3 .neon-summary-icon {
+  flex-shrink:0;display:grid;place-items:center;height:46px;width:46px;
+  border-radius:13px;background:#092f4b;border:1px solid #215e83;
+  font-size:1.45rem;filter:drop-shadow(0 0 4px #00dfff77);
+}
+body.neon-v3 .neon-summary-copy{min-width:0}
+body.neon-v3 .neon-summary-copy small{display:block;color:#90bdd6;font-size:.67rem;letter-spacing:.07em;font-weight:850}
+body.neon-v3 .neon-summary-copy strong{display:block;font-size:clamp(1rem,2.4vw,1.4rem);line-height:1.25;margin:7px 0 3px}
+body.neon-v3 .neon-summary-copy span{display:block;font-size:.78rem;color:#b4d7eb}
+body.neon-v3 .v2-home-shortcuts {grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin:16px 0}
+body.neon-v3 .v2-home-shortcuts a {
+  background:#0a263c;border:1px solid #145d81;border-radius:12px;
+  box-shadow:inset 0 1px #ffffff0d;min-height:55px;padding:14px;
+  color:#ceeefd;
+}
+body.neon-v3 .v2-home-shortcuts a:hover {border-color:#39e2f9;background:#0c3957;box-shadow:0 0 18px #03bfff42}
+body.neon-v3 .v2-home-upcoming {margin-top:25px}
+body.neon-v3 .v2-home-section-title h2{font-size:1.38rem}
+body.neon-v3 .v2-home-upcoming-card {
+  border-radius:13px;background:linear-gradient(130deg,#0a2d48,#061b2e) !important
+}
+body.neon-v3 .v2-home-upcoming-info strong{color:#f1fbff}
+body.neon-v3 .v2-home-upcoming-actions a{
+  text-decoration:none;color:#70f1ff;border:1px solid #1e749b;
+  border-radius:9px;padding:9px 12px;background:#0a3553;font-weight:800;
+}
+body.neon-v3 .v2-home-upcoming-actions a:hover {box-shadow:0 0 13px #0ae2ff45;border-color:#4befff}
+body.neon-v3 .v2-home-small-note{color:#8eacc4}
+body.neon-v3 .v2-home-status.is-saved{color:#6ef7b0}
+body.neon-v3 .neon-home-panels{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(270px,1fr);gap:16px;align-items:start}
+body.neon-v3 .neon-home-panels .v2-home-upcoming {margin-top:0}
+body.neon-v3 .neon-feature-card{background:#071c2f;border:1px solid #12658b;border-radius:15px;padding:20px;box-shadow:var(--neon-shadow)}
+body.neon-v3 .neon-feature-card h3{font-size:1.18rem;margin:5px 0}
+body.neon-v3 .neon-feature-label{color:#70efff;font-size:.73rem;letter-spacing:.12em;font-weight:850}
+body.neon-v3 .neon-feature-card p{color:#a9cfe1;font-size:.88rem}
+body.neon-v3 .neon-feature-card a{color:#80f1ff;text-decoration:none;font-size:.91rem;font-weight:850}
+body.neon-v3 .neon-feature-card a:hover{text-shadow:0 0 10px #1df4ff}
+/* Forms and predictions */
+body.neon-v3 :is(.prono-section,.prono-subsection,.bonus-section,.bonus-block){
+  background:#082036 !important;border:1px solid #165679 !important;border-radius:13px;
+  box-shadow:inset 0 1px #ffffff0e;
+}
+body.neon-v3 .prono-section{margin-bottom:14px;padding:clamp(16px,2vw,24px)}
+body.neon-v3 .prono-subsection{background:#051a2c !important}
+body.neon-v3 :is(.section-main-title,.bonus-section h3) {color:#8deffe;border-bottom:1px solid #145473;padding-bottom:12px}
+body.neon-v3 .sticky-save{
+  background:#041728ef;border:1px solid #14688b;box-shadow:0 -5px 25px #00cbff14;
+  padding:13px;border-radius:13px;z-index:20;
+}
+body.neon-v3 .sticky-save .btn {min-height:46px}
+body.neon-v3 .v2-sync-comparison>div,body.neon-v3 .v2-sync-deadline-settings {
+  background:#071d30;border:1px solid #1b6489;border-radius:12px
+}
+/* Results, rankings, comparison */
+body.neon-v3 .podium-card {border-color:#1a7ea5 !important;box-shadow:0 0 15px #00cfff21}
+body.neon-v3 .podium-1 {border-color:#cc9c40 !important;box-shadow:0 0 22px #ffd35a35}
+body.neon-v3 .podium-1 .podium-points {color:#ffce58}
+body.neon-v3 .podium-2 {border-color:#7ca5ba !important}
+body.neon-v3 .podium-3 {border-color:#ad7653 !important}
+body.neon-v3 :is(.classement,.gp-results-detail,.gp-comparison-table,.gp-season-recent-table){background:#061b2d;color:#eaf9ff}
+body.neon-v3 table th,body.neon-v3 table td{border-color:#145171}
+body.neon-v3 table thead th{background:#103d5b;color:#a9ebff}
+body.neon-v3 table tbody tr:nth-child(even) td{background:#0a2a41}
+body.neon-v3 table tbody tr:hover td{background:#104363}
+body.neon-v3 .classement td.player-col,body.neon-v3 .classement th.player-col,
+body.neon-v3 .gp-results-detail td.player-col,body.neon-v3 .gp-results-detail th.player-col{
+  background:#0e354f;box-shadow:4px 0 12px #000a16bd
+}
+body.neon-v3 .classement td.total-col,body.neon-v3 .classement th.total-col{
+  background:#073e5b;color:#7bf4ff
+}
+body.neon-v3 .classement tr.row-gold td.player-col{background:#3d3020}
+body.neon-v3 .classement tr.row-silver td.player-col{background:#253747}
+body.neon-v3 .classement tr.row-bronze td.player-col{background:#3e302a}
+body.neon-v3 .results-gp-nav-link,body.neon-v3 .results-gp-option{
+  background:#092943;border:1px solid #175b7a;border-radius:10px;color:#dcefff;
+}
+body.neon-v3 .results-gp-option.is-current,body.neon-v3 .results-gp-option:hover{
+  background:#0b5270;border-color:#40eaff;color:#fff;box-shadow:0 0 14px #00ceff38
+}
+body.neon-v3 .results-gp-summary {background:#092a41;color:#8af0ff;border:1px solid #1c789d;border-radius:10px}
+body.neon-v3 .gp-comparison-scroll,body.neon-v3 .gp-season-recent-scroll{border-color:#1975a0}
+body.neon-v3 .gp-comparison-table .gp-comparison-player,
+body.neon-v3 .gp-comparison-table thead .gp-comparison-label{background:#144463}
+body.neon-v3 .gp-comparison-table .gp-comparison-label{background:#0a324d}
+body.neon-v3 .gp-comparison-table .gp-comparison-group th{background:#0a4262;color:#8aecff}
+body.neon-v3 .gp-comparison-table td.is-popular{background:#0b5270;color:#c8faff;box-shadow:inset 0 0 14px #00cfff29}
+body.neon-v3 .gp-vote-card h4,body.neon-v3 .gp-season-chart h4{color:#e9faff}
+body.neon-v3 .gp-vote-track{background:#092b40}
+body.neon-v3 .gp-vote-track span{background:linear-gradient(90deg,#0783c1,#4aefff);box-shadow:0 0 9px #00dfff65}
+body.neon-v3 .gp-season-card strong{color:#67f0ff}
+body.neon-v3 .gp-season-card{background:#0b2e46 !important}
+/* Avatar and section details */
+body.neon-v3 .avatar-v2{border:2px solid #2fafd2;background:#103c59}
+body.neon-v3 .v2-stats article strong {color:#83f4ff}
+body.neon-v3 .v2-stats article small{color:#92bcd2}
+body.neon-v3 .v2-stats article span{color:#e5f8ff}
+body.neon-v3 :is(.gp-public-heading,.gp-public-section-heading) h2{color:#fff}
+body.neon-v3 .gp-public-live{background:#052f31;color:#74ffc6;border-color:#178a86}
+/* Mobile */
+@media(max-width:900px){
+  body.neon-v3 .neon-hero-sessionboard{display:none}
+  body.neon-v3 .neon-hero-art{width:64%;opacity:.53}
+}
+@media(max-width:720px){
+  body.neon-v3 main{padding:18px 12px 94px}
+  body.neon-v3 .checkerbar-compact{padding:0 11px}
+  body.neon-v3 .gp-header-top{min-height:56px}
+  body.neon-v3 .gp-header-nav{display:none}
+  body.neon-v3 .neon-bottom-nav{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+    position:fixed;bottom:0;left:0;right:0;z-index:100;
+    padding:7px 7px calc(7px + env(safe-area-inset-bottom));
+    border-top:1px solid #177da5;background:#031626f6;
+    box-shadow:0 -8px 30px #000d1acf;
+    backdrop-filter:blur(12px);
+  }
+  body.neon-v3 .neon-bottom-nav a{
+    color:#aacdde;text-decoration:none;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:1px;min-height:46px;border-radius:10px;font-size:.68rem;font-weight:730;
+  }
+  body.neon-v3 .neon-bottom-nav a .neon-nav-icon{font-size:1.23rem;line-height:1.2}
+  body.neon-v3 .neon-bottom-nav a.is-active{color:#57efff;background:#093148;box-shadow:inset 0 1px #26dcff5e,0 0 13px #00daff29}
+  body.neon-v3 .v2-home-heading{align-items:start}
+  body.neon-v3 .v2-home-heading h1{font-size:1.56rem}
+  body.neon-v3 .v2-season-link{padding:7px 9px;min-height:34px;font-size:.75rem}
+  body.neon-v3 .v2-home .v2-home-racecenter,body.neon-v3 .v2-home .v2-racecenter-empty{min-height:0;padding:20px 15px !important}
+  body.neon-v3 .neon-hero-art{width:82%;opacity:.27}
+  body.neon-v3 .v2-racecenter h2{font-size:1.95rem;max-width:100%}
+  body.neon-v3 .v2-race-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-width:100%}
+  body.neon-v3 .v2-race-metric{padding:10px;min-height:86px}
+  body.neon-v3 .v2-race-metric strong{font-size:1.02rem}
+  body.neon-v3 .v2-race-main-action{width:100%;padding:12px}
+  body.neon-v3 .neon-home-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  body.neon-v3 .neon-summary-card{padding:12px 10px;gap:8px}
+  body.neon-v3 .neon-summary-card:last-child{grid-column:1/-1}
+  body.neon-v3 .neon-summary-icon{height:38px;width:38px;font-size:1.1rem}
+  body.neon-v3 .neon-summary-copy strong{font-size:1rem}
+  body.neon-v3 .v2-home-shortcuts{grid-template-columns:1fr}
+  body.neon-v3 .neon-home-panels{grid-template-columns:1fr}
+  body.neon-v3 .podium{grid-template-columns:1fr}
+  body.neon-v3 .v2-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.neon-v3 .gp-season-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.neon-v3 .neon-footer{padding-bottom:20px}
+}
+@media(max-width:390px){
+  body.neon-v3 .neon-summary-card{flex-direction:column;align-items:flex-start}
+  body.neon-v3 .gp-user-menu-name{max-width:85px}
+}
+@media(prefers-reduced-motion:reduce){
+  body.neon-v3 *,body.neon-v3 *:before,body.neon-v3 *:after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
