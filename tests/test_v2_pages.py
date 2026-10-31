@@ -11,6 +11,25 @@ class V2PagesTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
+    def test_vercel_import_uses_writable_tmp_and_preserves_calendar(self):
+        import subprocess
+        import sys
+        env = dict(os.environ)
+        env.pop("DATABASE_URL", None)
+        env["VERCEL"] = "1"
+        code = (
+            "import os, app; "
+            "assert app.DATA_DIR.startswith('/tmp/'); "
+            "assert os.path.isdir(app.RESULTS_DIR); "
+            "assert os.path.isdir(app.PRONOS_DIR); "
+            "assert os.path.isfile(app.WEEKENDS_FILE); "
+            "assert app.load_json(app.WEEKENDS_FILE, {}).get('weekends'); "
+            "assert app.app.test_client().get('/healthz').status_code == 200"
+        )
+        result = subprocess.run([sys.executable, "-c", code], env=env,
+                                text=True, capture_output=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_private_pages_redirect_anonymous_to_login(self):
         from urllib.parse import urlsplit
         for url in ("/", "/classement", "/results_by_race",
