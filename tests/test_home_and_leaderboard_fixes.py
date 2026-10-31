@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta, date
 
 os.environ.pop("DATABASE_URL", None)
 from flask import render_template
-from app import app
+from app import app, compute_points_breakdown
 from season_standings import build_season_standings, individual_season_summary
 from v2_features import _race_session_cards, _race_session_kind
 
@@ -102,11 +102,15 @@ class HomepageAndLeaderboardRegressionTests(unittest.TestCase):
         self.assertIn("Alice", html)
 
     def test_result_gp_picker_is_unique_and_podium_photos_are_visible(self):
-        rows = [
-            {"player": n, "pts": {"total": 7.0, "qualif":{"total":2},
-              "sprint":{"total":1}, "gp":{"total":4},"bonus":{"total":0}}}
-            for n in ("Alice", "Bob", "Charlie")
-        ]
+        rows = []
+        for n in ("Alice", "Bob", "Charlie"):
+            picks = {"pole": "#93 Marc Marquez", "gp_p1": "#93 Marc Marquez"}
+            rows.append({
+                "player": n, "p": picks,
+                "pts": compute_points_breakdown(
+                    picks, self.results, self.gp, player_name=n, reviews={}
+                ),
+            })
         with app.test_request_context("/results_by_race?gp=test-gp"):
             html = render_template(
                 "results_by_race.html", name="Alice", selected=self.gp,
