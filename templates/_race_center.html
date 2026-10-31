@@ -43,7 +43,7 @@
           <span class="v3-metric-label"><span class="v3-metric-icon v3-icon-purple" aria-hidden="true">◈</span> Prochaine séance</span>
           {% if rc.session_iso %}
             <strong class="v2-race-session-name">{{ rc.session_label }}</strong>
-            <span class="v2-race-session-timer v3-session-hint">Compte à rebours dans « Le week-end »</span>
+            <span class="v2-race-session-timer" data-countdown="{{ rc.session_iso }}" data-countdown-finished="Séance terminée">Calcul…</span>
           {% else %}
             <strong class="v2-race-metric-detail">Horaire non renseigné</strong>
           {% endif %}
