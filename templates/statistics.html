@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Statistiques des pronostics — PronoGP{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='v2-statistics.css') }}">{% endblock %}
+
+{% block content %}
+<section class="stats-page">
+  <div class="stats-heading">
+    <div>
+      <p class="stats-eyebrow">🏁 PRONOGP · ANALYSE DES PRONOSTICS</p>
+      <h2>Comparatif des <span>pronos</span></h2>
+      <p class="stats-muted">Les consensus, les choix qui divisent et les coups de poker, GP par GP.</p>
+    </div>
+  </div>
+
+  <div class="stats-controls">
+    <form method="get" action="{{ url_for('statistics_page') }}">
+      <label for="stats-season">Saison</label>
+      <div class="stats-select-row">
+        <select id="stats-season" name="season">
+          {% for year in seasons %}
+            <option value="{{ year }}" {% if year == season_year %}selected{% endif %}>{{ year }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit">Changer</button>
+      </div>
+    </form>
+    <form method="get" action="{{ url_for('statistics_page') }}">
+      <input type="hidden" name="season" value="{{ season_year }}">
+      <label for="stats-gp">Grand Prix</label>
+      <div class="stats-select-row">
+        <select id="stats-gp" name="gp" {% if not weekends %}disabled{% endif %}>
+          {% for w in weekends %}
+            <option value="{{ w.id }}" {% if selected and w.id == selected.id %}selected{% endif %}>{{ w.label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit" {% if not weekends %}disabled{% endif %}>Afficher</button>
+      </div>
+    </form>
+  </div>
+
+  {% if not selected %}
+    <div class="stats-empty" role="status">Aucun Grand Prix disponible pour cette saison.</div>
+  {% elif not published %}
+    <div class="stats-empty" role="status">
+      <strong>🔒 {{ selected.label }}</strong>
+      <p>Les statistiques seront disponibles dès la publication des pronostics de ce GP, après leur clôture.</p>
+      <p class="stats-muted">Les choix des autres joueurs restent privés tant que les pronos ne sont pas publiés.</p>
+    </div>
+  {% elif not comparison %}
+    <div class="stats-empty" role="status">
+      <strong>🏁 {{ selected.label }}</strong>
+      <p>Aucun pronostic enregistré pour ce GP.</p>
+    </div>
+  {% else %}
+    {% set c = comparison %}
+    <div class="stats-race-label">🏁 {{ selected.label }} <span class="stats-public-pill">● PRONOS PUBLIÉS</span></div>
+
+    <div class="stats-kpis">
+      <article class="stats-kpi stats-kpi-cyan">
+        <span class="stats-kpi-label">👥 Joueurs comparés</span>
+        <strong>{{ c.players|length }}</strong>
+        <small>Pronostics enregistrés</small>
+      </article>
+      <article class="stats-kpi stats-kpi-green">
+        <span class="stats-kpi-label">🤝 Consensus</span>
+        <strong>{{ c.consensus_count }} <span>/ {{ c.total_fields }}</span></strong>
+        <small>Choix identiques chez tous</small>
+      </article>
+      <article class="stats-kpi stats-kpi-amber">
+        <span class="stats-kpi-label">⚡ Avis partagés</span>
+        <strong>{{ c.difference_count }}</strong>
+        <small>Positions avec plusieurs choix</small>
+      </article>
+    </div>
+
+    <div class="stats-grid">
+      <section class="stats-panel stats-panel-matrix">
+        <div class="stats-panel-heading">
+          <div>
+            <h3>📊 Comparatif des joueurs</h3>
+            <p>Fais défiler horizontalement pour voir tous les participants.</p>
+          </div>
+          <div class="stats-legend">
+            <span><i class="stats-dot stats-dot-green"></i> Unanimité</span>
+            <span><i class="stats-dot stats-dot-cyan"></i> Majorité</span>
+            <span><i class="stats-dot stats-dot-amber"></i> Choix isolé</span>
+          </div>
+        </div>
+        <div class="stats-table-scroll" tabindex="0" aria-label="Tableau comparatif des pronostics, défilement horizontal">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th scope="col">Résultat pronostiqué</th>
+                {% for player in c.players %}
+                  <th scope="col">{{ player }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in c.matrix %}
+                <tr>
+                  <th scope="row">
+                    {% if row.category == 'pole' %}⏱️
+                    {% elif row.category == 'q1' %}🚦
+                    {% elif row.category == 'sprint' %}⚡
+                    {% elif row.category == 'gp' %}🏆
+                    {% else %}🎯{% endif %}
+                    {{ row.label }}
+                  </th>
+                  {% for cell in row.cells %}
+                    <td><span class="stats-choice stats-choice-{{ cell.state }}">{{ cell.value }}</span></td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="stats-footnote">Pour la Q1, l’ordre des deux pilotes n’est pas pris en compte. Les cases vides n’entrent pas dans les comparaisons.</p>
+      </section>
+
+      <aside class="stats-panel stats-insights">
+        <h3>🎲 Différences clés</h3>
+        {% if c.consensus_count %}
+          <p class="stats-insight">
+            <span class="stats-insight-icon">🤝</span>
+            <span><strong>{{ c.consensus_count }} consensus</strong><small>{{ c.consensus_count }} choix identiques chez tous les joueurs.</small></span>
+          </p>
+        {% endif %}
+        {% for item in c.outliers %}
+          <p class="stats-insight">
+            <span class="stats-insight-icon">⚡</span>
+            <span>
+              <strong>{{ item.player }} joue la différence</strong>
+              <small>{{ item.field }} : {{ item.answer }}. C’est un choix unique face à une majorité.</small>
+            </span>
+          </p>
+        {% endfor %}
+        {% if not c.outliers %}
+          <p class="stats-muted">Pas de choix vraiment isolé sur ce GP. Les tendances restent visibles dans le tableau.</p>
+        {% endif %}
+      </aside>
+    </div>
+
+    <section class="stats-panel">
+      <div class="stats-panel-heading">
+        <div>
+          <h3>📈 Tendances du paddock</h3>
+          <p>Répartition des votes pour la pole et la première place en Sprint et GP.</p>
+        </div>
+      </div>
+      <div class="stats-votes">
+        {% for chart in c.distributions %}
+          <article class="stats-vote-card">
+            <h4>{{ chart.label }}</h4>
+            {% for option in chart.options[:7] %}
+              <div class="stats-vote-item">
+                <div class="stats-vote-text"><span>{{ option.label }}</span><strong>{{ option.count }} / {{ c.players|length }}</strong></div>
+                <div class="stats-vote-track" role="img" aria-label="{{ option.percent }} pour cent pour {{ option.label }}"><div style="width:{{ option.percent }}%"></div></div>
+              </div>
+            {% else %}
+              <p class="stats-muted">Aucune réponse.</p>
+            {% endfor %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if c.similarities %}
+      <section class="stats-panel">
+        <div class="stats-panel-heading">
+          <div>
+            <h3>🔀 Qui pronostique comme qui ?</h3>
+            <p>Les paires de joueurs partageant le plus de réponses.</p>
+          </div>
+        </div>
+        <div class="stats-similarities">
+          {% for pair in c.similarities %}
+            <div class="stats-similarity">
+              <div class="stats-similarity-top"><span>{{ pair.left }} <span aria-hidden="true">↔</span> {{ pair.right }}</span><strong>{{ pair.percent }}%</strong></div>
+              <div class="stats-vote-track" role="img" aria-label="Taux de similitude de {{ pair.percent }} pour cent"><div style="width:{{ pair.percent }}%"></div></div>
+              <small>{{ pair.match }} réponses identiques sur {{ pair.shared }} comparables</small>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    <div class="stats-footer-action">
+      <a class="btn" href="{{ url_for('public_pronos', weekend_id=selected.id) }}">👀 Voir les pronostics détaillés</a>
+      <a class="btn" href="{{ url_for('results_by_race', gp=selected.id, season=season_year) }}">🏆 Résultats par GP</a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
