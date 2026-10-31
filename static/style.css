@@ -1710,3 +1710,65 @@ details.card[open] summary::after{
   .results-gp-option { align-items: flex-start; }
   .results-gp-option-meta { max-width: 90px; }
 }
+
+/* Fusion des résultats, podium et classement GP — point 2 */
+.gp-fusion-section {
+  margin-top: 24px;
+  text-align: left;
+}
+.gp-fusion-section > h3 {
+  margin: 0 0 12px;
+}
+.gp-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.gp-analysis-item {
+  border: 1px solid rgba(0, 225, 255, .23);
+  background: rgba(9, 32, 66, .55);
+  border-radius: 14px;
+  padding: 16px;
+  min-width: 0;
+}
+.gp-analysis-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #78eeff;
+  font-weight: 800;
+}
+.gp-analysis-item p {
+  margin: 9px 0 0;
+  overflow-wrap: anywhere;
+}
+.gp-results-detail {
+  min-width: 690px;
+  width: 100%;
+}
+.gp-results-detail th.player-col,
+.gp-results-detail td.player-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #0d3b66;
+  box-shadow: 5px 0 10px rgba(0, 0, 0, .2);
+}
+.gp-results-detail thead th.player-col {
+  z-index: 3;
+}
+.gp-results-detail tr.row-gold td.player-col { background: #3b3a23; }
+.gp-results-detail tr.row-silver td.player-col { background: #243c55; }
+.gp-results-detail tr.row-bronze td.player-col { background: #3a3c3b; }
+.gp-results-detail th.total-col,
+.gp-results-detail td.total-col {
+  font-weight: 800;
+  color: #ffd60a;
+  background: rgba(255, 214, 10, .12);
+}
+@media (max-width: 700px) {
+  .gp-analysis-grid { grid-template-columns: 1fr; }
+  .gp-analysis-item { padding: 12px 14px; }
+  .gp-results-detail { min-width: 630px; }
+}
