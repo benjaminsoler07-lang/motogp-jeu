@@ -207,6 +207,26 @@ class V2PagesTests(unittest.TestCase):
         self.assertIn("GP de France", html)
         self.assertIn("season=2026", html)
         self.assertNotIn('name="gp" onchange=', html)
+        # Drapeaux affichés sans supprimer les noms ni casser la recherche.
+        for flag in ("🇶🇦", "🇮🇹", "🇫🇷"):
+            self.assertIn(f'<span class="results-gp-flag" aria-hidden="true">{flag}</span>', html)
+        self.assertIn('data-gp-label="GP du Qatar"', html)
+
+    def test_results_gp_flags_regions_and_unknown_gp(self):
+        from flask import render_template
+        weekends = [
+            {"id": "saint-marin-2026", "label": "GP de Saint-Marin"},
+            {"id": "aragon-2026", "label": "GP d'Aragon"},
+            {"id": "gp-personnalise", "label": "Course bonus"},
+        ]
+        with app.test_request_context("/results_by_race?season=2026"):
+            html = render_template("results_by_race.html", name="Alex",
+                                   weekends=weekends, selected=weekends[0],
+                                   results=None, rows=[], notice=None)
+        self.assertIn("🇸🇲", html)
+        self.assertIn("🇪🇸", html)
+        self.assertIn("Course bonus", html)
+        self.assertEqual(html.count("results-gp-flag"), 4)
 
     def test_results_gp_direct_link_keeps_archived_season(self):
         from datetime import date

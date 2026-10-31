@@ -6,6 +6,23 @@
   <p class="muted">Retrouve rapidement les résultats d'un Grand Prix, sur ordinateur comme sur téléphone.</p>
 
   {% set picker_season = request.args.get('season') or (selected.season_year if selected and selected.season_year else none) %}
+  {# Drapeaux affichés uniquement dans le sélecteur, sans changer les libellés ni les liens. #}
+  {% set gp_flags = {
+    'thailande': '🇹🇭', 'bresil': '🇧🇷', 'ameriques': '🇺🇸',
+    'qatar': '🇶🇦', 'espagne': '🇪🇸', 'france': '🇫🇷',
+    'catalogne': '🇪🇸', 'italie': '🇮🇹', 'hongrie': '🇭🇺',
+    'republique-tcheque': '🇨🇿', 'pays-bas': '🇳🇱',
+    'allemagne': '🇩🇪', 'grande-bretagne': '🇬🇧',
+    'aragon': '🇪🇸', 'saint-marin': '🇸🇲', 'autriche': '🇦🇹',
+    'japon': '🇯🇵', 'indonesie': '🇮🇩', 'australie': '🇦🇺',
+    'malaisie': '🇲🇾', 'portugal': '🇵🇹', 'valence': '🇪🇸',
+    'argentine': '🇦🇷', 'emilie-romagne': '🇮🇹', 'inde': '🇮🇳'
+  } %}
+  {% macro flag_for(weekend) -%}
+    {%- set gp_id = weekend.id|default('', true)|lower -%}
+    {%- set flag = gp_flags.get(gp_id, gp_flags.get(gp_id.rsplit('-', 1)[0], '')) -%}
+    {%- if flag -%}<span class="results-gp-flag" aria-hidden="true">{{ flag }}</span>{%- endif -%}
+  {%- endmacro %}
   {% set gp_nav = namespace(previous=none, next=none) %}
   {% for w in weekends %}
     {% if selected and w.id == selected.id %}
@@ -18,7 +35,7 @@
     <div class="results-picker-head">
       <div>
         <div class="results-picker-kicker">🏁 Navigation des Grands Prix</div>
-        <h3 id="results-picker-title">{{ selected.label if selected else 'Choisir un Grand Prix' }}</h3>
+        <h3 id="results-picker-title">{% if selected %}{{ flag_for(selected) }} {{ selected.label }}{% else %}Choisir un Grand Prix{% endif %}</h3>
       </div>
       {% if selected %}
         <a class="btn btn-small" href="{{ url_for('classement_weekend', weekend_id=selected.id) }}">🏆 Voir le classement</a>
@@ -30,14 +47,14 @@
         <nav class="results-gp-nav" aria-label="Parcourir les Grands Prix">
           {% if gp_nav.previous %}
             <a class="results-gp-nav-link" href="{{ url_for('results_by_race', gp=gp_nav.previous.id, season=picker_season) }}">
-              <small>← GP précédent</small><strong>{{ gp_nav.previous.label }}</strong>
+              <small>← GP précédent</small><strong>{{ flag_for(gp_nav.previous) }} {{ gp_nav.previous.label }}</strong>
             </a>
           {% else %}
             <span class="results-gp-nav-link results-gp-nav-disabled"><small>← GP précédent</small><strong>Début de saison</strong></span>
           {% endif %}
           {% if gp_nav.next %}
             <a class="results-gp-nav-link" href="{{ url_for('results_by_race', gp=gp_nav.next.id, season=picker_season) }}">
-              <small>GP suivant →</small><strong>{{ gp_nav.next.label }}</strong>
+              <small>GP suivant →</small><strong>{{ flag_for(gp_nav.next) }} {{ gp_nav.next.label }}</strong>
             </a>
           {% else %}
             <span class="results-gp-nav-link results-gp-nav-disabled"><small>GP suivant →</small><strong>Fin de saison</strong></span>
@@ -60,7 +77,7 @@
                  href="{{ url_for('results_by_race', gp=w.id, season=picker_season) }}"
                  data-gp-label="{{ w.label }}"
                  {% if selected and selected.id == w.id %}aria-current="page"{% endif %}>
-                <span class="results-gp-option-name">{{ w.label }}</span>
+                <span class="results-gp-option-name">{{ flag_for(w) }} {{ w.label }}</span>
                 <span class="results-gp-option-meta">
                   {% if w.date_obj %}{{ w.date_obj.strftime('%d/%m/%Y') }}{% endif %}
                   {% if w.cancelled %}<span class="results-gp-cancelled">Annulé</span>{% endif %}
