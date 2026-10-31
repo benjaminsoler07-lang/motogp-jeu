@@ -65,9 +65,9 @@ def _race_session_kind(label):
         return None
     if "sprint" in label:
         return "sprint"
-    if re.search(r"\\bq1\\b|qualification 1|qualifying 1|qualif", label):
+    if re.search(r"\bq1\b|qualification 1|qualifying 1|qualif", label):
         return "qualif"
-    if re.search(r"\\b(course|race|grand prix|gp)\\b", label):
+    if re.search(r"\b(course|race|grand prix|gp)\b", label):
         return "gp"
     return None
 
