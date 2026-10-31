@@ -75,7 +75,7 @@ class NeonDesignTests(unittest.TestCase):
             base = render_template("base.html", name="TestUser")
         self.assertIn("neon-v3", base)
         self.assertIn('aria-label="Navigation mobile"', base)
-        self.assertIn("Dashboard admin", base)
+        self.assertIn("Dashboard admin", (ROOT / "templates" / "base.html").read_text(encoding="utf-8"))
         self.assertIn("neon-v3.css", base)
 
     def test_scoring_and_database_code_are_not_part_of_redesign(self):
