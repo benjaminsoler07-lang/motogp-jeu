@@ -58,7 +58,7 @@ def build_public_insights(pronos, weekend):
 
     matrix = []
     for group, label, field in field_specs + bonus_specs:
-        choices = [_display((p.get("p") or {}).get("bonus", {}).get(field)
+        choices = [_display(((p.get("p") or {}).get("bonus") or {}).get(field)
                     if group == "Questions bonus" else (p.get("p") or {}).get(field))
                    for p in pronos]
         counts = Counter(_key(c) for c in choices if c != "—")
