@@ -1,0 +1,93 @@
+/* Approved PronoGP neon signature — cyan, magenta and yellow.
+   Banner-only redesign, with the existing navigation left intact. */
+body.neon-v3 .checkerbar-compact {
+  position:relative;
+  isolation:isolate;
+  overflow:visible;
+  background:
+    radial-gradient(ellipse 31% 90% at 21% 44%,rgba(18,121,200,.19),transparent 76%),
+    radial-gradient(ellipse 24% 85% at 55% 31%,rgba(254,37,125,.11),transparent 78%),
+    linear-gradient(110deg,#03091a 0%,#071b35 50%,#050b1d 100%);
+  border-bottom:1px solid rgba(73,213,254,.6);
+  box-shadow:0 4px 22px rgba(4,205,255,.2),0 1px 9px rgba(255,44,118,.15);
+}
+body.neon-v3 .checkerbar-compact::before {
+  content:"";
+  position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:
+    linear-gradient(90deg,transparent 5%,rgba(30,210,255,.2) 18%,transparent 36%),
+    linear-gradient(90deg,transparent 37%,rgba(255,42,119,.12) 57%,transparent 76%),
+    linear-gradient(90deg,transparent 68%,rgba(255,213,65,.1) 78%,transparent 90%);
+  opacity:.45;
+}
+body.neon-v3 .checkerbar-compact::after {
+  position:relative;z-index:1;
+  background:linear-gradient(90deg,transparent 4%,#31deff 26%,#ff3f96 67%,#ffd653 88%,transparent);
+}
+body.neon-v3 .checkerbar-compact :is(.gp-header-top,.gp-header-nav) {
+  position:relative;z-index:1;
+}
+body.neon-v3 .gp-header-top {
+  max-width:1220px;
+  margin:0 auto;
+  min-height:87px;
+  gap:18px;
+}
+body.neon-v3 .gp-header-brand-art {
+  display:block;
+  flex:0 1 355px;
+  width:clamp(220px,33vw,355px);
+  min-width:0;
+  line-height:0;
+  transform:none;
+  position:relative;
+  margin-left:-3px;
+  text-decoration:none;
+}
+body.neon-v3 .gp-header-neon-logo {
+  display:block;
+  width:100%;
+  height:auto;
+  aspect-ratio:420/97;
+  object-fit:contain;
+  mix-blend-mode:screen;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 6%,#000 94%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0%,#000 6%,#000 94%,transparent 100%);
+  filter:drop-shadow(0 0 4px rgba(0,210,255,.23));
+}
+body.neon-v3 .gp-header-brand-art:hover .gp-header-neon-logo {
+  filter:drop-shadow(0 0 8px rgba(54,220,255,.45)) drop-shadow(0 0 7px rgba(250,64,152,.22));
+}
+body.neon-v3 .gp-header-brand-art:focus-visible {
+  outline:2px solid #66ebff;
+  outline-offset:2px;
+  border-radius:5px;
+}
+body.neon-v3 .gp-header-tools {
+  margin-left:auto;
+}
+body.neon-v3 .gp-header-nav {
+  max-width:1220px;
+  margin:0 auto;
+  padding:0 0 9px;
+}
+@media(max-width:720px){
+  body.neon-v3 .checkerbar-compact {padding:0 11px;}
+  body.neon-v3 .gp-header-top {min-height:63px;gap:7px;}
+  body.neon-v3 .gp-header-brand-art {
+    flex:0 1 240px;
+    width:clamp(156px,57vw,240px);
+    margin-left:-5px;
+  }
+  body.neon-v3 .gp-header-tools {gap:5px;flex-shrink:0;}
+  body.neon-v3 .gp-user-menu summary {padding:7px 8px;min-height:35px;}
+  body.neon-v3 .gp-header-notify {padding:6px 7px;}
+}
+@media(max-width:385px){
+  body.neon-v3 .gp-header-top {gap:3px;}
+  body.neon-v3 .gp-header-brand-art {flex-basis:190px;width:clamp(149px,52vw,190px);}
+  body.neon-v3 .gp-user-menu-name {max-width:70px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  body.neon-v3 .gp-header-brand-art:hover .gp-header-neon-logo {transition:none;}
+}
