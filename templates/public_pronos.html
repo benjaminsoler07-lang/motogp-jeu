@@ -20,6 +20,16 @@
         <h3 id="gp-comparison-title">🏁 Comparaison des pronostics</h3>
         <span class="muted">Joueurs en haut · Sélections à gauche</span>
       </div>
+      <div class="gp-comparison-highlights" aria-label="Lecture rapide des pronostics">
+        <div class="gp-comparison-highlight highlight-agreement"><span class="gp-highlight-icon" aria-hidden="true">✓</span><span><small>ACCORDS</small><strong>{{ insights.comparison.unanimous }}</strong><span>Choix unanimes</span></span></div>
+        <div class="gp-comparison-highlight highlight-disagreement"><span class="gp-highlight-icon" aria-hidden="true">⚡</span><span><small>DIVERGENCES</small><strong>{{ insights.comparison.contested }}</strong><span>Positions discutées</span></span></div>
+        <div class="gp-comparison-highlight highlight-solo"><span class="gp-highlight-icon" aria-hidden="true">✦</span><span><small>CHOIX ISOLÉS</small><strong>{{ insights.comparison.isolated }}</strong><span>Pronostics différents</span></span></div>
+      </div>
+      <div class="gp-comparison-key" aria-label="Signification des couleurs">
+        <span><i class="gp-key-swatch gp-key-cyan"></i> Même sélection = même couleur</span>
+        <span><i class="gp-key-swatch gp-key-amber"></i> Choix isolé = contour marqué</span>
+        <span><i class="gp-key-swatch gp-key-white"></i> Non renseigné = neutre</span>
+      </div>
       <p class="gp-scroll-hint">Sur téléphone, fais glisser le tableau horizontalement pour comparer les joueurs.</p>
       <div class="gp-comparison-scroll" role="region" aria-label="Tableau comparatif des pronostics" tabindex="0">
         <table class="gp-comparison-table">
@@ -39,19 +49,28 @@
             {% for line in insights.matrix %}
               {% if line.group != state.group %}
                 {% set state.group = line.group %}
-                <tr class="gp-comparison-group"><th scope="rowgroup" colspan="{{ insights.players|length + 1 }}">{{ line.group }}</th></tr>
+                <tr class="gp-comparison-group group-{{ line.group_key }}"><th scope="rowgroup" colspan="{{ insights.players|length + 1 }}"><span class="gp-group-title">{{ {'Qualifications':'⚡','Sprint':'🚀','Grand Prix':'🏁','Questions bonus':'🎯'}.get(line.group,'') }} {{ line.group }}</span></th></tr>
               {% endif %}
-              <tr>
-                <th scope="row" class="gp-comparison-label">{{ line.label }}</th>
+              <tr class="gp-comparison-choice-row row-{{ line.group_key }}">
+                <th scope="row" class="gp-comparison-label"><span class="gp-row-label">{{ line.label }}</span><small class="gp-row-verdict{% if line.unanimous %} is-unanimous{% endif %}">{{ line.verdict }}</small></th>
                 {% for cell in line.cells %}
-                  <td {% if cell.popular %}class="is-popular"{% endif %}>{{ cell.value }}</td>
+                  <td class="gp-comparison-cell tone-{{ cell.tone }} status-{{ cell.status }}{% if cell.popular %} is-popular{% endif %}" title="{{ cell.signal }}">
+                    <span class="gp-pick-value">{{ cell.value }}</span>
+                    {% if cell.status == 'unanimous' %}
+                      <small class="gp-pick-signal">✓ UNANIMITÉ</small>
+                    {% elif cell.status == 'popular' %}
+                      <small class="gp-pick-signal">↗ {{ cell.votes }} JOUEURS</small>
+                    {% elif cell.status == 'solo' %}
+                      <small class="gp-pick-signal">✦ SEUL CHOIX</small>
+                    {% endif %}
+                  </td>
                 {% endfor %}
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      <p class="gp-comparison-legend"><span class="gp-popular-dot"></span> Les cases cyan signalent les choix les plus fréquents (au moins deux joueurs).</p>
+      <p class="gp-comparison-legend">Les couleurs distinguent les réponses <strong>au sein de chaque ligne</strong> : deux joueurs ayant choisi la même réponse partagent sa couleur. « Choix isolé » signifie qu’un seul joueur a fait ce choix, pas qu’il est forcément meilleur ou plus risqué.</p>
     </section>
 
     <section class="gp-public-section" aria-labelledby="gp-pre-analysis-title">
