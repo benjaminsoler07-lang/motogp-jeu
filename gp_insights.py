@@ -112,57 +112,163 @@ def build_public_insights(pronos, weekend):
 
 
 def build_championship_insights(standings, rounds):
-    """Analyse du classement en fonction des points déjà calculés par l'application."""
-    if not standings or not rounds:
-        return {"cards": [], "comments": [], "bars": [], "recent": []}
-    leader = standings[0]
-    n = len(standings)
-    gap = round(leader["total"] - standings[1]["total"], 2) if n > 1 else None
-    best = max((r for r in standings if r["gps"] > 0),
-               key=lambda r: (r["total"] / r["gps"], r["total"]), default=None)
-    cards = [
-        {"label": "GP comptabilisés", "value": len(rounds), "detail": "Résultats enregistrés"},
-        {"label": "Joueurs classés", "value": n, "detail": "Au moins un GP"},
-        {"label": "Leader", "value": leader["player"], "detail": f"{leader['total']:g} points"},
-        {"label": "Écart en tête", "value": f"{gap:g} pt(s)" if gap is not None else "—",
-         "detail": "1er / 2e du classement"},
-    ]
+    """Débrief narratif, sans tableaux ni graphiques.
+
+    Toutes les observations proviennent du classement officiel et de l'ordre
+    des manches scorées. Les absences ne sont pas comptées comme des échecs.
+    """
+    scored_rounds = [r for r in rounds if (r.get("scores") or {})]
+    if not standings or not scored_rounds:
+        return {"comments": []}
+
     comments = []
-    if gap is not None and gap == 0:
-        comments.append({"icon": "🔥", "title": "Championnat indécis",
-                         "text": f"{leader['player']} partage la première place avec {standings[1]['player']} ({leader['total']:g} points)."})
-    elif gap is not None:
-        comments.append({"icon": "🏆", "title": "Course au titre",
-                         "text": (f"{leader['player']} mène avec {leader['total']:g} points, "
-                                  f"{gap:g} point(s) devant {standings[1]['player']}.")})
+
+    def note(icon, title, message):
+        comments.append({"icon": icon, "title": title, "text": message})
+
+    lead = standings[0]
+    leader = lead["player"]
+    last = scored_rounds[-1]
+    last_scores = last["scores"]
+
+    # Le championnat : parler de la rivalité, plutôt que répéter des chiffres.
+    if len(standings) == 1:
+        note("🏆", "La course au titre",
+             f"{leader} ouvre la marche pour le moment. La lutte pour le titre "
+             "prendra une autre dimension lorsque d'autres joueurs seront classés.")
     else:
-        comments.append({"icon": "🏆", "title": "Course au titre",
-                         "text": f"{leader['player']} occupe la première place avec {leader['total']:g} points."})
-    if best:
-        comments.append({"icon": "📈", "title": "Meilleure moyenne",
-                         "text": (f"{best['player']} marque en moyenne "
-                                  f"{best['total'] / best['gps']:.2f} points par GP joué "
-                                  f"({best['gps']} GP).")})
-    if len(rounds) > 1:
-        latest = rounds[-1]
-        scores = latest.get("scores") or {}
-        if scores:
-            top = max(scores.values())
-            victors = [name for name, value in scores.items() if value == top]
-            comments.append({"icon": "⚡", "title": "Dernière manche",
-                             "text": (f"{', '.join(victors)} ont réalisé le meilleur score "
-                                      f"au {latest['label']} avec {top:g} points.")})
-    max_score = max(float(row["total"]) for row in standings) or 1.0
-    bars = [{"name": r["player"], "total": r["total"],
-             "percent": round(100 * r["total"] / max_score), "gps": r["gps"]}
-            for r in standings[:5]]
-    recent = []
-    for round_data in rounds[-5:]:
-        scores = round_data.get("scores") or {}
-        recent.append({
-            "label": round_data["label"],
-            "values": [{"name": r["player"], "pts": scores.get(r["player"])}
-                       for r in standings[:5]]
-        })
-    return {"cards": cards, "comments": comments, "bars": bars,
-            "recent": recent, "top_players": [r["player"] for r in standings[:5]]}
+        second = standings[1]
+        gap = round(float(lead["total"]) - float(second["total"]), 6)
+        recent_best = max(
+            (float(score) for race in scored_rounds[-3:]
+             for score in race["scores"].values()), default=0.0,
+        )
+        if gap == 0:
+            note("🔥", "Rien n'est joué",
+                 f"{leader} et {second['player']} sont à égalité en tête. "
+                 "La moindre manche réussie peut départager les prétendants.")
+        elif recent_best and gap <= recent_best:
+            note("🏆", "La bataille pour la tête",
+                 f"{leader} mène le championnat, mais {second['player']} reste à portée. "
+                 "Au vu des écarts observés sur les dernières courses, la bataille "
+                 "pour la première place reste ouverte.")
+        elif recent_best and gap > 2 * recent_best:
+            note("🏆", "Un leader qui prend le large",
+                 f"{leader} a creusé une avance solide sur {second['player']}. "
+                 "Ses poursuivants vont devoir enchaîner les bonnes manches "
+                 "pour revenir dans la lutte.")
+        else:
+            note("🏆", "La chasse au leader",
+                 f"{leader} tient les commandes devant {second['player']}. "
+                 "Le classement reste animé, mais le leader conserve l'avantage.")
+
+    # La dernière manche : signaler une performance réelle, pas un prix fictif.
+    top_score = max(float(value) for value in last_scores.values())
+    best_players = [
+        name for name, value in last_scores.items()
+        if abs(float(value) - top_score) < 0.000001
+    ]
+    if top_score > 0:
+        if len(best_players) == 1:
+            winner = best_players[0]
+            if winner == leader:
+                detail = (f"{winner} a signé le meilleur score lors de {last['label']} "
+                          "et confirme sa bonne position au championnat.")
+            else:
+                detail = (f"{winner} a signé le meilleur score lors de {last['label']}. "
+                          "Une belle performance qui pourrait compter dans la "
+                          "course aux places d'honneur.")
+            note("⚡", "Le fait marquant du dernier GP", detail)
+        elif len(best_players) <= 3:
+            names = ", ".join(best_players)
+            note("⚡", "Une manche disputée",
+                 f"{names} ont partagé la meilleure performance lors de {last['label']}. "
+                 "Personne n'a réussi à se détacher sur cette épreuve.")
+        else:
+            note("⚡", "Une manche très disputée",
+                 f"Plusieurs joueurs partagent le meilleur score de {last['label']}. "
+                 "La course n'a pas permis de les départager.")
+    else:
+        note("🏁", "Une manche sans échappée",
+             f"Au {last['label']}, aucun participant n'a marqué de points. "
+             "Ce résultat ne change pas les écarts du championnat.")
+
+    # Les évolutions de place sont comparées à un vrai classement AVANT le dernier GP.
+    if len(scored_rounds) >= 2:
+        previous = []
+        for row in standings:
+            name = row["player"]
+            played_last = name in last_scores
+            earlier_gp = int(row["gps"]) - int(played_last)
+            if earlier_gp > 0:
+                previous.append((
+                    name,
+                    round(float(row["total"]) - float(last_scores.get(name, 0)), 6),
+                    earlier_gp,
+                ))
+        previous.sort(key=lambda item: (-item[1], -item[2], item[0].casefold()))
+        prior_ranks = {name: idx for idx, (name, _, _) in enumerate(previous, 1)}
+        current_ranks = {row["player"]: idx for idx, row in enumerate(standings, 1)}
+        old_leader = previous[0][0] if previous else None
+        if (old_leader and old_leader != leader and
+                len(standings) > 1 and
+                float(lead["total"]) > float(standings[1]["total"])):
+            note("🔄", "Changement de leader",
+                 f"{leader} s'empare de la tête après {last['label']} et "
+                 f"détrône {old_leader}. Le rapport de force vient de changer.")
+        else:
+            risers = [
+                (prior_ranks[name] - current_ranks[name], name)
+                for name in prior_ranks if name in current_ranks
+                and current_ranks[name] < prior_ranks[name]
+            ]
+            if risers:
+                _, climber = max(risers, key=lambda item: (item[0], item[1].casefold()))
+                note("🚀", "Ça remonte au classement",
+                     f"{climber} gagne des places au classement général après "
+                     f"{last['label']}. Une progression à suivre lors du prochain GP.")
+
+    # Une dynamique est décrite uniquement si deux périodes comparables existent.
+    # Un joueur absent d'une manche est exclu de cette comparaison.
+    if len(scored_rounds) >= 4:
+        improving = []
+        for player in (row["player"] for row in standings):
+            recent = [race["scores"].get(player) for race in scored_rounds[-4:]]
+            if any(value is None for value in recent):
+                continue
+            earlier = (float(recent[0]) + float(recent[1])) / 2
+            later = (float(recent[2]) + float(recent[3])) / 2
+            if later > earlier * 1.2 and later - earlier >= 1:
+                improving.append((later - earlier, later, player))
+        if improving:
+            _, _, player = max(improving)
+            note("📈", "La dynamique du moment",
+                 f"{player} monte en puissance : ses deux dernières manches "
+                 "sont nettement meilleures que les deux précédentes. "
+                 "Une tendance à confirmer sur la suite de la saison.")
+
+    # La régularité ne se déduit que d'au moins trois manches réellement jouées.
+    if len(scored_rounds) >= 3:
+        eligible = []
+        for row in standings[:6]:
+            player = row["player"]
+            scores = [float(race["scores"][player]) for race in scored_rounds
+                      if player in race["scores"]]
+            if len(scores) < 3 or len(scores) < len(scored_rounds) * .6:
+                continue
+            mean = sum(scores) / len(scores)
+            if mean <= 0:
+                continue
+            variation = (sum((pts - mean) ** 2 for pts in scores)
+                         / len(scores)) ** .5 / mean
+            eligible.append((variation, mean, player))
+        if eligible:
+            eligible.sort(key=lambda row: (row[0], -row[1]))
+            variation, _, steady = eligible[0]
+            if variation <= .45:
+                note("🎯", "La régularité fait la différence",
+                     f"{steady} affiche des performances particulièrement "
+                     "constantes sur les manches disputées. Une solidité "
+                     "précieuse pour durer au classement.")
+
+    return {"comments": comments}
