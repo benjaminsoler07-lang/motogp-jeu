@@ -340,3 +340,17 @@ body.neon-v3 :is(.v2-season-link.is-current,.results-gp-option.is-current,.gp-co
 @media(prefers-reduced-motion:reduce){
   body.neon-v3 .neon-summary-card,body.neon-v3 .btn{transition:none}
 }
+
+/* Distinct but restrained category accents on the prediction form. */
+body.neon-v3 form .prono-section:nth-of-type(1){border-left:3px solid #58ddeb !important}
+body.neon-v3 form .prono-section:nth-of-type(2){border-left:3px solid #bc9bfa !important}
+body.neon-v3 form .prono-section:nth-of-type(3){border-left:3px solid #ff9689 !important}
+body.neon-v3 form .prono-section:nth-of-type(1) .section-main-title{color:#9aeffa}
+body.neon-v3 form .prono-section:nth-of-type(2) .section-main-title{color:#ddc9ff}
+body.neon-v3 form .prono-section:nth-of-type(3) .section-main-title{color:#ffb7ad}
+body.neon-v3 form .bonus-section{border-left:3px solid #f4c17b !important}
+body.neon-v3 form .bonus-section h3{color:#f9d79c}
+body.neon-v3 form :is(select,input[type="text"],input[type="number"]):focus-visible{
+  border-color:#4ee3fa;
+  box-shadow:0 0 0 2px rgba(76,229,249,.23);
+}
