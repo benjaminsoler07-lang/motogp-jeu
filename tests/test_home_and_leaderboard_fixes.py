@@ -102,6 +102,10 @@ class HomepageAndLeaderboardRegressionTests(unittest.TestCase):
         self.assertNotIn("Performances sur les 5 derniers GP", html)
         self.assertNotIn("gp-season-charts", html)
         self.assertIn("Alice", html)
+        self.assertEqual(html.count("Classement par GP →"), 1)
+        self.assertIn('href="/results_by_race?season=2026"', html)
+        self.assertNotIn('href="/results_by_race?gp=test-gp"', html)
+        self.assertNotIn("Voir le détail par course", html)
 
     def test_result_gp_picker_is_unique_and_podium_photos_are_visible(self):
         rows = []
