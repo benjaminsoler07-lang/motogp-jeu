@@ -34,10 +34,12 @@ from flask import (
     make_response, flash, session, abort
 )
 from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 from werkzeug.security import generate_password_hash, check_password_hash
 from v2_features import register_v2, race_center, deadline_from_weekend
 from v2_notifications import register_notifications
 from v2_bulk_import import register_bulk_import
+from v2_statistics import register_statistics
 
 
 app = Flask(__name__)
@@ -49,7 +51,7 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 
 BONUS_POINTS_PER_QUESTION = 0.5
 
-DATA_DIR = "data"
+DATA_DIR = os.path.join("/tmp", "pronogp") if os.getenv("VERCEL") else "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
 PARTICIPANTS_FILE = os.path.join(DATA_DIR, "participants.json")
@@ -354,11 +356,15 @@ _DB_BOOTSTRAP_LOCK = Lock()
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300
-    )
+    # Vercel is serverless: each function instance must release its PostgreSQL
+    # connections after each transaction instead of reserving idle pooled slots.
+    # Keep the existing pool configuration on the persistent Render server.
+    engine_options = {"pool_pre_ping": True}
+    if os.getenv("VERCEL"):
+        engine_options["poolclass"] = NullPool
+    else:
+        engine_options["pool_recycle"] = 300
+    engine = create_engine(DATABASE_URL, **engine_options)
 
 
 # ------------------ Weekends sanitize/helpers ------------------
@@ -3931,6 +3937,16 @@ register_notifications(app, {
     "normalize_pseudo": normalize_pseudo,
     "deadline_from_weekend": deadline_from_weekend,
     "is_weekend_closed": is_weekend_closed,
+})
+
+register_statistics(app, {
+    "get_sorted_weekends": get_sorted_weekends,
+    "weekend_season": weekend_season,
+    "selected_season_year": selected_season_year,
+    "get_weekend": get_weekend,
+    "is_pronos_public": is_pronos_public,
+    "get_latest_pronos_by_player_for_weekend": get_latest_pronos_by_player_for_weekend,
+    "current_player": current_player,
 })
 
 print("APP FLASK DEMARREE", flush=True)
