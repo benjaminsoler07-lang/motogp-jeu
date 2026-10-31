@@ -43,7 +43,7 @@
           <span class="v3-metric-label"><span class="v3-metric-icon v3-icon-purple" aria-hidden="true">◈</span> Prochaine séance</span>
           {% if rc.session_iso %}
             <strong class="v2-race-session-name">{{ rc.session_label }}</strong>
-            <span class="v2-race-session-timer" data-countdown="{{ rc.session_iso }}">Calcul…</span>
+            <span class="v2-race-session-timer v3-session-hint">Compte à rebours dans « Le week-end »</span>
           {% else %}
             <strong class="v2-race-metric-detail">Horaire non renseigné</strong>
           {% endif %}
@@ -74,17 +74,24 @@
         <span class="v3-race-side-eyebrow">LE WEEK-END</span>
         <span class="v3-race-side-icon" aria-hidden="true">✦</span>
       </div>
-      <div class="v3-race-track" aria-hidden="true">
-        <svg viewBox="0 0 250 105" focusable="false">
-          <path d="M12 73C22 48 41 56 56 37S79 8 106 20 129 59 151 55 179 16 198 23 243 47 234 70 201 92 178 80 147 76 126 91 92 98 73 85 32 98 12 73Z" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M12 73C22 48 41 56 56 37S79 8 106 20 129 59 151 55 179 16 198 23 243 47 234 70 201 92 178 80 147 76 126 91 92 98 73 85 32 98 12 73Z" fill="none" stroke="#64e9f7" stroke-width="1" stroke-dasharray="3 9" opacity=".85"/>
-        </svg>
-        <small>Esprit circuit · MotoGP</small>
-      </div>
-      <div class="v3-race-stages">
-        <div class="v3-race-stage v3-stage-qualif"><span class="v3-stage-number">01</span><span class="v3-stage-name">Qualifications</span><span class="v3-stage-dash" aria-hidden="true"></span></div>
-        <div class="v3-race-stage v3-stage-sprint"><span class="v3-stage-number">02</span><span class="v3-stage-name">Sprint</span><span class="v3-stage-dash" aria-hidden="true"></span></div>
-        <div class="v3-race-stage v3-stage-gp"><span class="v3-stage-number">03</span><span class="v3-stage-name">Grand Prix</span><span class="v3-stage-dash" aria-hidden="true"></span></div>
+      {% set session_cards = rc.session_cards if rc.session_cards is defined else [
+        {'key':'qualif','title':'Qualifications','iso':none,'date_label':none},
+        {'key':'sprint','title':'Sprint','iso':none,'date_label':none},
+        {'key':'gp','title':'Grand Prix','iso':none,'date_label':none}
+      ] %}
+      <div class="v3-race-stages v3-session-countdowns">
+        {% for slot in session_cards %}
+          <div class="v3-race-stage v3-stage-{{ slot.key }}{% if not slot.iso %} is-unscheduled{% endif %}">
+            <span class="v3-stage-number">{{ '%02d'|format(loop.index) }}</span>
+            <span class="v3-stage-name">{{ slot.title }}</span>
+            {% if slot.iso %}
+              <span class="v3-session-time">{{ slot.date_label }} · Paris</span>
+              <strong class="v3-session-clock" data-countdown="{{ slot.iso }}" data-countdown-finished="Séance terminée">Calcul…</strong>
+            {% else %}
+              <span class="v3-session-time">Horaire à confirmer</span>
+            {% endif %}
+          </div>
+        {% endfor %}
       </div>
     </aside>
   </div>
