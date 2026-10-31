@@ -38,7 +38,7 @@
                 <a href="{{ url_for('login') }}">🔐 Connexion joueur</a>
               {% endif %}
               {% if viewer_is_admin %}
-                <a href="{{ url_for('admin_home') }}">🛠️ Administration</a>
+                <a href="{{ url_for('admin_home') }}">🛠️ Dashboard admin</a>
                 {% if viewer_is_root_admin %}<a href="{{ url_for('admin_logout') }}">Déconnexion admin</a>{% endif %}
               {% else %}
                 <a href="{{ url_for('admin_login') }}">🛠️ Connexion admin</a>
