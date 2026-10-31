@@ -201,8 +201,8 @@ class V2PagesTests(unittest.TestCase):
         self.assertIn('id="results-gp-search"', html)
         self.assertIn('data-gp-label="GP du Qatar"', html)
         self.assertIn('aria-current="page"', html)
-        self.assertIn("GP précédent", html)
-        self.assertIn("GP suivant", html)
+        self.assertNotIn("GP précédent", html)
+        self.assertNotIn("GP suivant", html)
         self.assertIn("GP du Qatar", html)
         self.assertIn("GP de France", html)
         self.assertIn("season=2026", html)
@@ -226,7 +226,7 @@ class V2PagesTests(unittest.TestCase):
         self.assertIn("🇸🇲", html)
         self.assertIn("🇪🇸", html)
         self.assertIn("Course bonus", html)
-        self.assertEqual(html.count("results-gp-flag"), 4)
+        self.assertEqual(html.count("results-gp-flag"), 3)
 
     def test_results_gp_direct_link_keeps_archived_season(self):
         from datetime import date

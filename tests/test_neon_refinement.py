@@ -30,11 +30,11 @@ class RaceCenterRefinementTests(unittest.TestCase):
         for expected in (
             "GP de Malaisie", "RACE CENTER", "Clôture des pronostics",
             "data-countdown=\"2026-11-01T02:00:00+00:00\"",
-            "data-countdown=\"2026-10-31T09:00:00+00:00\"",
+            "Compte à rebours dans « Le week-end »",
             "Q1", "/w/malaisie/pronos", "Faire mon pronostic"
         ):
             self.assertIn(expected, html)
-        self.assertIn("v3-race-track", html)
+        self.assertIn("v3-session-countdowns", html)
         self.assertIn("v3-stage-qualif", html)
         self.assertIn("v3-stage-sprint", html)
         self.assertIn("v3-stage-gp", html)

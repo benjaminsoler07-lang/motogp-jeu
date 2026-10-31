@@ -58,6 +58,50 @@ def paris_input(utc_iso):
         return ""
 
 
+def _race_session_kind(label):
+    """Return the main MotoGP session category, without guessing its time."""
+    label = str(label or "").casefold().strip()
+    if not label:
+        return None
+    if "sprint" in label:
+        return "sprint"
+    if re.search(r"\bq1\b|qualification 1|qualifying 1|qualif", label):
+        return "qualif"
+    if re.search(r"\b(course|race|grand prix|gp)\b", label):
+        return "gp"
+    return None
+
+
+def _race_session_cards(weekend):
+    """Configured Q1 / Sprint / GP times, rendered in Paris time."""
+    found = {}
+    for raw in weekend.get("sessions") or []:
+        if not isinstance(raw, dict):
+            continue
+        label = str(raw.get("label") or "")
+        kind = _race_session_kind(label)
+        if not kind:
+            continue
+        try:
+            at = datetime.fromisoformat(str(raw["utc"]).replace("Z", "+00:00"))
+        except (KeyError, ValueError, TypeError):
+            continue
+        if at.tzinfo is None:
+            continue
+        at = at.astimezone(UTC)
+        # Prefer the start of Q1 when the calendar contains Q1 and Q2.
+        if kind not in found or (kind == "qualif" and label.casefold().strip() == "q1"):
+            found[kind] = (at, label)
+    return [
+        {"key": key, "title": title,
+         "iso": found[key][0].isoformat() if key in found else None,
+         "date_label": found[key][0].astimezone(PARIS).strftime("%d/%m · %Hh%M")
+         if key in found else None}
+        for key, title in (("qualif", "Qualifications"), ("sprint", "Sprint"),
+                           ("gp", "Grand Prix"))
+    ]
+
+
 def race_center(weekends):
     now = datetime.now(UTC)
     upcoming = []
@@ -105,6 +149,7 @@ def race_center(weekends):
         "deadline_iso": deadline.isoformat() if deadline else None,
         "session_label": session_next[1] if session_next else None,
         "session_iso": session_next[0].isoformat() if session_next else None,
+        "session_cards": _race_session_cards(weekend),
     }
 
 

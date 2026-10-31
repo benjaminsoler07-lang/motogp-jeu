@@ -23,42 +23,15 @@
     {%- set flag = gp_flags.get(gp_id, gp_flags.get(gp_id.rsplit('-', 1)[0], '')) -%}
     {%- if flag -%}<span class="results-gp-flag" aria-hidden="true">{{ flag }}</span>{%- endif -%}
   {%- endmacro %}
-  {% set gp_nav = namespace(previous=none, next=none) %}
-  {% for w in weekends %}
-    {% if selected and w.id == selected.id %}
-      {% if not loop.first %}{% set gp_nav.previous = weekends[loop.index0 - 1] %}{% endif %}
-      {% if not loop.last %}{% set gp_nav.next = weekends[loop.index0 + 1] %}{% endif %}
-    {% endif %}
-  {% endfor %}
-
   <section class="card results-picker-card" aria-labelledby="results-picker-title">
     <div class="results-picker-head">
       <div>
-        <div class="results-picker-kicker">🏁 Navigation des Grands Prix</div>
+        <div class="results-picker-kicker">🏁 Sélection du Grand Prix</div>
         <h3 id="results-picker-title">{% if selected %}{{ flag_for(selected) }} {{ selected.label }}{% else %}Choisir un Grand Prix{% endif %}</h3>
       </div>
     </div>
 
     {% if weekends %}
-      {% if selected %}
-        <nav class="results-gp-nav" aria-label="Parcourir les Grands Prix">
-          {% if gp_nav.previous %}
-            <a class="results-gp-nav-link" href="{{ url_for('results_by_race', gp=gp_nav.previous.id, season=picker_season) }}">
-              <small>← GP précédent</small><strong>{{ flag_for(gp_nav.previous) }} {{ gp_nav.previous.label }}</strong>
-            </a>
-          {% else %}
-            <span class="results-gp-nav-link results-gp-nav-disabled"><small>← GP précédent</small><strong>Début de saison</strong></span>
-          {% endif %}
-          {% if gp_nav.next %}
-            <a class="results-gp-nav-link" href="{{ url_for('results_by_race', gp=gp_nav.next.id, season=picker_season) }}">
-              <small>GP suivant →</small><strong>{{ flag_for(gp_nav.next) }} {{ gp_nav.next.label }}</strong>
-            </a>
-          {% else %}
-            <span class="results-gp-nav-link results-gp-nav-disabled"><small>GP suivant →</small><strong>Fin de saison</strong></span>
-          {% endif %}
-        </nav>
-      {% endif %}
-
       <details class="results-gp-details" {% if not selected %}open{% endif %}>
         <summary class="results-gp-summary">
           <span>🔎 {{ 'Changer de Grand Prix' if selected else 'Afficher les Grands Prix' }}</span>
@@ -179,6 +152,10 @@
               <div class="podium-card podium-{{ rank }}">
                 {% if r %}
                   <div class="podium-rank">{{ {1: '🥇', 2: '🥈', 3: '🥉'}[rank] }} {{ rank }}</div>
+                  <div class="avatar-v2 avatar-lg gp-podium-avatar">
+                    <img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(r.player|lower|trim, 0)) }}" alt="Photo de {{ r.player }}" loading="lazy" onerror="this.style.display='none'">
+                    <span>{{ r.player[:1]|upper }}</span>
+                  </div>
                   <div class="podium-name">{{ r.player }}</div>
                   <div class="podium-points"><strong>{{ r.pts.total }}</strong> pts</div>
                   <div class="podium-breakdown">
