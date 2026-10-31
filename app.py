@@ -19,6 +19,7 @@
 
 import os
 import json
+import shutil
 import uuid
 import secrets
 import hmac
@@ -49,7 +50,10 @@ ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 
 BONUS_POINTS_PER_QUESTION = 0.5
 
-DATA_DIR = "data"
+# Vercel n'autorise pas les écritures dans /var/task ; seul /tmp est
+# accessible en écriture. PostgreSQL reste la source des données persistantes.
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+DATA_DIR = os.path.join("/tmp", "pronogp-data") if IS_VERCEL else "data"
 PRONOS_DIR = os.path.join(DATA_DIR, "pronos")
 RESULTS_DIR = os.path.join(DATA_DIR, "results")
 PARTICIPANTS_FILE = os.path.join(DATA_DIR, "participants.json")
@@ -57,6 +61,13 @@ WEEKENDS_FILE = os.path.join(DATA_DIR, "weekends.json")
 
 os.makedirs(PRONOS_DIR, exist_ok=True)
 os.makedirs(RESULTS_DIR, exist_ok=True)
+
+# Conserver le calendrier livré avec le code comme base de lecture sur
+# Vercel sans écrire dans le système de fichiers de l'application.
+if IS_VERCEL and not os.path.exists(WEEKENDS_FILE):
+    bundled_weekends = os.path.join(os.path.dirname(__file__), "data", "weekends.json")
+    if os.path.isfile(bundled_weekends):
+        shutil.copyfile(bundled_weekends, WEEKENDS_FILE)
 
 RIDERS = [
     "#5 Johann Zarco",
