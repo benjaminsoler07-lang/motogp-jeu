@@ -70,7 +70,22 @@
       "Mes notifications (" + count + " non lue" + (count > 1 ? "s" : "") + ")" :
       "Mes notifications");
     bell.title = count ? count + " notification" + (count > 1 ? "s" : "") + " non lue" + (count > 1 ? "s" : "") : "Notifications";
-    if (count > 0 && bell.dataset.onLogin === "1" && dialog) {
+    // Une session peut rester connectée plusieurs mois : première visite du
+    // navigateur = alerte également, sans répétition lors de la navigation.
+    const afterLogin = bell.dataset.onLogin === "1";
+    let newForThisTab = false;
+    if (count > 0 && Number.isSafeInteger(data.player_id) &&
+        Number.isSafeInteger(data.latest_id) && data.latest_id > 0) {
+      try {
+        const key = "gp-notifications-seen:" + data.player_id;
+        const lastSeen = Number(sessionStorage.getItem(key) || "0");
+        newForThisTab = data.latest_id > lastSeen;
+        if (newForThisTab) sessionStorage.setItem(key, String(data.latest_id));
+      } catch (_) {
+        // Si le stockage est interdit, seule la connexion explicite déclenche l'alerte.
+      }
+    }
+    if (count > 0 && (afterLogin || newForThisTab) && dialog) {
       openDialog(count, typeof data.latest_title === "string" ? data.latest_title : "");
       bell.dataset.onLogin = "0";
     }
