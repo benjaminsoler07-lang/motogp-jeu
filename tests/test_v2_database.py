@@ -56,6 +56,8 @@ class DatabaseV2Tests(unittest.TestCase):
             self.assertEqual(result.status_code, 200)
             self.assertIn("no-store", result.headers["Cache-Control"])
             self.assertEqual(result.json["count"], baseline+1)
+            self.assertEqual(result.json["player_id"], owner)
+            self.assertEqual(result.json["latest_id"], ids[0])
             self.assertEqual(result.json["latest_title"], "Alerte PronoGP CI")
             self.assertNotIn("Message privé CI", result.get_data(as_text=True))
 
