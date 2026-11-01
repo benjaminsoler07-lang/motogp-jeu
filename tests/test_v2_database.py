@@ -70,8 +70,9 @@ class DatabaseV2Tests(unittest.TestCase):
             self.assertEqual(read.status_code, 302)
             after = self.client.get("/notifications/unread-summary")
             self.assertEqual(after.json["count"], baseline)
-            self.assertEqual(app.test_client().get(
-                "/notifications/unread-summary").status_code, 401)
+            anonymous = app.test_client().get("/notifications/unread-summary")
+            self.assertEqual(anonymous.status_code, 302)
+            self.assertTrue(anonymous.headers["Location"].endswith("/login"))
         finally:
             with engine.begin() as conn:
                 for mid in ids:
