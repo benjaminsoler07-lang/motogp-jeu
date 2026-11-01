@@ -156,14 +156,14 @@
 
               {% if b.type == 'yes_no' %}
                 <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                  <option value="">— Choisir un pilote —</option>
+                  <option value="">— Choisir une réponse —</option>
                   <option value="Oui" {% if current == 'Oui' %}selected{% endif %}>Oui</option>
                   <option value="Non" {% if current == 'Non' %}selected{% endif %}>Non</option>
                 </select>
 
               {% elif b.type == 'rider' %}
                 <select name="bonus_{{ b.id }}" id="bonus_{{ b.id }}">
-                  <option value="">--</option>
+                  <option value="">— Choisir un pilote —</option>
                   {% for r in riders %}
                     <option value="{{ r }}" {% if current == r %}selected{% endif %}>{{ r }}</option>
                   {% endfor %}
