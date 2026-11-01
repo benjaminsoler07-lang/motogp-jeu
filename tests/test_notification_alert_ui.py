@@ -38,6 +38,7 @@ class NotificationAlertUITests(unittest.TestCase):
         self.assertEqual(js.status_code, 200)
         self.assertEqual(css.status_code, 200)
         self.assertIn("data-notification-unread-label", js.get_data(as_text=True))
+        self.assertIn("sessionStorage", js.get_data(as_text=True))
         self.assertIn("prefers-reduced-motion", css.get_data(as_text=True))
 
 

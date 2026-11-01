@@ -152,13 +152,15 @@ def register_notifications(app, api):
             abort(503)
         with engine.connect() as conn:
             latest = conn.execute(text("""
-                SELECT title, COUNT(*) OVER () AS unread_count
+                SELECT id, title, COUNT(*) OVER () AS unread_count
                 FROM push_messages
                 WHERE participant_id = :pid AND read_at IS NULL
                 ORDER BY id DESC LIMIT 1
             """), {"pid": p["id"]}).mappings().first()
         response = jsonify(
             count=int(latest["unread_count"]) if latest else 0,
+            latest_id=int(latest["id"]) if latest else 0,
+            player_id=int(p["id"]),
             latest_title=str(latest["title"]) if latest else "",
         )
         response.headers["Cache-Control"] = "private, no-store"
