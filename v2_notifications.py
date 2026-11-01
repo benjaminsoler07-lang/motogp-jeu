@@ -144,6 +144,27 @@ def register_notifications(app, api):
                                csrf=csrf(), public_key=app.config["VAPID_PUBLIC_KEY"],
                                push_configured=vapid_ready())
 
+    @app.get("/notifications/unread-summary")
+    def notification_unread_summary():
+        """Résumé des messages non lus du joueur connecté, jamais d'un autre compte."""
+        p = person()
+        if not engine:
+            abort(503)
+        with engine.connect() as conn:
+            latest = conn.execute(text("""
+                SELECT title, COUNT(*) OVER () AS unread_count
+                FROM push_messages
+                WHERE participant_id = :pid AND read_at IS NULL
+                ORDER BY id DESC LIMIT 1
+            """), {"pid": p["id"]}).mappings().first()
+        response = jsonify(
+            count=int(latest["unread_count"]) if latest else 0,
+            latest_title=str(latest["title"]) if latest else "",
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Vary"] = "Cookie"
+        return response
+
     @app.post("/notifications/<int:message_id>/read")
     def notification_read(message_id):
         p=person();check_csrf()
