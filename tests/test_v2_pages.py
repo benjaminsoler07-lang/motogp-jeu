@@ -34,7 +34,8 @@ class V2PagesTests(unittest.TestCase):
         self.assertIn("prono-entry-form", html)
         self.assertIn("pronos-color-2", html)
         self.assertNotIn("v2-rider-search.js", html)
-        self.assertNotIn("v2-rider-search", html)
+        self.assertNotIn('type="search"', html)
+        self.assertIn("removeLegacyRiderSearch", html)
         self.assertNotIn("N° ou nom du pilote", html)
         for field in ("pole", "q1_1", "q1_2", "sprint_p1", "sprint_p2",
                       "sprint_p3", "gp_p1", "gp_p2", "gp_p3"):
@@ -48,6 +49,23 @@ class V2PagesTests(unittest.TestCase):
             self.assertIn(gradient, css)
         deprecated = Path(app.static_folder, "v2-rider-search.js").read_text(encoding="utf-8")
         self.assertNotIn("createElement('input')", deprecated)
+
+    def test_prediction_form_disables_browser_cache(self):
+        from unittest.mock import patch
+        from flask import Response
+
+        with self.client.session_transaction() as state:
+            state["is_admin"] = True
+        from app import get_sorted_weekends
+        weekends = get_sorted_weekends()
+        self.assertTrue(weekends)
+        weekend_id = weekends[0]["id"]
+        with patch("app.is_weekend_closed", return_value=False):
+            response = self.client.get(f"/w/{weekend_id}/pronos")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        self.assertEqual(response.headers.get("Vary"), "Cookie")
+        self.assertNotIn("v2-rider-search.js", response.get_data(as_text=True))
 
     def test_vercel_import_uses_writable_tmp_and_preserves_calendar(self):
         import subprocess
