@@ -10,10 +10,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='racing-v4.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='header-logo.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='user-menu-glossy.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='notification-alert.css') }}">
     <link rel="manifest" href="{{ url_for('pwa_manifest') }}">
     <link rel="apple-touch-icon" href="{{ url_for('pwa_icon',size=192) }}">
     <meta name="theme-color" content="#041627">
     <script defer src="{{ url_for('static',filename='v2-pwa.js') }}"></script>
+    <script defer src="{{ url_for('static',filename='notification-alert.js') }}"></script>
   </head>
 
   <body class="neon-v3 {% block body_class %}{% endblock %}">
@@ -24,7 +26,12 @@
         </a>
         <div class="gp-header-tools">
           {% if name %}
-            <a class="gp-header-notify" href="{{ url_for('notifications') }}" aria-label="Mes notifications" title="Notifications">🔔</a>
+            <a class="gp-header-notify" href="{{ url_for('notifications') }}"
+               data-notification-bell data-unread-url="{{ url_for('notification_unread_summary') }}"
+               data-on-login="{{ '1' if session.pop('notification_login_alert', false) else '0' }}"
+               aria-label="Mes notifications" title="Notifications">
+              <span aria-hidden="true">🔔</span><span class="gp-notification-count" data-unread-count hidden></span>
+            </a>
           {% endif %}
           <details class="gp-user-menu">
             <summary>
@@ -70,6 +77,25 @@
 
       {% block content %}{% endblock %}
     </main>
+    {% if name %}
+    <div class="gp-notification-shade" data-notification-dialog hidden>
+      <section class="gp-notification-modal" role="dialog" aria-modal="true"
+               aria-labelledby="gp-notification-title" aria-describedby="gp-notification-description"
+               tabindex="-1">
+        <button type="button" class="gp-notification-dismiss-x"
+                data-notification-close aria-label="Fermer cette alerte">×</button>
+        <div class="gp-notification-emblem" aria-hidden="true">🔔</div>
+        <p class="gp-notification-eyebrow">PRONOGP · NOUVEAUX MESSAGES</p>
+        <h2 id="gp-notification-title">Tu as des notifications !</h2>
+        <p id="gp-notification-description">Tu as <strong data-notification-unread-label></strong> à consulter.</p>
+        <p class="gp-notification-latest" data-notification-latest hidden></p>
+        <div class="gp-notification-buttons">
+          <a class="gp-notification-action" href="{{ url_for('notifications') }}">Voir mes notifications</a>
+          <button type="button" class="gp-notification-later" data-notification-close>Plus tard</button>
+        </div>
+      </section>
+    </div>
+    {% endif %}
     {% if name or viewer_is_admin %}
     <nav class="neon-bottom-nav" aria-label="Navigation mobile">
       <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}is-active{% endif %}" {% if request.endpoint == 'home' %}aria-current="page"{% endif %}><span class="neon-nav-icon" aria-hidden="true">⌂</span>Accueil</a>

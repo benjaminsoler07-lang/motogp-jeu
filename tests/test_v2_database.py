@@ -28,6 +28,56 @@ class DatabaseV2Tests(unittest.TestCase):
         with self.client.session_transaction() as st:
             self.csrf=st.setdefault("v2_csrf","integration-check")
 
+    def test_login_alert_and_unread_summary_are_player_scoped(self):
+        from uuid import uuid4
+
+        owner = get_participant_by_input("IntegrationTest")["id"]
+        added, message = add_participant("NotificationOtherCI", "other-secret-123")
+        self.assertTrue(added or "existe déjà" in message, message)
+        other = get_participant_by_input("NotificationOtherCI")["id"]
+        before = self.client.get("/notifications/unread-summary")
+        self.assertEqual(before.status_code, 200)
+        baseline = before.json["count"]
+
+        ids = []
+        try:
+            with engine.begin() as conn:
+                for pid, title in ((owner, "Alerte PronoGP CI"), (other, "Message privé CI")):
+                    mid = conn.execute(text("""
+                        INSERT INTO push_messages
+                        (participant_id, category, title, body, destination, dedupe_key)
+                        VALUES (:pid, 'manual', :title, 'Test unitaire', '/notifications', :key)
+                        RETURNING id
+                    """), {"pid":pid, "title":title,
+                           "key":"test-alert:"+uuid4().hex}).scalar_one()
+                    ids.append(mid)
+
+            result = self.client.get("/notifications/unread-summary")
+            self.assertEqual(result.status_code, 200)
+            self.assertIn("no-store", result.headers["Cache-Control"])
+            self.assertEqual(result.json["count"], baseline+1)
+            self.assertEqual(result.json["latest_title"], "Alerte PronoGP CI")
+            self.assertNotIn("Message privé CI", result.get_data(as_text=True))
+
+            first = self.client.get("/profile").get_data(as_text=True)
+            self.assertIn('data-on-login="1"', first)
+            second = self.client.get("/profile").get_data(as_text=True)
+            self.assertIn('data-on-login="0"', second)
+
+            read = self.client.post(
+                f"/notifications/{ids[0]}/read", data={"csrf":self.csrf}
+            )
+            self.assertEqual(read.status_code, 302)
+            after = self.client.get("/notifications/unread-summary")
+            self.assertEqual(after.json["count"], baseline)
+            anonymous = app.test_client().get("/notifications/unread-summary")
+            self.assertEqual(anonymous.status_code, 302)
+            self.assertTrue(anonymous.headers["Location"].endswith("/login"))
+        finally:
+            with engine.begin() as conn:
+                for mid in ids:
+                    conn.execute(text("DELETE FROM push_messages WHERE id=:id"), {"id":mid})
+
     def test_player_identity_cannot_be_forged_with_cookie(self):
         other=app.test_client()
         other.set_cookie("player_name","IntegrationTest")

@@ -2620,6 +2620,8 @@ def login():
         session["authenticated_player"] = participant["pseudo_normalized"]
         session["authenticated_player_id"] = participant["id"]
         session["authenticated_secret_marker"] = participant_secret_marker(participant)
+        # Afficher une seule fois l'alerte des messages non lus après connexion.
+        session["notification_login_alert"] = True
         session.permanent = True
         resp = make_response(redirect(url_for("profile")))
         resp.set_cookie("player_name", participant["pseudo"], max_age=60 * 60 * 24 * 365)
