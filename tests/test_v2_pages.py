@@ -52,20 +52,27 @@ class V2PagesTests(unittest.TestCase):
 
     def test_prediction_form_disables_browser_cache(self):
         from unittest.mock import patch
-        from flask import Response
 
         with self.client.session_transaction() as state:
             state["is_admin"] = True
-        from app import get_sorted_weekends
-        weekends = get_sorted_weekends()
-        self.assertTrue(weekends)
-        weekend_id = weekends[0]["id"]
-        with patch("app.is_weekend_closed", return_value=False):
+        weekend_id = "ci-prono-cache"
+        weekend = {
+            "id": weekend_id, "label": "GP de test", "season_year": 2026,
+            "bonus_questions": [],
+        }
+        player = {"pseudo": "JoueurTest", "pseudo_normalized": "joueurtest"}
+        with (patch("app.get_current_participant", return_value=player),
+              patch("app.get_weekend", return_value=weekend),
+              patch("app.is_weekend_closed", return_value=False),
+              patch("app.is_pronos_public", return_value=False),
+              patch("app.get_riders_for_season", return_value=["#1 Pilote"]),
+              patch("app.get_teams_for_season", return_value=[])):
             response = self.client.get(f"/w/{weekend_id}/pronos")
         self.assertEqual(response.status_code, 200)
         self.assertIn("no-store", response.headers.get("Cache-Control", ""))
         self.assertEqual(response.headers.get("Vary"), "Cookie")
         self.assertNotIn("v2-rider-search.js", response.get_data(as_text=True))
+        self.assertIn("removeLegacyRiderSearch", response.get_data(as_text=True))
 
     def test_vercel_import_uses_writable_tmp_and_preserves_calendar(self):
         import subprocess
