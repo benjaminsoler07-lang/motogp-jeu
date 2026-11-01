@@ -247,6 +247,20 @@
     </div>
 
     <script>
+      // Nettoyage de compatibilité : certaines anciennes pages injectaient une
+      // recherche texte en plus du select natif. On ne garde que le select.
+      (function () {
+        function removeLegacyRiderSearch() {
+          document.querySelectorAll('input.v2-rider-search').forEach(input => input.remove());
+        }
+        removeLegacyRiderSearch();
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', removeLegacyRiderSearch, { once: true });
+        }
+      })();
+    </script>
+
+    <script>
       function disableDuplicates(groupNames) {
         const selects = groupNames.map(n => document.querySelector(`select[name="${n}"]`)).filter(Boolean);
 

@@ -465,3 +465,9 @@ body.neon-v3 .prono-section .v2-rider-search {
   body.neon-v3 form.prono-entry-form .prono-section {margin-bottom:15px}
   body.neon-v3 form.prono-entry-form .prono-subsection {margin-bottom:12px}
 }
+
+/* Compatibilité anciennes versions navigateur : le menu déroulant suffit. */
+body.neon-v3 input.v2-rider-search,
+body.neon-v3 .prono-section input[type="search"] {
+  display:none !important;
+}

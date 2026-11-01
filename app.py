@@ -2986,7 +2986,7 @@ def pronos(weekend_id):
         resp.set_cookie("player_id", pid, max_age=60 * 60 * 24 * 365)
         return resp
 
-    return render_template(
+    response = make_response(render_template(
         "pronos.html",
         w=w,
         riders=get_riders_for_season(weekend_season(w)),
@@ -3000,7 +3000,12 @@ def pronos(weekend_id):
         is_public=is_pronos_public(weekend_id),
         admin_enabled=admin_enabled(),
         is_admin=is_admin()
-    )
+    ))
+    # Évite qu'un ancien formulaire reste figé dans le cache du navigateur.
+    # Cette page personnalisée dépend aussi du joueur connecté.
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Vary"] = "Cookie"
+    return response
 
 
 # ================== ADMIN AUTH ==================
