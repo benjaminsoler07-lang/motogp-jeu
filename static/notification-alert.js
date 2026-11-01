@@ -7,7 +7,6 @@
 
   const badge = bell.querySelector("[data-unread-count]");
   const dialog = document.querySelector("[data-notification-dialog]");
-  const notificationPage = bell.getAttribute("href");
   let restoreFocus = null;
 
   function closeDialog() {
@@ -87,7 +86,6 @@
         headers: {"Accept": "application/json"}
       });
       if (response.ok) showUnread(await response.json());
-      else if (response.status === 401) window.location.assign(notificationPage);
     } catch (_) {
       // Le site et sa navigation continuent à fonctionner sans ce service.
     }
