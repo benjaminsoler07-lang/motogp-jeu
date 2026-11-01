@@ -323,16 +323,28 @@ body.neon-v3 form.prono-entry-form .prono-section {
   box-shadow:0 12px 30px #0007,0 0 23px rgba(var(--session-rgb),.16) !important;
 }
 body.neon-v3 form.prono-entry-form .prono-section.is-qualifying {
-  --session-accent:#39dcf5;
+  --session-accent:#8ff6ff;
   --session-rgb:57,220,245;
+  background:linear-gradient(142deg,#196f8d 0%,#105575 56%,#0b3c5b 100%) !important;
+  border:2px solid #39dcf5 !important;
+  border-top:5px solid #8ff6ff !important;
+  box-shadow:0 13px 30px #03101d9c,0 0 22px #25dfff35 !important;
 }
 body.neon-v3 form.prono-entry-form .prono-section.is-sprint {
-  --session-accent:#bb94ff;
+  --session-accent:#e0c3ff;
   --session-rgb:187,148,255;
+  background:linear-gradient(142deg,#66459a 0%,#4a327d 55%,#332457 100%) !important;
+  border:2px solid #c49bff !important;
+  border-top:5px solid #e0c3ff !important;
+  box-shadow:0 13px 30px #03101d9c,0 0 24px #ac72ff36 !important;
 }
 body.neon-v3 form.prono-entry-form .prono-section.is-grand-prix {
-  --session-accent:#ff7889;
+  --session-accent:#ffd0c9;
   --session-rgb:255,120,137;
+  background:linear-gradient(142deg,#983e58 0%,#732e49 55%,#4c253d 100%) !important;
+  border:2px solid #ff8790 !important;
+  border-top:5px solid #ffb4aa !important;
+  box-shadow:0 13px 30px #03101d9c,0 0 24px #ff66853b !important;
 }
 body.neon-v3 form.prono-entry-form .prono-section .section-main-title {
   color:var(--session-accent) !important;
@@ -354,20 +366,32 @@ body.neon-v3 form.prono-entry-form .prono-subsection {
   box-shadow:inset 0 1px rgba(255,255,255,.045),0 7px 20px #0003 !important;
 }
 body.neon-v3 form.prono-entry-form .prono-subsection.pole {
-  --field-accent:#ffcf60;
+  --field-accent:#ffda7f;
   --field-rgb:255,207,96;
+  background:linear-gradient(132deg,#86601f 0%,#63441b 53%,#462f16 100%) !important;
+  border:2px solid #fbd36b !important;
+  border-left:5px solid #ffda7f !important;
 }
 body.neon-v3 form.prono-entry-form .prono-subsection.q1 {
-  --field-accent:#42baff;
+  --field-accent:#b0e9ff;
   --field-rgb:66,186,255;
+  background:linear-gradient(132deg,#236e9e 0%,#18517e 53%,#11395d 100%) !important;
+  border:2px solid #57c7ff !important;
+  border-left:5px solid #93deff !important;
 }
 body.neon-v3 form.prono-entry-form .prono-subsection.sprint {
-  --field-accent:#c49bff;
+  --field-accent:#e5cfff;
   --field-rgb:196,155,255;
+  background:linear-gradient(132deg,#7450ae 0%,#5a398d 53%,#442967 100%) !important;
+  border:2px solid #d1aeff !important;
+  border-left:5px solid #e5cfff !important;
 }
 body.neon-v3 form.prono-entry-form .prono-subsection.gp {
-  --field-accent:#ff8790;
+  --field-accent:#ffd6d4;
   --field-rgb:255,135,144;
+  background:linear-gradient(132deg,#a64a62 0%,#86364f 53%,#632a42 100%) !important;
+  border:2px solid #ffabb3 !important;
+  border-left:5px solid #ffd6d4 !important;
 }
 body.neon-v3 form.prono-entry-form .prono-subsection h4 {
   color:var(--field-accent) !important;
@@ -406,7 +430,7 @@ body.neon-v3 form.prono-entry-form .prono-subsection select {
   color:#f8fcff;
   border:1px solid rgba(var(--field-rgb),.64) !important;
   border-radius:10px;
-  background:linear-gradient(180deg,#09263c,#061b2e) !important;
+  background:linear-gradient(160deg,rgba(var(--field-rgb),.34),rgba(var(--field-rgb),.17)),#071c30 !important;
   box-shadow:inset 0 1px rgba(255,255,255,.045) !important;
 }
 body.neon-v3 form.prono-entry-form .prono-subsection select:focus {
@@ -414,9 +438,9 @@ body.neon-v3 form.prono-entry-form .prono-subsection select:focus {
   box-shadow:0 0 0 3px rgba(var(--field-rgb),.22),0 0 18px rgba(var(--field-rgb),.23) !important;
 }
 body.neon-v3 form.prono-entry-form .bonus-section {
-  background:linear-gradient(155deg,rgba(76,223,157,.14),#071b30 53%) !important;
-  border:1px solid rgba(91,234,170,.5) !important;
-  border-top:4px solid #67e5a8 !important;
+  background:linear-gradient(145deg,#23785a 0%,#165842 55%,#0e3e35 100%) !important;
+  border:2px solid #5ce7a8 !important;
+  border-top:5px solid #98ffd0 !important;
   border-radius:17px;
   padding:clamp(14px,3vw,22px);
   margin:22px 0;
@@ -426,8 +450,15 @@ body.neon-v3 form.prono-entry-form .bonus-section h3 {
   border-bottom:1px solid rgba(103,229,168,.34);
 }
 body.neon-v3 form.prono-entry-form .bonus-block {
-  background:rgba(5,29,39,.75) !important;
-  border-color:rgba(103,229,168,.3) !important;
+  background:linear-gradient(140deg,#236b54,#104c40) !important;
+  border:1px solid #62d8a4 !important;
+}
+body.neon-v3 form.prono-entry-form .bonus-block :is(select,input[type="text"],input[type="number"]) {
+  background:#104437 !important;
+  border:1px solid #64dfae !important;
+}
+body.neon-v3 .prono-section .v2-rider-search {
+  display:none !important; /* Compatibilité avec un ancien HTML resté en cache. */
 }
 @media(max-width:600px){
   body.neon-v3 form.prono-entry-form {padding:12px}
