@@ -23,7 +23,9 @@ class NotificationAlertUITests(unittest.TestCase):
 
     def test_guest_cannot_fetch_unread_messages_and_has_no_bell(self):
         visitor = app.test_client()
-        self.assertEqual(visitor.get("/notifications/unread-summary").status_code, 401)
+        anonymous = visitor.get("/notifications/unread-summary")
+        self.assertEqual(anonymous.status_code, 302)
+        self.assertTrue(anonymous.headers["Location"].endswith("/login"))
         with app.test_request_context("/login"):
             html = render_template("base.html", name=None)
             self.assertNotIn("data-notification-bell", html)
