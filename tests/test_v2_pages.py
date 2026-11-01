@@ -11,6 +11,44 @@ class V2PagesTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
+    def test_prediction_form_has_colored_sections_and_native_dropdowns(self):
+        from flask import render_template
+        from pathlib import Path
+
+        weekend = {
+            "id": "ci-demo", "label": "GP CI", "deadline_utc": "",
+            "bonus_questions": [
+                {"id": "yn", "label": "Safety car ?", "type": "yes_no"},
+                {"id": "rider", "label": "Pilote bonus", "type": "rider"},
+            ],
+        }
+        with app.test_request_context("/w/ci-demo/pronos"):
+            html = render_template(
+                "pronos.html", w=weekend, name="Joueur CI", closed=False, my={},
+                riders=["#1 Pilote CI", "#2 Pilote B"], all_teams=[],
+                official_teams=[], satellite_teams=[],
+            )
+
+        for section in ("is-qualifying", "is-sprint", "is-grand-prix"):
+            self.assertIn(section, html)
+        self.assertIn("prono-entry-form", html)
+        self.assertIn("pronos-color-2", html)
+        self.assertNotIn("v2-rider-search.js", html)
+        self.assertNotIn("v2-rider-search", html)
+        self.assertNotIn("N° ou nom du pilote", html)
+        for field in ("pole", "q1_1", "q1_2", "sprint_p1", "sprint_p2",
+                      "sprint_p3", "gp_p1", "gp_p2", "gp_p3"):
+            self.assertIn(f'name="{field}"', html)
+        self.assertEqual(html.count("— Choisir un pilote —"), 10)
+        self.assertIn("— Choisir une réponse —", html)
+        self.assertIn("disableDuplicates", html)
+
+        css = Path(app.static_folder, "racing-v4.css").read_text(encoding="utf-8")
+        for gradient in ("#196f8d", "#66459a", "#983e58", "#86601f", "#236e9e", "#23785a"):
+            self.assertIn(gradient, css)
+        deprecated = Path(app.static_folder, "v2-rider-search.js").read_text(encoding="utf-8")
+        self.assertNotIn("createElement('input')", deprecated)
+
     def test_vercel_import_uses_writable_tmp_and_preserves_calendar(self):
         import subprocess
         import sys
