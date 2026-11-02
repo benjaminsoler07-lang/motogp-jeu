@@ -89,74 +89,50 @@ body.neon-v3 .gp-header-nav {
   body.neon-v3 .gp-user-menu-name {max-width:70px;}
 }
 
-/* RACING FLOW — a moving colour/glow pass over the existing approved logo.
-   The logo graphic itself never moves or changes, and no JS is required. */
+/* RACING FLOW v2 — fine cyan, magenta and yellow speed lines travel RIGHT to LEFT.
+   Approved artwork stays still; only the three strokes move. No JavaScript. */
 body.neon-v3 .gp-header-brand-art {
   isolation:isolate;
 }
 body.neon-v3 .gp-header-neon-logo {
   position:relative;
-  z-index:0;
+  z-index:1;
+  filter:drop-shadow(0 0 4px rgba(0,210,255,.19));
 }
 body.neon-v3 .gp-header-brand-art::before,
 body.neon-v3 .gp-header-brand-art::after {
   content:"";
   position:absolute;
+  inset:0;
   pointer-events:none;
-  z-index:1;
 }
 body.neon-v3 .gp-header-brand-art::before {
-  inset:12% -3% 10%;
+  z-index:3;
   background:
-    linear-gradient(90deg,transparent 6%,rgba(35,222,255,.11) 34%,rgba(61,231,255,.5) 57%,transparent 84%) center 19% / 100% 2px no-repeat,
-    linear-gradient(90deg,transparent 0%,rgba(252,56,142,.42) 51%,transparent 88%) center 76% / 100% 1px no-repeat,
-    linear-gradient(90deg,transparent 5%,rgba(255,213,82,.38) 58%,transparent 92%) center 93% / 100% 1px no-repeat;
+    linear-gradient(90deg,transparent,rgba(49,222,255,.3) 32%,#31deff 80%,transparent) no-repeat,
+    linear-gradient(90deg,transparent,rgba(255,63,150,.24) 36%,#ff3f96 82%,transparent) no-repeat,
+    linear-gradient(90deg,transparent,rgba(255,214,83,.27) 36%,#ffd653 82%,transparent) no-repeat;
+  background-size:29% 2px,25% 2px,20% 1px;
+  background-position:145% 20%,175% 55%,215% 79%;
   mix-blend-mode:screen;
-  opacity:0;
-  transform:translateX(-14%);
-  animation:gp-logo-speed-lines 4.8s ease-in-out infinite;
+  opacity:.74;
+  animation:gp-logo-color-lines 3.4s linear infinite;
 }
 body.neon-v3 .gp-header-brand-art::after {
-  inset:0;
+  z-index:2;
   background:url('/static/pronogp-header-logo.webp') center / 100% 100% no-repeat;
   mix-blend-mode:screen;
-  filter:brightness(1.8) saturate(1.55) hue-rotate(-8deg);
-  -webkit-mask-image:linear-gradient(104deg,transparent 38%,rgba(0,0,0,.28) 44%,#000 49%,#000 52%,rgba(0,0,0,.28) 57%,transparent 64%);
-  mask-image:linear-gradient(104deg,transparent 38%,rgba(0,0,0,.28) 44%,#000 49%,#000 52%,rgba(0,0,0,.28) 57%,transparent 64%);
-  -webkit-mask-size:220% 100%;
-  mask-size:220% 100%;
-  -webkit-mask-repeat:no-repeat;
-  mask-repeat:no-repeat;
-  opacity:0;
-  animation:gp-logo-racing-flow 4.8s ease-in-out infinite;
+  filter:brightness(1.12);
+  opacity:.12;
+  -webkit-mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.6) 40%,transparent 88%);
+  mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.6) 40%,transparent 88%);
 }
-@keyframes gp-logo-racing-flow {
-  0%,7% {
-    -webkit-mask-position:110% 0;
-    mask-position:110% 0;
-    opacity:0;
-  }
-  13% { opacity:.88; }
-  46% {
-    -webkit-mask-position:-10% 0;
-    mask-position:-10% 0;
-    opacity:.95;
-  }
-  53%,100% {
-    -webkit-mask-position:-10% 0;
-    mask-position:-10% 0;
-    opacity:0;
-  }
-}
-@keyframes gp-logo-speed-lines {
-  0%,8% { transform:translateX(-14%);opacity:0; }
-  17% { opacity:.7; }
-  46% { transform:translateX(14%);opacity:.4; }
-  53%,100% { transform:translateX(14%);opacity:0; }
+@keyframes gp-logo-color-lines {
+  from { background-position:145% 20%,175% 55%,215% 79%; }
+  to { background-position:-45% 20%,-55% 55%,-70% 79%; }
 }
 
 @media(prefers-reduced-motion:reduce) {
   body.neon-v3 .gp-header-brand-art:hover .gp-header-neon-logo {transition:none;}
-  body.neon-v3 .gp-header-brand-art::before,
-  body.neon-v3 .gp-header-brand-art::after {animation:none;opacity:0;}
+  body.neon-v3 .gp-header-brand-art::before {animation:none;opacity:0;}
 }
