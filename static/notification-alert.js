@@ -85,6 +85,12 @@
         // Si le stockage est interdit, seule la connexion explicite déclenche l'alerte.
       }
     }
+    if (count > 0 && (afterLogin || newForThisTab)) {
+      bell.classList.remove("gp-new-notification");
+      void bell.offsetWidth; // replay only on a genuinely new unread item
+      bell.classList.add("gp-new-notification");
+      window.setTimeout(() => bell.classList.remove("gp-new-notification"), 1900);
+    }
     if (count > 0 && (afterLogin || newForThisTab) && dialog) {
       openDialog(count, typeof data.latest_title === "string" ? data.latest_title : "");
       bell.dataset.onLogin = "0";
