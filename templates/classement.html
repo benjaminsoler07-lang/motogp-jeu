@@ -112,7 +112,7 @@
           {% if top2 %}
             <div class="podium-rank">🥈 2</div>
             <div class="podium-name">{{ top2.player }}</div>
-            <div class="podium-points"><strong>{{ top2.total }}</strong> pts</div>
+            <div class="podium-points"><strong data-gp-counter>{{ top2.total }}</strong> pts</div>
             <div class="podium-breakdown">
               <span>Q: {{ top2.q }}</span>
               <span>S: {{ top2.s }}</span>
@@ -128,7 +128,7 @@
           {% if top1 %}
             <div class="podium-rank">🥇 1</div>
             <div class="podium-name">{{ top1.player }}</div>
-            <div class="podium-points"><strong>{{ top1.total }}</strong> pts</div>
+            <div class="podium-points"><strong data-gp-counter>{{ top1.total }}</strong> pts</div>
             <div class="podium-breakdown">
               <span>Q: {{ top1.q }}</span>
               <span>S: {{ top1.s }}</span>
@@ -144,7 +144,7 @@
           {% if top3 %}
             <div class="podium-rank">🥉 3</div>
             <div class="podium-name">{{ top3.player }}</div>
-            <div class="podium-points"><strong>{{ top3.total }}</strong> pts</div>
+            <div class="podium-points"><strong data-gp-counter>{{ top3.total }}</strong> pts</div>
             <div class="podium-breakdown">
               <span>Q: {{ top3.q }}</span>
               <span>S: {{ top3.s }}</span>
