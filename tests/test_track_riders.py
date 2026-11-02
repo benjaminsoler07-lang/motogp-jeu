@@ -61,7 +61,7 @@ class RacingTrackRidersTests(unittest.TestCase):
         self.assertIn("top:15px", css)
         self.assertIn("right:-1vw", css)
         self.assertIn("width:min(1350px,135vw)", css)
-        self.assertIn("racing-track-riders-v1.svg", css)
+        self.assertIn("aspect-ratio:1440 / 720", css)
         self.assertIn("pointer-events:none", css)
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
 
