@@ -37,7 +37,7 @@
       <span class="neon-summary-icon" aria-hidden="true">🏆</span>
       <span class="neon-summary-copy">
         <small>MES POINTS</small>
-        <strong class="neon-summary-value">{{ personal_summary.points|default(0, true)|string|replace('.', ',') }} pts</strong>
+        <strong class="neon-summary-value" data-gp-counter>{{ personal_summary.points|default(0, true)|string|replace('.', ',') }} pts</strong>
         <span>Mon bilan de saison →</span>
       </span>
     </a>

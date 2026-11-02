@@ -49,9 +49,9 @@
 
 <h2>📊 Mon bilan · Saison {{ season_year }}</h2>
 <div class="v2-stats">
-  <article><small>MES POINTS</small><strong>{{ points }}</strong><span>Cette saison</span></article>
+  <article><small>MES POINTS</small><strong data-gp-counter>{{ points }}</strong><span>Cette saison</span></article>
   <article><small>MON CLASSEMENT</small><strong>{{ rank if rank else '—' }}</strong><span>Position générale</span></article>
-  <article><small>GP CLASSÉS</small><strong>{{ gp_count }}</strong><span>Résultats pris en compte</span></article>
+  <article><small>GP CLASSÉS</small><strong data-gp-counter>{{ gp_count }}</strong><span>Résultats pris en compte</span></article>
   <article><small>DERNIER RÉSULTAT</small><strong class="v2-event-name">{{ last_result.name if last_result else 'À venir' }}</strong><span>{% if last_result %}+{{ last_result.points }} points{% else %}Pas de résultat publié{% endif %}</span></article>
 </div>
 {% endblock %}

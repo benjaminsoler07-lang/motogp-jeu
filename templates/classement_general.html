@@ -142,7 +142,7 @@
           <div class="podium-card podium-2">
             <div class="podium-rank">🥈 2e</div>
             <div class="avatar-v2 avatar-lg"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(second.player|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ second.player[:1]|upper }}</span></div><div class="podium-name">{{ second.player }}</div>
-            <div class="podium-points"><strong>{{ second.total }}</strong> pts</div>
+            <div class="podium-points"><strong data-gp-counter>{{ second.total }}</strong> pts</div>
 
             <div class="podium-breakdown">
               <span>Q: {{ second.q }}</span>
@@ -165,7 +165,7 @@
           <div class="podium-card podium-1">
             <div class="podium-rank">🥇 1er</div>
             <div class="avatar-v2 avatar-lg"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(first.player|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ first.player[:1]|upper }}</span></div><div class="podium-name">{{ first.player }}</div>
-            <div class="podium-points"><strong>{{ first.total }}</strong> pts</div>
+            <div class="podium-points"><strong data-gp-counter>{{ first.total }}</strong> pts</div>
 
             <div class="podium-breakdown">
               <span>Q: {{ first.q }}</span>
@@ -188,7 +188,7 @@
           <div class="podium-card podium-3">
             <div class="podium-rank">🥉 3e</div>
             <div class="avatar-v2 avatar-lg"><img src="{{ url_for('player_avatar', participant_id=v2_avatar_ids.get(third.player|lower|trim, 0)) }}" alt="" onerror="this.style.display='none'"><span>{{ third.player[:1]|upper }}</span></div><div class="podium-name">{{ third.player }}</div>
-            <div class="podium-points"><strong>{{ third.total }}</strong> pts</div>
+            <div class="podium-points"><strong data-gp-counter>{{ third.total }}</strong> pts</div>
 
             <div class="podium-breakdown">
               <span>Q: {{ third.q }}</span>
