@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1440 720" aria-hidden="true">
+  <!-- Transparent layer: geometry and transform match racing-track-v4.svg exactly. -->
+  <defs>
+    <path id="gp-rider-lap" d="M115 329C-10 303 7 225 65 207C102 197 129 227 160 200C204 157 173 93 249 90C304 88 306 157 350 166C399 176 415 71 471 80C516 87 549 116 543 155C536 198 475 206 482 261C489 316 610 285 633 340C653 384 597 421 547 409C500 397 453 351 410 379C375 402 377 460 320 456C258 453 235 383 199 388C154 394 157 337 115 329Z"/>
+    <filter id="gp-rider-glow" x="-150%" y="-150%" width="400%" height="400%">
+      <feGaussianBlur stdDeviation="3.4"/>
+    </filter>
+    <linearGradient id="gp-rider-trail" x1="0" x2="1">
+      <stop stop-color="currentColor" stop-opacity="0"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity=".75"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .gp-bike { opacity: .94; }
+    @media (prefers-reduced-motion: reduce) {
+      .gp-bike { display: none; }
+    }
+  </style>
+  <g transform="translate(800 105) rotate(-7 250 220)">
+    <g class="gp-bike" color="#31deff">
+      <path d="M-23 0H-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/>
+      <circle r="10" fill="currentColor" opacity=".45" filter="url(#gp-rider-glow)"/>
+      <circle r="4" fill="currentColor"/>
+      <circle r="1.7" fill="#f8ffff"/>
+      <animateMotion dur="19s" begin="-2s" rotate="auto" repeatCount="indefinite">
+        <mpath href="#gp-rider-lap" xlink:href="#gp-rider-lap"/>
+      </animateMotion>
+    </g>
+    <g class="gp-bike" color="#ff3f96">
+      <path d="M-21 0H-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".5"/>
+      <circle r="10" fill="currentColor" opacity=".42" filter="url(#gp-rider-glow)"/>
+      <circle r="3.8" fill="currentColor"/>
+      <circle r="1.6" fill="#fff9fc"/>
+      <animateMotion dur="21s" begin="-9s" rotate="auto" repeatCount="indefinite">
+        <mpath href="#gp-rider-lap" xlink:href="#gp-rider-lap"/>
+      </animateMotion>
+    </g>
+    <g class="gp-bike" color="#ffd653">
+      <path d="M-19 0H-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity=".5"/>
+      <circle r="9" fill="currentColor" opacity=".42" filter="url(#gp-rider-glow)"/>
+      <circle r="3.7" fill="currentColor"/>
+      <circle r="1.6" fill="#fffdf4"/>
+      <animateMotion dur="20s" begin="-15s" rotate="auto" repeatCount="indefinite">
+        <mpath href="#gp-rider-lap" xlink:href="#gp-rider-lap"/>
+      </animateMotion>
+    </g>
+  </g>
+</svg>
