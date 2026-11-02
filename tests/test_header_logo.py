@@ -34,6 +34,20 @@ class HeaderLogoTests(unittest.TestCase):
         for label in ("Classement", "Résultats GP", "Championnat", "Navigation mobile"):
             self.assertIn(label, markup)
 
+    def test_racing_flow_animates_only_overlay_and_honours_reduced_motion(self):
+        response = self.client.get("/static/header-logo.css")
+        self.assertEqual(response.status_code, 200)
+        css = response.get_data(as_text=True)
+        self.assertIn("gp-header-brand-art::after", css)
+        self.assertIn("pronogp-header-logo.webp", css)
+        self.assertIn("@keyframes gp-logo-racing-flow", css)
+        self.assertIn("@keyframes gp-logo-speed-lines", css)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", css)
+        self.assertIn("animation:none;opacity:0;", css)
+        with app.test_request_context("/"):
+            markup = render_template("base.html", name="Alice")
+        self.assertIn("racing-flow-1", markup)
+
     def test_desktop_mobile_styles_keep_navigation_legible(self):
         response = self.client.get("/static/header-logo.css")
         self.assertEqual(response.status_code, 200)
