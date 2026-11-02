@@ -52,7 +52,9 @@ class RacingTrackRidersTests(unittest.TestCase):
     def test_overlay_is_background_only_and_responsive(self):
         with app.test_request_context("/"):
             html = render_template("base.html", name="Alice")
-        self.assertIn('<div class="gp-track-riders" aria-hidden="true"></div>', html)
+        self.assertIn('class="gp-track-riders"', html)
+        self.assertIn('alt="" aria-hidden="true" width="1440" height="720"', html)
+        self.assertIn("racing-track-riders-v1.svg", html)
         self.assertIn("v=track-riders-v1", html)
         css = self.client.get("/static/racing-v4.css").get_data(as_text=True)
         self.assertIn("main > .gp-track-riders", css)
