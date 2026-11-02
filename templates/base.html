@@ -11,11 +11,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='header-logo.css', v='color-streaks-v2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='user-menu-glossy.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='notification-alert.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='racing-microanimations.css', v='race-micro-v1') }}">
     <link rel="manifest" href="{{ url_for('pwa_manifest') }}">
     <link rel="apple-touch-icon" href="{{ url_for('pwa_icon',size=192) }}">
     <meta name="theme-color" content="#041627">
     <script defer src="{{ url_for('static',filename='v2-pwa.js') }}"></script>
     <script defer src="{{ url_for('static',filename='notification-alert.js') }}"></script>
+    <script defer src="{{ url_for('static',filename='racing-microanimations.js',v='race-micro-v1') }}"></script>
   </head>
 
   <body class="neon-v3 {% block body_class %}{% endblock %}">
