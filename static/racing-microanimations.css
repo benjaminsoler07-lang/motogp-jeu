@@ -1,0 +1,132 @@
+/* PronoGP Racing microinteractions v1 — decorative only, respects reduced motion. */
+body.neon-v3 { --gp-motion-cyan:#31deff;--gp-motion-rose:#ff3f96;--gp-motion-gold:#ffd653; }
+
+/* Compact racing gloss. The sweep only happens on hover / keyboard focus / touch. */
+body.neon-v3 :is(.gp-header-nav a.btn,.neon-bottom-nav a,.v2-race-main-action,.v3-race-actions a,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card,.gp-notification-action) {
+  position:relative;
+  transition:transform .2s ease,box-shadow .2s ease,filter .2s ease,border-color .2s ease;
+}
+body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card) {
+  overflow:hidden;
+}
+body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card)::after {
+  content:"";
+  position:absolute;inset:0;
+  pointer-events:none;
+  background:linear-gradient(111deg,transparent 22%,rgba(255,255,255,.18) 47%,transparent 69%);
+  transform:translateX(-160%);
+  opacity:0;
+}
+body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card):is(:hover,:focus-visible)::after {
+  animation:gp-racing-gloss .52s ease-out 1;
+}
+body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card):is(:hover,:focus-visible) {
+  transform:translateY(-2px);
+  filter:brightness(1.10);
+}
+body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card):active {
+  transform:translateY(0) scale(.99);
+}
+@keyframes gp-racing-gloss {
+  0%{transform:translateX(-160%);opacity:0}
+  18%{opacity:.75}
+  100%{transform:translateX(160%);opacity:0}
+}
+
+/* Timers: proportional seven-day runway; orange within 24h, red within 1h. */
+body.neon-v3 .gp-race-progress {
+  display:block;width:100%;height:3px;margin-top:9px;overflow:hidden;
+  border-radius:4px;background:rgba(95,163,199,.24);
+}
+body.neon-v3 .gp-race-progress > i {
+  display:block;height:100%;width:calc(var(--gp-time-progress,1) * 100%);
+  border-radius:4px;background:linear-gradient(90deg,#1788cc,var(--gp-motion-cyan));
+  box-shadow:0 0 9px rgba(49,222,255,.38);
+  transition:width .8s linear,background .4s;
+}
+body.neon-v3 .gp-race-is-soon .gp-race-progress > i {background:linear-gradient(90deg,#ad6427,#ffb453)}
+body.neon-v3 .gp-race-is-imminent .gp-race-progress > i {background:linear-gradient(90deg,#b3214c,#ff5577);box-shadow:0 0 12px #ff557766}
+body.neon-v3 .gp-race-is-imminent [data-countdown] {color:#ff889b!important}
+body.neon-v3 .gp-race-is-soon [data-countdown] {color:#ffcc81}
+
+/* One-time podium introduction; content remains visible if scripts fail. */
+body.neon-v3 .gp-podium-entrance .podium-card:not(.podium-empty) {
+  animation:gp-podium-rise .68s cubic-bezier(.19,.83,.24,1.08) both;
+}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-3 {animation-delay:.02s}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-2 {animation-delay:.16s}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-1 {animation-delay:.3s}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-1 .podium-rank {
+  animation:gp-podium-gold 1.2s ease-out .72s 1;
+}
+@keyframes gp-podium-rise {
+  from {transform:translateY(26px) scale(.96);opacity:.15}
+  to {transform:translateY(0) scale(1);opacity:1}
+}
+@keyframes gp-podium-gold {
+  0%,100%{filter:none;text-shadow:none}
+  45%{filter:brightness(1.25);text-shadow:0 0 15px #ffd653}
+}
+
+/* Form launch: never a blocker or a fake race start. */
+body.neon-v3 .gp-prono-lights {
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  margin:0 0 14px;padding:8px;
+  border:1px solid rgba(255,95,113,.3);border-radius:10px;
+  background:rgba(3,15,30,.62);pointer-events:none;
+  animation:gp-lights-hide .32s 2s both;
+}
+body.neon-v3 .gp-prono-light {
+  width:14px;height:14px;display:block;border-radius:50%;
+  border:1px solid #ff9caa;background:#5f202b;
+  animation:gp-prono-red .38s ease forwards;
+}
+body.neon-v3 .gp-prono-light:nth-child(2){animation-delay:.35s}
+body.neon-v3 .gp-prono-light:nth-child(3){animation-delay:.7s}
+body.neon-v3 .gp-prono-light:nth-child(4){animation-delay:1.05s}
+body.neon-v3 .gp-prono-lights span.gp-prono-light:last-child {
+  animation:gp-prono-green .35s 1.43s forwards;
+  background:#244937;border-color:#548d65;
+}
+@keyframes gp-prono-red {to{background:#ff475a;box-shadow:0 0 13px #ff475a}}
+@keyframes gp-prono-green {to{background:#62f4b7;border-color:#62f4b7;box-shadow:0 0 14px #62f4b7}}
+@keyframes gp-lights-hide {to{opacity:0;max-height:0;padding:0;margin:0;border:0;overflow:hidden}}
+
+/* Green only after the server acknowledges a successful save and redirects. */
+body.neon-v3 .gp-prono-saved-confirmation {
+  border-color:#70ffd0!important;
+  background:linear-gradient(105deg,#0e5947,#0d805d)!important;
+  color:#effff7!important;
+  box-shadow:0 0 17px rgba(43,242,169,.36),inset 0 1px rgba(255,255,255,.24)!important;
+  animation:gp-saved-confirm .7s ease 1;
+}
+@keyframes gp-saved-confirm {
+  0%{filter:brightness(1);transform:scale(1)}
+  40%{filter:brightness(1.28);transform:scale(1.025)}
+  100%{filter:brightness(1);transform:scale(1)}
+}
+
+/* New unread notification gets a short, event-driven bright ring. */
+body.neon-v3 .gp-header-notify.gp-new-notification {
+  animation:gp-bell-halo 1.8s ease-out 1;
+}
+@keyframes gp-bell-halo {
+  0%,100%{box-shadow:0 0 0 transparent}
+  40%{box-shadow:0 0 0 5px rgba(255,214,83,.12),0 0 18px rgba(255,214,83,.65)}
+}
+body.neon-v3 [data-gp-counter] {font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce) {
+  body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card)::after,
+  body.neon-v3 .gp-podium-entrance .podium-card,
+  body.neon-v3 .gp-podium-entrance .podium-card.podium-1 .podium-rank,
+  body.neon-v3 .gp-prono-lights,
+  body.neon-v3 .gp-prono-light,
+  body.neon-v3 .gp-prono-lights span.gp-prono-light:last-child,
+  body.neon-v3 .gp-prono-saved-confirmation,
+  body.neon-v3 .gp-header-notify.gp-new-notification { animation:none!important }
+  body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card) {
+    transition:none!important;transform:none!important;
+  }
+  body.neon-v3 .gp-prono-lights {display:none!important}
+  body.neon-v3 .gp-race-progress > i {transition:none}
+}
