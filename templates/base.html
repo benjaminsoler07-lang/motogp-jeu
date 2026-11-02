@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='neon-v3.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='neon-refinement.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='racing-v4.css', v='pronos-color-2-track-riders-v1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='racing-v4.css', v='pronos-color-2-track-aligned-v5') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='header-logo.css', v='color-streaks-v2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='user-menu-glossy.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='notification-alert.css') }}">
@@ -69,7 +69,6 @@
     </header>
 
     <main>
-      <img class="gp-track-riders" src="{{ url_for('static', filename='racing-track-riders-v1.svg') }}" alt="" aria-hidden="true" width="1440" height="720" decoding="async">
       {% with msgs = get_flashed_messages() %}
         {% if msgs %}
           <div class="flash">{{ msgs[-1] }}</div>

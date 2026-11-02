@@ -1,8 +1,7 @@
-"""Regression tests for moving light points tracking the actual background circuit."""
+"""Keep moving MotoGP lights on the exact path used to draw the circuit."""
 import os
 import unittest
 import xml.etree.ElementTree as ET
-
 from flask import render_template
 
 os.environ.pop("DATABASE_URL", None)
@@ -13,57 +12,62 @@ class RacingTrackRidersTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
-    def test_three_moving_points_follow_the_exact_existing_track(self):
-        background_response = self.client.get("/static/racing-track-v4.svg")
-        rider_response = self.client.get("/static/racing-track-riders-v1.svg")
-        self.assertEqual(background_response.status_code, 200)
-        self.assertEqual(rider_response.status_code, 200)
+    def test_moving_bikes_share_visible_stroke_and_parent_transform(self):
+        original_response = self.client.get("/static/racing-track-v4.svg")
+        animated_response = self.client.get("/static/racing-track-animated-v5.svg")
+        self.assertEqual(original_response.status_code, 200)
+        self.assertEqual(animated_response.status_code, 200)
+        original = ET.fromstring(original_response.data)
+        animated = ET.fromstring(animated_response.data)
+        self.assertEqual(original.attrib["viewBox"], animated.attrib["viewBox"])
 
-        background = ET.fromstring(background_response.data)
-        riders = ET.fromstring(rider_response.data)
-        self.assertEqual(background.attrib["viewBox"], riders.attrib["viewBox"])
+        def find_track(root):
+            for node in root.iter():
+                if node.attrib.get("stroke") == "url(#trackstroke)":
+                    return node
+            self.fail("Visible neon track path not found")
 
-        original_path = next(
-            node for node in background.iter()
-            if node.tag.endswith("}path") and node.attrib.get("d", "").startswith("M115 329C-10")
+        source_line = find_track(original)
+        animated_line = find_track(animated)
+        self.assertEqual(source_line.attrib["d"], animated_line.attrib["d"])
+        self.assertEqual(animated_line.attrib["id"], "gp-track-centerline")
+
+        ns = "{http://www.w3.org/2000/svg}"
+        group = next(
+            node for node in animated.iter()
+            if node.attrib.get("transform") == "translate(800 105) rotate(-7 250 220)"
         )
-        animated_path = next(
-            node for node in riders.iter() if node.attrib.get("id") == "gp-rider-lap"
-        )
-        self.assertEqual(animated_path.attrib["d"], original_path.attrib["d"])
+        self.assertIn(animated_line, list(group))
+        riders = [child for child in group if child.attrib.get("class") == "gp-track-bike"]
+        self.assertEqual(len(riders), 3)
+        self.assertEqual([child.attrib["color"] for child in riders],
+                         ["#31deff", "#ff3f96", "#ffd653"])
+        for rider in riders:
+            animations = [node for node in rider if node.tag == ns + "animateMotion"]
+            self.assertEqual(len(animations), 1)
+            animation = animations[0]
+            self.assertEqual(animation.attrib["repeatCount"], "indefinite")
+            self.assertEqual(animation.attrib["rotate"], "auto")
+            link = animation.find(ns + "mpath")
+            self.assertIsNotNone(link)
+            self.assertEqual(link.attrib["href"], "#gp-track-centerline")
+        self.assertIn("prefers-reduced-motion: reduce",
+                      animated_response.get_data(as_text=True))
 
-        track_transform = "translate(800 105) rotate(-7 250 220)"
-        self.assertTrue(any(node.attrib.get("transform") == track_transform for node in background.iter()))
-        self.assertTrue(any(node.attrib.get("transform") == track_transform for node in riders.iter()))
-
-        moving = [node for node in riders.iter() if node.tag.endswith("}animateMotion")]
-        self.assertEqual(len(moving), 3)
-        for node in moving:
-            self.assertEqual(node.attrib["repeatCount"], "indefinite")
-            self.assertEqual(node.attrib["rotate"], "auto")
-            path_reference = next(child for child in node if child.tag.endswith("}mpath"))
-            self.assertEqual(path_reference.attrib["href"], "#gp-rider-lap")
-
-        svg_text = rider_response.get_data(as_text=True)
-        for colour in ("#31deff", "#ff3f96", "#ffd653"):
-            self.assertIn(colour, svg_text)
-        self.assertIn("prefers-reduced-motion: reduce", svg_text)
-
-    def test_overlay_is_background_only_and_responsive(self):
+    def test_all_background_layouts_use_single_artwork_not_overlay(self):
         with app.test_request_context("/"):
             html = render_template("base.html", name="Alice")
-        self.assertIn('class="gp-track-riders"', html)
-        self.assertIn('alt="" aria-hidden="true" width="1440" height="720"', html)
-        self.assertIn("racing-track-riders-v1.svg", html)
-        self.assertIn("v=pronos-color-2-track-riders-v1", html)
+        self.assertNotIn('class="gp-track-riders"', html)
+        self.assertNotIn("racing-track-riders-v1.svg", html)
+        self.assertIn("pronos-color-2-track-aligned-v5", html)
+
         css = self.client.get("/static/racing-v4.css").get_data(as_text=True)
-        self.assertIn("main > .gp-track-riders", css)
-        self.assertIn("top:15px", css)
-        self.assertIn("right:-1vw", css)
-        self.assertIn("width:min(1350px,135vw)", css)
-        self.assertIn("aspect-ratio:1440 / 720", css)
-        self.assertIn("pointer-events:none", css)
-        self.assertIn("@media (prefers-reduced-motion: reduce)", css)
+        self.assertEqual(css.count("url('/static/racing-track-animated-v5.svg')"), 4)
+        self.assertNotIn("main > .gp-track-riders", css)
+        self.assertIn(".v3-racecenter", css)
+        self.assertIn("main::before", css)
+        self.assertIn("racing-track-v4.svg", css)  # original preserved
+        self.assertIn("@media(max-width:720px)", css)
 
 
 if __name__ == "__main__":

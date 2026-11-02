@@ -19,28 +19,11 @@ body.neon-v3 main::before {
   position:absolute;inset:0 -1vw auto;
   height:min(1120px,90vh);z-index:-1;pointer-events:none;
   background:linear-gradient(180deg,rgba(2,11,25,.75),rgba(2,11,25,.88) 60%,#030b18 100%),
-    url('/static/racing-track-v4.svg') right 0 top 15px / min(1350px,135vw) auto no-repeat;
+    url('/static/racing-track-animated-v5.svg') right 0 top 15px / min(1350px,135vw) auto no-repeat;
   opacity:.61;
 }
-/* Animated bike lights (SVG img, not CSS background, so motion runs): geometrically aligned with the existing racing-track-v4.svg
-   background (right 0 / min(1350px,135vw), 15px from the top). Transparent SVG
-   contains only moving light points, so the original circuit remains untouched. */
-body.neon-v3 main > .gp-track-riders {
-  position:absolute;
-  top:15px;
-  right:-1vw;
-  display:block;
-  width:min(1350px,135vw);
-  height:auto;
-  aspect-ratio:1440 / 720;
-  opacity:.9;
-  pointer-events:none;
-  z-index:-1;
-}
-@media (prefers-reduced-motion: reduce) {
-  body.neon-v3 main > .gp-track-riders { display:none; }
-}
-
+/* The moving lights are embedded in the same SVG as the visible circuit.
+   Original static art preserved as static/racing-track-v4.svg. */
 body.neon-v3 .checkerbar-compact {
   border-bottom:1px solid #2bb6dc;
   background:linear-gradient(110deg,#050f21 0%,#09233a 68%,#071327 100%);
@@ -76,7 +59,7 @@ body.neon-v3 .v2-home .v3-racecenter {
   border-top:2px solid var(--race-cyan) !important;
   background:
     linear-gradient(90deg,rgba(4,15,31,.97) 0%,rgba(5,19,36,.94) 42%,rgba(5,17,32,.67) 70%,rgba(6,19,36,.44)),
-    url('/static/racing-track-v4.svg') right center / cover no-repeat !important;
+    url('/static/racing-track-animated-v5.svg') right center / cover no-repeat !important;
   box-shadow:0 0 0 1px rgba(27,186,234,.1),0 0 30px rgba(10,167,240,.25),0 15px 45px rgba(0,3,15,.48) !important;
 }
 body.neon-v3 .v3-racecenter .v3-race-header .v2-eyebrow {color:#d8faff}
@@ -293,13 +276,13 @@ body.neon-v3 .neon-bottom-nav a.is-active {outline:1px solid #2dc9ef;outline-off
 @media(max-width:800px){
   body.neon-v3 .v2-home .v3-racecenter {background:
     linear-gradient(90deg,rgba(4,15,31,.96),rgba(5,17,33,.87) 61%,rgba(5,17,33,.53)),
-    url('/static/racing-track-v4.svg') center center / cover no-repeat !important}
+    url('/static/racing-track-animated-v5.svg') center center / cover no-repeat !important}
 }
 @media(max-width:720px){
   body.neon-v3 main::before {background-size:cover,1050px auto;opacity:.43}
   body.neon-v3 .v2-home .v3-racecenter {background:
     linear-gradient(90deg,rgba(4,15,31,.95),rgba(5,17,33,.85)),
-    url('/static/racing-track-v4.svg') center center / auto 100% no-repeat !important}
+    url('/static/racing-track-animated-v5.svg') center center / auto 100% no-repeat !important}
   body.neon-v3 .gp-comparison-highlights {grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
   body.neon-v3 .gp-comparison-highlight {flex-direction:column;align-items:flex-start;padding:11px 9px;gap:7px}
   body.neon-v3 .gp-highlight-icon {height:29px;width:29px;font-size:.92rem}
