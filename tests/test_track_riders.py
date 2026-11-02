@@ -55,7 +55,7 @@ class RacingTrackRidersTests(unittest.TestCase):
         self.assertIn('class="gp-track-riders"', html)
         self.assertIn('alt="" aria-hidden="true" width="1440" height="720"', html)
         self.assertIn("racing-track-riders-v1.svg", html)
-        self.assertIn("v=track-riders-v1", html)
+        self.assertIn("v=pronos-color-2-track-riders-v1", html)
         css = self.client.get("/static/racing-v4.css").get_data(as_text=True)
         self.assertIn("main > .gp-track-riders", css)
         self.assertIn("top:15px", css)
