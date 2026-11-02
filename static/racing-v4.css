@@ -22,16 +22,17 @@ body.neon-v3 main::before {
     url('/static/racing-track-v4.svg') right 0 top 15px / min(1350px,135vw) auto no-repeat;
   opacity:.61;
 }
-/* Animated bike lights: geometrically aligned with the existing racing-track-v4.svg
+/* Animated bike lights (SVG img, not CSS background, so motion runs): geometrically aligned with the existing racing-track-v4.svg
    background (right 0 / min(1350px,135vw), 15px from the top). Transparent SVG
    contains only moving light points, so the original circuit remains untouched. */
 body.neon-v3 main > .gp-track-riders {
   position:absolute;
   top:15px;
   right:-1vw;
+  display:block;
   width:min(1350px,135vw);
+  height:auto;
   aspect-ratio:1440 / 720;
-  background:url('/static/racing-track-riders-v1.svg') center / 100% 100% no-repeat;
   opacity:.9;
   pointer-events:none;
   z-index:-1;
