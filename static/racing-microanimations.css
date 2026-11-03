@@ -79,9 +79,16 @@ body.neon-v3 .gp-podium-entrance .podium-card.podium-2 {
 }
 body.neon-v3 .gp-podium-entrance .podium-card.podium-1 {
   z-index:5;
-  animation-name:gp-podium-race-gold;
-  animation-duration:2.55s;
-  animation-delay:.34s;
+  animation-name:gp-podium-race-gold,gp-podium-win-burst;
+  animation-duration:2.55s,1s;
+  animation-delay:.34s,2.74s;
+  animation-timing-function:linear,ease-out;
+  animation-fill-mode:both,both;
+}
+@keyframes gp-podium-win-burst {
+  0%{box-shadow:0 0 20px rgba(255,214,83,.25)}
+  27%{box-shadow:0 0 0 4px rgba(255,214,83,.28),0 0 54px rgba(255,214,83,.92),0 0 90px rgba(255,64,150,.40)}
+  100%{box-shadow:0 0 22px rgba(255,214,83,.34)}
 }
 /* Passing streak; snaps out just before the card hits its final position. */
 body.neon-v3 .gp-podium-entrance .podium-card:not(.podium-empty)::after {
