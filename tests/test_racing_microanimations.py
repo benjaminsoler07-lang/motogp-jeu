@@ -26,8 +26,8 @@ class RacingMicroanimationsTests(unittest.TestCase):
     def test_shared_assets_are_loaded_on_every_page(self):
         with app.test_request_context("/"):
             html = render_template("base.html", name="Alice")
-        self.assertIn("racing-microanimations.css?v=race-micro-v1", html)
-        self.assertIn("racing-microanimations.js?v=race-micro-v1", html)
+        self.assertIn("racing-microanimations.css?v=race-show-b-v2", html)
+        self.assertIn("racing-microanimations.js?v=race-show-b-v2", html)
         self.assertIn("notification-alert.js", html)
         self.assertIn("header-logo.css", html)
 
@@ -48,12 +48,49 @@ class RacingMicroanimationsTests(unittest.TestCase):
 
     def test_glossy_buttons_and_accessible_nonblocking_motion(self):
         css = self.get_static("racing-microanimations.css")
-        for rule in ("gp-racing-gloss", "gp-podium-rise", "gp-prono-red",
-                     "gp-prono-green", "gp-saved-confirm", "gp-bell-halo",
+        for rule in ("gp-racing-gloss", "gp-podium-race-gold", "gp-prono-red",
+                     "gp-grid-blackout", "gp-saved-confirm", "gp-bell-halo",
                      "gp-race-progress", "prefers-reduced-motion:reduce"):
             self.assertIn(rule, css)
         self.assertIn("pointer-events:none", css)
         self.assertNotIn("animation:gp-racing-gloss", self.get_static("racing-v4.css"))
+
+    def test_option_b_four_red_lights_switch_off_at_the_same_moment(self):
+        css = self.get_static("racing-microanimations.css")
+        js = self.get_static("racing-microanimations.js")
+        self.assertIn("for (let i = 0; i < 4; i++)", js)
+        self.assertNotIn("for (let i = 0; i < 5; i++)", js)
+        for phase in ("nth-child(1)", "nth-child(2)", "nth-child(3)", "nth-child(4)"):
+            self.assertIn(phase, css)
+        for t in ("0s", ".31s", ".62s", ".93s"):
+            self.assertIn("--gp-light-delay:" + t, css)
+        self.assertIn("animation:gp-prono-red .15s ease-out both,gp-grid-blackout 1.7s linear both", css)
+        self.assertIn("88.01%,100% {opacity:.10}", css)
+        self.assertNotIn("gp-prono-green", css)
+        self.assertIn("gp-lights-hide .22s 1.95s", css)
+        self.assertIn("lights.remove(), 2300", js)
+        self.assertIn("prefers-reduced-motion:reduce", css)
+
+    def test_option_b_overtaking_and_braking_podium(self):
+        css = self.get_static("racing-microanimations.css")
+        for effect in ("gp-podium-race-bronze", "gp-podium-race-silver",
+                       "gp-podium-race-gold", "gp-podium-win-burst",
+                       "gp-podium-impact", "gp-podium-trail",
+                       "gp-podium-mobile-bronze", "gp-podium-mobile-silver",
+                       "gp-podium-mobile-gold"):
+            self.assertIn(effect, css)
+        self.assertIn("translate3d(-90vw", css)
+        self.assertIn("translate3d(90vw", css)
+        self.assertIn("translate3d(110vw", css)
+        self.assertIn("animation-duration:2.55s", css)
+        self.assertIn("animation-delay:.34s,2.74s", css)
+        self.assertIn(".podium-card:not(.podium-empty)::after", css)
+        self.assertIn("body.neon-v3 .gp-podium-entrance .podium-card.podium-1 .podium-rank", css)
+        self.assertIn("pointer-events:none", css)
+        self.assertNotIn("gp-podium-rise", css)
+        js = self.get_static("racing-microanimations.js")
+        self.assertIn('entry.target.classList.add("gp-podium-entrance")', js)
+        self.assertIn("obs.unobserve(entry.target)", js)
 
     def test_existing_countdowns_are_preserved_with_real_deadlines(self):
         js = self.get_static("v2-countdown.js")
