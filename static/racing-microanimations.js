@@ -26,13 +26,13 @@
       const lights = document.createElement("div");
       lights.className = "gp-prono-lights";
       lights.setAttribute("aria-hidden", "true");
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 4; i++) {
         const bulb = document.createElement("span");
         bulb.className = "gp-prono-light";
         lights.appendChild(bulb);
       }
       form.insertBefore(lights, form.firstChild);
-      window.setTimeout(() => lights.remove(), 2700);
+      window.setTimeout(() => lights.remove(), 2300);
     }
   }
 
