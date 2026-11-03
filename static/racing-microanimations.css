@@ -49,47 +49,177 @@ body.neon-v3 .gp-race-is-imminent .gp-race-progress > i {background:linear-gradi
 body.neon-v3 .gp-race-is-imminent [data-countdown] {color:#ff889b!important}
 body.neon-v3 .gp-race-is-soon [data-countdown] {color:#ffcc81}
 
-/* One-time podium introduction; content remains visible if scripts fail. */
+/* OPTION B — Racing Show: players overtake, brake hard and land on the podium.
+   The actual positions and results never change. One play on entering view. */
+body.neon-v3 .gp-podium-entrance {
+  position:relative;
+  isolation:isolate;
+  overflow:visible;
+  perspective:900px;
+}
 body.neon-v3 .gp-podium-entrance .podium-card:not(.podium-empty) {
-  animation:gp-podium-rise .68s cubic-bezier(.19,.83,.24,1.08) both;
+  position:relative;
+  will-change:transform,opacity;
+  backface-visibility:hidden;
+  transform-origin:50% 90%;
+  animation-fill-mode:both;
+  animation-timing-function:linear;
 }
-body.neon-v3 .gp-podium-entrance .podium-card.podium-3 {animation-delay:.02s}
-body.neon-v3 .gp-podium-entrance .podium-card.podium-2 {animation-delay:.16s}
-body.neon-v3 .gp-podium-entrance .podium-card.podium-1 {animation-delay:.3s}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-3 {
+  z-index:3;
+  animation-name:gp-podium-race-bronze;
+  animation-duration:2.2s;
+  animation-delay:0s;
+}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-2 {
+  z-index:4;
+  animation-name:gp-podium-race-silver;
+  animation-duration:2.32s;
+  animation-delay:.16s;
+}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-1 {
+  z-index:5;
+  animation-name:gp-podium-race-gold;
+  animation-duration:2.55s;
+  animation-delay:.34s;
+}
+/* Passing streak; snaps out just before the card hits its final position. */
+body.neon-v3 .gp-podium-entrance .podium-card:not(.podium-empty)::after {
+  content:"";
+  position:absolute;
+  top:54%;
+  left:-32%;
+  width:62%;
+  height:3px;
+  pointer-events:none;
+  z-index:2;
+  border-radius:30px;
+  background:linear-gradient(90deg,transparent 0%,var(--gp-podium-flash,#31deff) 85%,#fff 100%);
+  box-shadow:0 0 10px var(--gp-podium-flash,#31deff);
+  transform:skewX(-30deg);
+  opacity:0;
+  animation:gp-podium-trail 2.5s linear both;
+}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-3 {--gp-podium-flash:#ff9362}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-2 {--gp-podium-flash:#31deff}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-1 {--gp-podium-flash:#ffd653}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-3::after {animation-delay:0s}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-2::after {animation-delay:.16s}
+body.neon-v3 .gp-podium-entrance .podium-card.podium-1::after {animation-delay:.34s}
+
+@keyframes gp-podium-race-bronze {
+  0%   {opacity:0;transform:translate3d(-90vw,40px,0) rotate(-7deg) scale(.77);filter:blur(3px)}
+  18%  {opacity:.95;transform:translate3d(-34vw,8px,0) rotate(-3deg) scale(.89);filter:blur(0)}
+  40%  {opacity:1;transform:translate3d(25vw,-18px,0) rotate(2deg) scale(1.07)}
+  63%  {transform:translate3d(-9vw,-10px,0) rotate(-2deg) scale(1.06)}
+  81%  {transform:translate3d(17px,5px,0) rotate(2deg) scale(.98)}
+  90%  {transform:translate3d(-7px,-3px,0) rotate(-1deg) scale(1.01)}
+  100% {opacity:1;transform:translate3d(0,0,0) rotate(0) scale(1);filter:none}
+}
+@keyframes gp-podium-race-silver {
+  0%   {opacity:0;transform:translate3d(90vw,35px,0) rotate(7deg) scale(.77);filter:blur(3px)}
+  18%  {opacity:1;transform:translate3d(39vw,-12px,0) rotate(4deg) scale(.91);filter:blur(0)}
+  38%  {transform:translate3d(-23vw,-24px,0) rotate(-3deg) scale(1.09)}
+  65%  {transform:translate3d(10vw,-10px,0) rotate(2deg) scale(1.04)}
+  82%  {transform:translate3d(-20px,5px,0) rotate(-2deg) scale(.98)}
+  92%  {transform:translate3d(7px,-3px,0) rotate(1deg) scale(1.01)}
+  100% {opacity:1;transform:translate3d(0,0,0) rotate(0) scale(1);filter:none}
+}
+@keyframes gp-podium-race-gold {
+  0%   {opacity:0;transform:translate3d(110vw,45px,0) rotate(9deg) scale(.72);filter:blur(5px)}
+  17%  {opacity:1;transform:translate3d(50vw,-18px,0) rotate(4deg) scale(.95);filter:blur(1px)}
+  39%  {transform:translate3d(-30vw,-38px,0) rotate(-4deg) scale(1.18);filter:blur(0)}
+  61%  {transform:translate3d(21vw,-24px,0) rotate(2deg) scale(1.14)}
+  77%  {transform:translate3d(-35px,-8px,0) rotate(-3deg) scale(1.12)}
+  84%  {transform:translate3d(14px,7px,0) rotate(2deg) scale(.95)}
+  92%  {transform:translate3d(-6px,-4px,0) rotate(-1deg) scale(1.04)}
+  100% {opacity:1;transform:translate3d(0,0,0) rotate(0) scale(1);filter:none}
+}
+@keyframes gp-podium-trail {
+  0%,12% {opacity:0}
+  23%,48% {opacity:.85}
+  72% {opacity:.45}
+  81%,100% {opacity:0}
+}
 body.neon-v3 .gp-podium-entrance .podium-card.podium-1 .podium-rank {
-  animation:gp-podium-gold 1.2s ease-out .72s 1;
+  animation:gp-podium-impact 1s ease-out 2.6s both;
 }
-@keyframes gp-podium-rise {
-  from {transform:translateY(26px) scale(.96);opacity:.15}
-  to {transform:translateY(0) scale(1);opacity:1}
+@keyframes gp-podium-impact {
+  0%,100% {filter:none;text-shadow:none;transform:scale(1)}
+  29% {filter:brightness(1.7);text-shadow:0 0 30px #ffd653,0 0 14px #fff;transform:scale(1.15)}
+  57% {filter:brightness(1.2);text-shadow:0 0 18px #ffd653;transform:scale(1.04)}
 }
-@keyframes gp-podium-gold {
-  0%,100%{filter:none;text-shadow:none}
-  45%{filter:brightness(1.25);text-shadow:0 0 15px #ffd653}
+/* Wide entrance on desktop; shorter path keeps phone cards inside the viewport. */
+@media(max-width:720px) {
+  body.neon-v3 .gp-podium-entrance .podium-card.podium-3 {
+    animation-name:gp-podium-mobile-bronze;
+  }
+  body.neon-v3 .gp-podium-entrance .podium-card.podium-2 {
+    animation-name:gp-podium-mobile-silver;
+  }
+  body.neon-v3 .gp-podium-entrance .podium-card.podium-1 {
+    animation-name:gp-podium-mobile-gold;
+  }
+  @keyframes gp-podium-mobile-bronze {
+    0% {opacity:0;transform:translate3d(-100vw,18px,0) scale(.87)}
+    38%{opacity:1;transform:translate3d(18vw,-9px,0) scale(1.04)}
+    75%{transform:translate3d(-14px,4px,0) scale(.97)}
+    90%{transform:translate3d(5px,-3px,0) scale(1.02)}
+    100%{transform:none;opacity:1}
+  }
+  @keyframes gp-podium-mobile-silver {
+    0% {opacity:0;transform:translate3d(100vw,18px,0) scale(.87)}
+    38%{opacity:1;transform:translate3d(-18vw,-9px,0) scale(1.04)}
+    75%{transform:translate3d(14px,4px,0) scale(.97)}
+    90%{transform:translate3d(-5px,-3px,0) scale(1.02)}
+    100%{transform:none;opacity:1}
+  }
+  @keyframes gp-podium-mobile-gold {
+    0% {opacity:0;transform:translate3d(100vw,20px,0) scale(.82)}
+    33%{opacity:1;transform:translate3d(-24vw,-16px,0) scale(1.12)}
+    62%{transform:translate3d(19vw,-8px,0) scale(1.09)}
+    78%{transform:translate3d(-17px,5px,0) scale(.96)}
+    91%{transform:translate3d(7px,-4px,0) scale(1.04)}
+    100%{transform:none;opacity:1}
+  }
 }
 
-/* Form launch: never a blocker or a fake race start. */
+/* GRID START — four red lights ON one by one, then ALL OFF together. */
 body.neon-v3 .gp-prono-lights {
-  display:flex;align-items:center;justify-content:center;gap:9px;
-  margin:0 0 14px;padding:8px;
-  border:1px solid rgba(255,95,113,.3);border-radius:10px;
-  background:rgba(3,15,30,.62);pointer-events:none;
-  animation:gp-lights-hide .32s 2s both;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  margin:0 0 14px;
+  padding:11px;
+  border:1px solid rgba(255,95,113,.3);
+  border-radius:12px;
+  background:rgba(3,15,30,.75);
+  pointer-events:none;
+  animation:gp-lights-hide .22s 1.95s both;
 }
 body.neon-v3 .gp-prono-light {
-  width:14px;height:14px;display:block;border-radius:50%;
-  border:1px solid #ff9caa;background:#5f202b;
-  animation:gp-prono-red .38s ease forwards;
+  display:block;
+  width:17px;
+  height:17px;
+  border-radius:50%;
+  border:2px solid #6f2e38;
+  background:#2a111c;
+  box-shadow:inset 0 0 4px rgba(0,0,0,.9);
+  animation:gp-prono-red .15s ease-out both,gp-grid-blackout 1.7s linear both;
+  animation-delay:var(--gp-light-delay,0s),0s;
 }
-body.neon-v3 .gp-prono-light:nth-child(2){animation-delay:.35s}
-body.neon-v3 .gp-prono-light:nth-child(3){animation-delay:.7s}
-body.neon-v3 .gp-prono-light:nth-child(4){animation-delay:1.05s}
-body.neon-v3 .gp-prono-lights span.gp-prono-light:last-child {
-  animation:gp-prono-green .35s 1.43s forwards;
-  background:#244937;border-color:#548d65;
+body.neon-v3 .gp-prono-light:nth-child(1) {--gp-light-delay:0s}
+body.neon-v3 .gp-prono-light:nth-child(2) {--gp-light-delay:.31s}
+body.neon-v3 .gp-prono-light:nth-child(3) {--gp-light-delay:.62s}
+body.neon-v3 .gp-prono-light:nth-child(4) {--gp-light-delay:.93s}
+@keyframes gp-prono-red {
+  to {border-color:#ff8995;background:#ff334d;box-shadow:0 0 15px #ff334d,0 0 30px #f04b66}
 }
-@keyframes gp-prono-red {to{background:#ff475a;box-shadow:0 0 13px #ff475a}}
-@keyframes gp-prono-green {to{background:#62f4b7;border-color:#62f4b7;box-shadow:0 0 14px #62f4b7}}
+@keyframes gp-grid-blackout {
+  0%,88% {opacity:1}
+  88.01%,100% {opacity:.10}
+}
 @keyframes gp-lights-hide {to{opacity:0;max-height:0;padding:0;margin:0;border:0;overflow:hidden}}
 
 /* Green only after the server acknowledges a successful save and redirects. */
@@ -118,10 +248,10 @@ body.neon-v3 [data-gp-counter] {font-variant-numeric:tabular-nums}
 @media(prefers-reduced-motion:reduce) {
   body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card)::after,
   body.neon-v3 .gp-podium-entrance .podium-card,
+  body.neon-v3 .gp-podium-entrance .podium-card:not(.podium-empty)::after,
   body.neon-v3 .gp-podium-entrance .podium-card.podium-1 .podium-rank,
   body.neon-v3 .gp-prono-lights,
   body.neon-v3 .gp-prono-light,
-  body.neon-v3 .gp-prono-lights span.gp-prono-light:last-child,
   body.neon-v3 .gp-prono-saved-confirmation,
   body.neon-v3 .gp-header-notify.gp-new-notification { animation:none!important }
   body.neon-v3 :is(.gp-header-nav a.btn,.v2-race-main-action,.sticky-save .btn,.v2-home-upcoming-actions a,.neon-summary-card) {
