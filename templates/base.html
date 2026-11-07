@@ -11,12 +11,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='header-logo.css', v='color-streaks-v2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='user-menu-glossy.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='notification-alert.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='share-pronogp.css', v='share-v1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='racing-microanimations.css', v='race-show-b-v2') }}">
     <link rel="manifest" href="{{ url_for('pwa_manifest') }}">
     <link rel="apple-touch-icon" href="{{ url_for('pwa_icon',size=192) }}">
     <meta name="theme-color" content="#041627">
     <script defer src="{{ url_for('static',filename='v2-pwa.js') }}"></script>
     <script defer src="{{ url_for('static',filename='notification-alert.js') }}"></script>
+    <script defer src="{{ url_for('static',filename='share-pronogp.js',v='share-v1') }}"></script>
     <script defer src="{{ url_for('static',filename='racing-microanimations.js',v='race-show-b-v2') }}"></script>
   </head>
 
@@ -27,6 +29,13 @@
           <img class="gp-header-neon-logo" src="{{ url_for('static', filename='pronogp-header-logo.webp') }}" width="420" height="97" alt="PronoGP" decoding="async" fetchpriority="high">
         </a>
         <div class="gp-header-tools">
+          <button class="gp-header-share" type="button" data-share-pronogp
+                  data-share-url="https://motogp-jeu.onrender.com/"
+                  aria-label="Partager l'application PronoGP" title="Partager PronoGP">
+            <span class="gp-share-icon" aria-hidden="true">↗</span>
+            <span class="gp-share-label">Partager</span>
+          </button>
+          <span class="gp-share-feedback" role="status" aria-live="polite" data-share-feedback></span>
           {% if name %}
             <a class="gp-header-notify" href="{{ url_for('notifications') }}"
                data-notification-bell data-unread-url="{{ url_for('notification_unread_summary') }}"
