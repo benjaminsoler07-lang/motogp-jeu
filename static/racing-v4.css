@@ -199,6 +199,43 @@ body.neon-v3 .gp-row-verdict {
   font-size:.61rem;font-weight:750;letter-spacing:.02em;
 }
 body.neon-v3 .gp-row-verdict.is-unanimous {color:#9cffda;background:#124b45}
+
+/* Pronos publics : la colonne fixe reprend exactement les teintes du formulaire.
+   Le code couleur des sélections des joueurs reste indépendant. */
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row.row-qualif {
+  --row-bg-start:#196f8d;--row-bg-middle:#105575;--row-bg-end:#0b3c5b;
+  --row-border:#39dcf5;--row-text:#d7fbff;--row-rgb:57,220,245;
+}
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row.row-sprint {
+  --row-bg-start:#66459a;--row-bg-middle:#4a327d;--row-bg-end:#332457;
+  --row-border:#c49bff;--row-text:#f1e3ff;--row-rgb:187,148,255;
+}
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row.row-gp {
+  --row-bg-start:#983e58;--row-bg-middle:#732e49;--row-bg-end:#4c253d;
+  --row-border:#ff8790;--row-text:#ffe3e0;--row-rgb:255,120,137;
+}
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row.row-bonus {
+  --row-bg-start:#86601f;--row-bg-middle:#654921;--row-bg-end:#3e3125;
+  --row-border:#e9ad56;--row-text:#ffedc1;--row-rgb:233,173,86;
+}
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row > th.gp-comparison-label {
+  background:linear-gradient(142deg,var(--row-bg-start) 0%,var(--row-bg-middle) 55%,var(--row-bg-end) 100%);
+  border-left:3px solid var(--row-border);
+  border-right:2px solid var(--row-border);
+  border-bottom:1px solid rgba(var(--row-rgb),.4);
+  box-shadow:inset 0 1px rgba(255,255,255,.13),
+             inset 0 0 16px rgba(var(--row-rgb),.13),
+             4px 0 12px rgba(var(--row-rgb),.15);
+}
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row > th.gp-comparison-label .gp-row-label {
+  color:var(--row-text);
+  text-shadow:0 0 12px rgba(var(--row-rgb),.32);
+}
+body.neon-v3 .gp-comparison-table .gp-comparison-choice-row > th.gp-comparison-label .gp-row-verdict:not(.is-unanimous) {
+  color:var(--row-text);
+  background:rgba(5,19,34,.42);
+  border:1px solid rgba(var(--row-rgb),.4);
+}
 body.neon-v3 .gp-comparison-table .gp-comparison-group th{
   position:relative;z-index:1;background:linear-gradient(95deg,#0b4663,#092942);
   color:#97f6ff;border:0;border-top:1px solid #2697ba;
