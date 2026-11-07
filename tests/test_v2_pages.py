@@ -127,6 +127,69 @@ class V2PagesTests(unittest.TestCase):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200, response.get_data(as_text=True)[:400])
 
+    def test_deadline_closes_and_publishes_legacy_gp_by_default(self):
+        from unittest.mock import patch
+        from app import is_weekend_closed, is_pronos_public
+
+        gp = {
+            "id": "ci-legacy-auto-public",
+            "season_year": datetime.now(timezone.utc).year,
+            "deadline_utc": (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(),
+        }
+        with patch("app.get_weekend", return_value=gp):
+            self.assertTrue(is_weekend_closed(gp["id"]))
+            self.assertTrue(is_pronos_public(gp["id"]))
+
+        # Un OFF explicite dans l'admin doit conserver la confidentialité.
+        with patch("app.get_weekend", return_value={**gp, "auto_publish": False}):
+            self.assertTrue(is_weekend_closed(gp["id"]))
+            self.assertFalse(is_pronos_public(gp["id"]))
+
+        # La publication ne doit jamais précéder l'heure de la Q1.
+        future = {**gp, "deadline_utc":
+                  (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()}
+        with patch("app.get_weekend", return_value=future):
+            self.assertFalse(is_weekend_closed(gp["id"]))
+            self.assertFalse(is_pronos_public(gp["id"]))
+
+    def test_race_center_refreshes_public_link_at_closure(self):
+        from flask import render_template
+        from pathlib import Path
+        from datetime import date
+
+        rc = {
+            "id": "qatar", "name": "GP du Qatar", "closed": False,
+            "public": False, "played": True,
+            "deadline_iso": "2026-11-07T11:40:00+00:00",
+            "session_iso": None,
+        }
+        with app.test_request_context("/"):
+            before = render_template("_race_center.html", rc=rc)
+            self.assertIn('data-refresh-on-finish="1"', before)
+            self.assertIn("Modifier mon pronostic", before)
+
+            after = render_template("_race_center.html", rc={**rc, "closed": True, "public": True})
+            self.assertIn("Voir les pronostics publics", after)
+            self.assertIn('href="/w/qatar/public/pronos"', after)
+            self.assertNotIn("Modifier mon pronostic", after)
+
+            upcoming = render_template(
+                "index.html", race_center=None,
+                upcoming=[{
+                    "id": "qatar", "label": "GP du Qatar",
+                    "date_obj": date(2026, 11, 8),
+                    "closed": True, "public": True, "played": True,
+                }],
+                years=[2026], season_year=2026,
+                personal_summary={"points": 0, "rank": None},
+            )
+            self.assertIn('href="/w/qatar/public/pronos"', upcoming)
+            self.assertIn("Pronos publics", upcoming)
+
+        script = Path(app.static_folder, "v2-countdown.js").read_text(encoding="utf-8")
+        self.assertIn("window.location.reload()", script)
+        self.assertIn("refreshOnFinish", script)
+
     def test_template_smoke_race_center(self):
         with app.test_request_context("/"):
             from flask import render_template
