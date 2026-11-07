@@ -2034,7 +2034,9 @@ def is_pronos_public(weekend_id: str) -> bool:
     weekend = get_weekend(weekend_id)
     deadline = deadline_from_weekend(weekend)
     if deadline is not None and datetime.now(timezone.utc) >= deadline:
-        if bool((weekend or {}).get("auto_publish", False)):
+        if bool((weekend or {}).get("auto_publish", True)):
+            # Anciennes configurations : l'option était cochée par défaut
+            # dans l'admin mais absente du JSON. False explicite reste privé.
             return True
     if not engine:
         return False
@@ -2574,6 +2576,7 @@ def home():
     for weekend in upcoming:
         item = dict(weekend)
         item["closed"] = is_weekend_closed(item["id"])
+        item["public"] = item["closed"] and is_pronos_public(item["id"])
         item["played"] = player_has_prono(item["id"])
         upcoming_cards.append(item)
 

@@ -34,7 +34,7 @@
           {% if rc.closed %}
             <strong>Clôturés</strong>
           {% elif rc.deadline_iso %}
-            <strong class="v2-race-deadline-value" data-countdown="{{ rc.deadline_iso }}">Calcul…</strong>
+            <strong class="v2-race-deadline-value" data-countdown="{{ rc.deadline_iso }}" data-refresh-on-finish="1">Calcul…</strong>
           {% else %}
             <strong class="v2-race-metric-detail">Clôture manuelle</strong>
           {% endif %}
@@ -96,4 +96,4 @@
     </aside>
   </div>
 </section>
-<script defer src="{{ url_for('static',filename='v2-countdown.js') }}"></script>
+<script defer src="{{ url_for('static',filename='v2-countdown.js',v='20261107-public-cta') }}"></script>

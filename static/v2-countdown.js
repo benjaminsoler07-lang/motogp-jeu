@@ -36,6 +36,20 @@
       }
       if (!secs) {
         node.textContent = node.dataset.countdownFinished || "Clôturé / Terminé";
+        // La clôture doit aussi actualiser le bouton, pas seulement l'horloge.
+        // Le serveur reste seul juge de la publication : un simple rechargement
+        // affiche soit "Pronos publics", soit "Pronostics fermés".
+        if (node.dataset.refreshOnFinish === "1") {
+          const key = "pronogp:deadline-refreshed:" + node.dataset.countdown;
+          try {
+            if (window.sessionStorage.getItem(key) !== "1") {
+              window.sessionStorage.setItem(key, "1");
+              window.location.reload();
+            }
+          } catch (_) {
+            // Stockage désactivé : ne pas provoquer une boucle de rechargements.
+          }
+        }
         return;
       }
       const d = Math.floor(secs / 86400), h = Math.floor(secs % 86400 / 3600);
