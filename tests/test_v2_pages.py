@@ -114,6 +114,27 @@ class V2PagesTests(unittest.TestCase):
         self.assertEqual(self.client.get("/admin/login").status_code,
                          200 if admin_enabled() else 500)
 
+    def test_share_button_available_in_mobile_pwa_and_login_page(self):
+        from pathlib import Path
+
+        response = self.client.get("/login")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('data-share-pronogp', html)
+        self.assertIn('aria-label="Partager l\'application PronoGP"', html)
+        self.assertIn('data-share-url="https://motogp-jeu.onrender.com/"', html)
+        self.assertIn('share-pronogp.js', html)
+        self.assertIn('share-pronogp.css', html)
+
+        js = Path(app.static_folder, "share-pronogp.js").read_text(encoding="utf-8")
+        css = Path(app.static_folder, "share-pronogp.css").read_text(encoding="utf-8")
+        self.assertIn("navigator.share", js)
+        self.assertIn("navigator.clipboard.writeText", js)
+        self.assertIn("document.execCommand", js)
+        self.assertIn("AbortError", js)
+        self.assertIn("@media (max-width:540px)", css)
+        self.assertIn(".gp-share-label{display:none}", css)
+
     def test_login_page_hides_private_menu_for_guest(self):
         html = self.client.get("/login").get_data(as_text=True)
         self.assertNotIn('class="header-nav"', html)
