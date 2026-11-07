@@ -75,6 +75,36 @@ class RacingColorsTests(unittest.TestCase):
         self.assertIn("Pilote A", html)
         self.assertIn("Pilote B", html)
 
+    def test_public_comparison_row_labels_match_prediction_form_colors(self):
+        insights = build_public_insights(self.pronos, self.weekend)
+        with app.test_request_context("/w/gp-test/public/pronos"):
+            html = render_template(
+                "public_pronos.html", w=self.weekend, name="Alice",
+                pronos=self.pronos, insights=insights, v2_avatar_ids={},
+            )
+        for group in ("qualif", "sprint", "gp", "bonus"):
+            with self.subTest(group=group):
+                self.assertIn(f"gp-comparison-choice-row row-{group}", html)
+
+        css = self.client.get("/static/racing-v4.css").get_data(as_text=True)
+        for group, start in (
+            ("qualif", "#196f8d"),
+            ("sprint", "#66459a"),
+            ("gp", "#983e58"),
+            ("bonus", "#86601f"),
+        ):
+            with self.subTest(group=group):
+                self.assertIn(f".gp-comparison-choice-row.row-{group}", css)
+                self.assertIn(f"--row-bg-start:{start}", css)
+        self.assertIn(".gp-comparison-choice-row > th.gp-comparison-label", css)
+        self.assertIn("border-left:3px solid var(--row-border)", css)
+        self.assertIn("color:var(--row-text)", css)
+        self.assertIn(".gp-row-verdict:not(.is-unanimous)", css)
+        self.assertIn("td.tone-cyan", css)
+        with app.test_request_context("/login"):
+            base_html = render_template("base.html", name="Alice")
+        self.assertIn("public-pronos-row-colors-v6", base_html)
+
     def test_original_racing_art_is_served_without_affecting_results(self):
         svg = self.client.get("/static/racing-track-v4.svg")
         css = self.client.get("/static/racing-v4.css")
