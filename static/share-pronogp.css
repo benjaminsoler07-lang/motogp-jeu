@@ -1,0 +1,34 @@
+/* Bouton de partage compact dans le bandeau racing/neon. */
+.gp-header-tools{position:relative}
+.gp-header-share{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:38px; min-width:38px; padding:8px 11px; cursor:pointer;
+  color:#e8faff; background:linear-gradient(135deg,rgba(29,156,220,.22),rgba(17,68,113,.65));
+  border:1px solid rgba(91,222,255,.55); border-radius:10px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 0 10px rgba(16,203,255,.10);
+  font:inherit; font-size:.83rem; font-weight:800; white-space:nowrap;
+  transition:background .18s,border-color .18s,box-shadow .18s,transform .18s;
+}
+.gp-header-share:hover,.gp-header-share:focus-visible{
+  background:linear-gradient(135deg,rgba(29,185,240,.38),rgba(17,68,113,.76));
+  border-color:#88eeff; box-shadow:0 0 16px rgba(32,215,255,.24);
+}
+.gp-header-share:active{transform:scale(.97)}
+.gp-share-icon{font-size:1.15rem;line-height:1;font-weight:900}
+.gp-share-feedback{
+  position:absolute;z-index:55;top:calc(100% + 6px);right:0;
+  pointer-events:none;padding:0;border:0;
+  font-size:.78rem;white-space:nowrap;
+}
+.gp-share-feedback:not(:empty){
+  color:#dcfbff;background:#0b3458;border:1px solid #63dfff;
+  border-radius:8px;padding:7px 10px;box-shadow:0 8px 22px rgba(0,0,0,.4);
+}
+@media (max-width:540px){
+  .gp-header-tools{gap:5px}
+  .gp-header-share{padding:7px;flex:0 0 38px}
+  .gp-share-label{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .gp-header-share{transition:none}
+}
