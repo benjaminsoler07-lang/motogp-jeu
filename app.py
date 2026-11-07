@@ -41,6 +41,7 @@ from v2_notifications import register_notifications
 from v2_bulk_import import register_bulk_import
 from gp_insights import build_public_insights, build_championship_insights
 from season_standings import build_season_standings, individual_season_summary
+from season_bulk import build_season_standings_batched
 from results_selection import default_results_weekend
 from sqlalchemy.pool import NullPool
 
@@ -2583,10 +2584,9 @@ def home():
     # Exactly the same scoring and rank as the general standings page.
     season_rows = []
     if name:
-        season_rows, _, _ = build_season_standings(
-            season_weekends, load_results,
-            get_latest_pronos_by_player_for_weekend, load_bonus_reviews,
-            compute_points_breakdown,
+        season_rows, _, _ = build_season_standings_batched(
+            season_weekends, engine, ensure_db_bootstrap, compute_points_breakdown,
+            load_results, get_latest_pronos_by_player_for_weekend, load_bonus_reviews,
         )
     personal_summary = individual_season_summary(season_rows, name, normalize_pseudo)
 
@@ -3883,9 +3883,9 @@ def classement_general():
             is_admin=is_admin()
         )
 
-    rows, gp_scored, gp_rounds = build_season_standings(
-        weekends, load_results, get_latest_pronos_by_player_for_weekend,
-        load_bonus_reviews, compute_points_breakdown,
+    rows, gp_scored, gp_rounds = build_season_standings_batched(
+        weekends, engine, ensure_db_bootstrap, compute_points_breakdown,
+        load_results, get_latest_pronos_by_player_for_weekend, load_bonus_reviews,
     )
 
     notice = None
